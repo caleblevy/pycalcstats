@@ -79,16 +79,34 @@ list_seqs = [   sequence,
 tuple_seqs = [tuple(i) for i in list_seqs]
 # set versions of the above
 set_seqs = [set(i) for i in list_seqs]
-
-
+# the sequences that are only integers
+int_seqs = [sequence, zeros, ones]
+# the sequences that are only floats
+float_seqs = [  vanishing_sequence,
+                pi_multiples, e_multiples,
+                inv_pi_multiples, 
+                inv_e_multiples, 
+                precision_sequence, 
+                semiprecision_sequence
+             ]
+# the sequences that test various arithmetic properties
+division_seqs = [zeros, nodiv]
+addition_seqs = [noadd]
+multiplication_seqs = [nomul]
+# the sequences that test numeric precision
+numeric_seqs = [precision_sequence, semiprecision_sequence]
 #------------------------------------------------------------------------------#
 #                                  Tests                                       #
 #------------------------------------------------------------------------------#
 
 class UsabilityTests(unittest.TestCase):
 
+    def run_with_datasets(self, f, datasets):
+        for dataset in datasets:
+            f(dataset)
+
     def test_mean(self):
-        pass
+                
 
     def test_harmonic_mean(self):
         pass
