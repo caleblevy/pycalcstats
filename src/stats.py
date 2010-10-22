@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##  Module stats.py
 ##
@@ -34,7 +34,6 @@
 2.375
 
 """
-from __future__ import division
 
 # Module metadata.
 __version__ = "0.1a"
@@ -64,8 +63,9 @@ __all__ = [
     ]
 
 
-from __builtin__ import sum as _sum
+from math import fsum
 
+import operator
 import functools
 import itertools
 import math
@@ -218,7 +218,7 @@ def geometric_mean(data):
         return 0.0
     if count == 0:
         raise StatsError('no data')
-    p = math.exp(_sum(partials, 0.0))
+    p = math.exp(fsum(partials))
     return pow(p, 1.0/count)
 
 
@@ -391,7 +391,7 @@ def average_deviation(xdata, Mx=None):
     for x in xdata:
         n += 1
         ap(abs(x - Mx), partials)
-    return _sum(partials, 0.0)/n
+    return fsum(partials)/n
 
 
 # === Simple multivariate statistics ===
@@ -438,7 +438,7 @@ def cov(xdata, ydata=None):
     ...      (1.7, 2.9)])  #doctest: +ELLIPSIS
     0.201666666666...
 
-    >>> print cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25])
+    >>> print(cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
     1.1675
     >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])  #doctest: +ELLIPSIS
     0.201666666666...
@@ -447,9 +447,9 @@ def cov(xdata, ydata=None):
     as both the x and y values:
 
     >>> data = [1.2, 0.75, 1.5, 2.45, 1.75]
-    >>> print cov(data, data)
+    >>> print(cov(data, data))
     0.40325
-    >>> print variance(data)
+    >>> print(variance(data))
     0.40325
 
     """
@@ -460,9 +460,9 @@ def cov(xdata, ydata=None):
 def pcov(xdata, ydata=None):
     """Return the population covariance between (x, y) data.
 
-    >>> print pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25])
+    >>> print(pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
     0.934
-    >>> print pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
+    >>> print(pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)]))
     0.15125
 
     """
@@ -512,16 +512,15 @@ def sum(data):
     partials = []
     for x in data:
         ap(x, partials)
-    return _sum(partials, 0.0)
+    return fsum(partials)
 
 
 def product(data):
     """Return the product of a sequence of numbers.
 
-    >>> product([1, 2, -3, 2, -1])
+    >>> product([1.0, 2, -3, 2, -1])
     12.0
 
-    """
     ap = add_partial
     log = math.log
     pos, neg = [], []
@@ -535,10 +534,11 @@ def product(data):
             sign = -sign
         else:
             z -= float('inf')
-    pos = _sum(pos, 0.0)
-    neg = _sum(neg, 0.0)
+    pos = fsum(pos)
+    neg = fsum(neg)
     return sign*math.exp(pos+neg+z)
-
+    """
+    return functools.reduce(operator.mul, data)
 
 def sumsq(data):
     """Return the sum of the squares of a sequence of numbers.
@@ -620,9 +620,9 @@ def Sxy(xdata, ydata=None):
         ap(x, sumx)
         ap(y, sumy)
         ap(x*y, sumxy)
-    sumx = _sum(sumx, 0.0)
-    sumy = _sum(sumy, 0.0)
-    sumxy = _sum(sumxy, 0.0)
+    sumx = fsum(sumx)
+    sumy = fsum(sumy)
+    sumxy = fsum(sumxy)
     return n*sumxy - sumx*sumy
 
 
@@ -656,8 +656,8 @@ def xsums(xdata):
         n += 1
         ap(x, sumx)
         ap(x*x, sumx2)
-    sumx = _sum(sumx, 0.0)
-    sumx2 = _sum(sumx2, 0.0)
+    sumx = fsum(sumx)
+    sumx2 = fsum(sumx2)
     Sxx = n*sumx2 - sumx*sumx
     statsums = namedtuple('statsums', 'n sumx sumx2 Sxx')
     return statsums(*(n, sumx, sumx2, Sxx))
@@ -696,7 +696,7 @@ def xysums(xdata, ydata=None):
     if ydata is None:
         data = xdata
     else:
-        data = itertools.izip(xdata, ydata)
+        data = zip(xdata, ydata)
     ap = add_partial
     n = 0
     sumx, sumy, sumxy, sumx2, sumy2 = [], [], [], [], []
@@ -707,11 +707,11 @@ def xysums(xdata, ydata=None):
         ap(x*y, sumxy)
         ap(x*x, sumx2)
         ap(y*y, sumy2)
-    sumx = _sum(sumx, 0.0)
-    sumy = _sum(sumy, 0.0)
-    sumxy = _sum(sumxy, 0.0)
-    sumx2 = _sum(sumx2, 0.0)
-    sumy2 = _sum(sumy2, 0.0)
+    sumx = fsum(sumx)
+    sumy = fsum(sumy)
+    sumxy = fsum(sumxy)
+    sumx2 = fsum(sumx2)
+    sumy2 = fsum(sumy2)
     Sxx = n*sumx2 - sumx*sumx
     Syy = n*sumy2 - sumy*sumy
     Sxy = n*sumxy - sumx*sumy
