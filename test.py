@@ -13,15 +13,79 @@ This module contains some lightweight tests for the stats module.
 import unittest
 from math import pi, e
 
+#------------------------------------------------------------------------------#
+#                    Arithmetically Inconvenient Types                         #
+#------------------------------------------------------------------------------#
+
+class NoAddition(int):
+    
+    def __add__(self, other):
+        raise NotImplementedError("No addition!")
+
+    def __radd__(self, other):
+        raise NotImplementedError("No addition!")
+
+
+class NoMultiplication(int):
+
+    def __mul__(self, other):
+        raise NotImplementedError("No multiplication!")
+
+    def __rmul__(self, other):
+        raise NotImplementedError("No multiplication!")
+
+
+class NoDivision(int):
+
+    def __div__(self, other):
+        raise NotImplementedError("No division!")
+
+    def __rdiv__(self, other):
+        raise NotImplementedError("No division!")
+
+#------------------------------------------------------------------------------#
+#                           Test Sequences                                     #
+#------------------------------------------------------------------------------#
+
+# a few list sequences
+sequence = list(range(1, 1001))
+vanishing_sequence = [.1/float(i) for i in sequence]
+pi_multiples = [pi*i for i in sequence]
+e_multiples = [e*i for i in sequence]
+inv_pi_multiples = [pi*i for i in vanishing_sequence]
+inv_e_multiples = [e*i for i in vanishing_sequence]
+zeros = [0] * 1000
+ones = [1] * 1000
+noadd = [NoAddition()] * 1000
+nomul = [NoMultiplication()] * 1000
+nodiv = [NoDivision()] * 1000
+precision_sequence = [1, 1e100, 1, -1e100] * 10000
+semiprecision_sequence = [0.123456789012345] * 10000000
+list_seqs = [   sequence,
+                vanishing_sequence,
+                pi_multiples,
+                e_multiples,
+                inv_pi_multiples,
+                inv_e_multiples,
+                zeros,
+                ones,
+                noadd,
+                nomul,
+                nodiv,
+                precision_sequence,
+                semiprecision_sequence
+            ]
+# tuple versions of the above
+tuple_seqs = [tuple(i) for i in list_seqs]
+# set versions of the above
+set_seqs = [set(i) for i in list_seqs]
+
+
+#------------------------------------------------------------------------------#
+#                                  Tests                                       #
+#------------------------------------------------------------------------------#
+
 class UsabilityTests(unittest.TestCase):
-	
-    def setUp(self):
-        self.sequence = list(range(1000))
-        self.vanishing_sequence = [.1/float(i) for i in self.sequence]
-        self.pi_multiples = [pi*i for i in self.sequence]
-        self.e_multiples = [e*i for i in self.sequence]
-        self.inv_pi_multiples = [pi*i for i in self.vanishing_sequence]
-        self.inv_e_multiples = [e*i for i in self.vanishing_sequence]
 
     def test_mean(self):
         pass
@@ -110,6 +174,7 @@ class UsabilityTests(unittest.TestCase):
 
 class PrecisionTests(unittest.TestCase):
     pass
+
 
 if __name__ == "__main__":
     unittest.main()
