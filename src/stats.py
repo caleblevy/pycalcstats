@@ -327,7 +327,7 @@ def iqr(data):
 
     The IQR is the difference between the first and third quartile.
     """
-    raise NotImplemented('not implemented yet')
+    raise NotImplementedError('not implemented yet')
 
 
 def average_deviation(xdata, Mx=None):
