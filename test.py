@@ -219,23 +219,23 @@ class UsabilityTests(unittest.TestCase):
 
     def test_corr(self):
         # test to make sure it handles everthing
-        self.run_all(stats.corr, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.corr, lambda x: x not in [noadd])
 
     def test_cov(self):
         # test to make sure it handles everthing
-        self.run_all(stats.cov, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.cov, lambda x: x not in [noadd])
 
     def test_pcov(self):
         # test to make sure it handles everthing
-        self.run_all(stats.pcov, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.pcov, lambda x: x not in [noadd])
 
     def test_errsumsq(self):
         # test to make sure it handles everthing
-        self.run_all(stats.errsumsq, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.errsumsq, lambda x: x not in [noadd])
 
     def test_linr(self):
         # test to make sure it handles everthing
-        self.run_all(stats.linr, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.linr, lambda x: x not in [noadd])
 
     def test_sum(self):
         # test to make sure it handles everthing
@@ -267,7 +267,7 @@ class UsabilityTests(unittest.TestCase):
 
     def test_Sxy(self):
         # test to make sure it handles everthing
-        self.run_all(stats.Sxy, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.Sxy, lambda x: x not in [noadd])
 
     def test_sterrmean(self):
         # test to make sure it handles everthing
