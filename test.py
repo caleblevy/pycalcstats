@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 """
 test.py
@@ -146,7 +146,7 @@ class UsabilityTests(unittest.TestCase):
 
     def run_all(self, f, f_filter):
         # test to make sure it handles everthing except those filtered
-        list_seqs = filter(f_filter, seqs)
+        list_seqs = list(filter(f_filter, seqs))
         tuple_seqs = [tuple(i) for i in list_seqs]
         set_seqs = [set(i) for i in list_seqs]
         my_seqs = list_seqs + tuple_seqs + set_seqs
