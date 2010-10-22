@@ -158,111 +158,111 @@ class UsabilityTests(unittest.TestCase):
 
     def test_harmonic_mean(self):
         # test to make sure it handles everthing except the noadd
-        self.run_all(stats.mean, lambda x: x != noadd)
+        self.run_all(stats.harmonic_mean, lambda x: x != noadd)
 
     def test_geometric_mean(self):
         # test to make sure it handles everthing except the noadd and nomul
-        self.run_all(stats.mean, lambda x: x not in [noadd, nomul])
+        self.run_all(stats.geometric_mean, lambda x: x not in [noadd, nomul])
 
     def test_quadratic_mean(self):
         # test to make sure it handles everthing except the nomul
-        self.run_all(stats.mean, lambda x: x != nomul)
+        self.run_all(stats.quadratic_mean, lambda x: x != nomul)
 
     def test_median(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.median, lambda x: x not in [noadd])
 
     def test_mode(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.mode, lambda x: x not in [noadd])
 
     def test_midrange(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.midrange, lambda x: x not in [noadd])
 
-    def test_stdev(self):
+    def test_standard_deviation(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.standard_deviation, lambda x: x not in [noadd])
 
     def test_pstdev(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.population_standard_deviation, lambda x: x not in [noadd])
 
     def test_variance(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.variance, lambda x: x not in [noadd])
 
     def test_pvariance(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.pvariance, lambda x: x not in [noadd])
 
     def test_range(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.range, lambda x: x not in [noadd])
 
     def test_iqr(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.iqr, lambda x: x not in [noadd])
 
     def test_average_deviation(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.average_deviation, lambda x: x not in [noadd])
 
     def test_corr(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.corr, lambda x: x not in [noadd])
 
     def test_cov(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.cov, lambda x: x not in [noadd])
 
     def test_pcov(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.pcov, lambda x: x not in [noadd])
 
     def test_errsumsq(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.errsumsq, lambda x: x not in [noadd])
 
     def test_linr(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.linr, lambda x: x not in [noadd])
 
     def test_sum(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.sum, lambda x: x not in [noadd])
 
     def test_sumsq(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.sumsq, lambda x: x not in [noadd])
 
     def test_product(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.product, lambda x: x not in [noadd])
 
     def test_xsums(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.xsums, lambda x: x not in [noadd])
 
     def test_xysums(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.xysums, lambda x: x not in [noadd])
 
     def test_Sxx(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.Sxx, lambda x: x not in [noadd])
 
     def test_Syy(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.Syy, lambda x: x not in [noadd])
 
     def test_Sxy(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.Sxy, lambda x: x not in [noadd])
 
     def test_sterrmean(self):
         # test to make sure it handles everthing
-        self.run_all(stats.mean, lambda x: x not in [noadd])
+        self.run_all(stats.stderrmean, lambda x: x not in [noadd])
 
 
 class PrecisionTests(unittest.TestCase):

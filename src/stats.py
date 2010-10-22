@@ -62,55 +62,12 @@ __all__ = [
     'sterrmean', 'StatsError',
     ]
 
-
-from math import fsum
-
+import math
 import operator
 import functools
 import itertools
-import math
 
-
-try:
-    next
-except NameError:
-    def next(iterator):
-        """Return the next item of an iterator.
-
-        >>> next(iter([1, 2]))
-        1
-
-        """
-        return iterator.next()
-
-
-try:
-    from math import isnan
-except ImportError:
-    def isnan(x):
-        """Return True if x is a NAN float, otherwise False.
-
-        >>> isnan(float('nan'))
-        True
-        >>> isnan(1.5)
-        False
-
-        """
-        return isinstance(x, float) and x != x
-
-
-try:
-    from collections import namedtuple
-except ImportError:
-    # Quick and dirty replacement for namedtuple.
-    def namedtuple(classname, fieldnames):
-        class inner(tuple):
-            def __new__(cls, *args):
-                return tuple.__new__(cls, args)
-        inner.__name__ = classname
-        for i, name in enumerate(fieldnames.split()):
-            setattr(inner, name, property(lambda self, i=i: self[i]))
-        return inner
+from collections import namedtuple
 
 
 # === Exceptions ===
@@ -218,7 +175,7 @@ def geometric_mean(data):
         return 0.0
     if count == 0:
         raise StatsError('no data')
-    p = math.exp(fsum(partials))
+    p = math.exp(math.fsum(partials))
     return pow(p, 1.0/count)
 
 
@@ -298,10 +255,10 @@ def midrange(data):
 # ----------------------------------------------
 
 
-def stdev(data):
+def standard_deviation(data):
     """Return the sample standard deviation of data.
 
-    >>> stdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    >>> standard_deviation([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
     1.08108741552...
 
     If data represents the entire population, and not just a sample, then
@@ -310,10 +267,10 @@ def stdev(data):
     return math.sqrt(variance(data))
 
 
-def pstdev(data):
+def population_standard_deviation(data):
     """Return the population standard deviation of data.
 
-    >>> pstdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    >>> population_standard_deviation([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
     0.986893273527...
 
     You should use pstdev when data represents the entire population rather
@@ -391,7 +348,7 @@ def average_deviation(xdata, Mx=None):
     for x in xdata:
         n += 1
         ap(abs(x - Mx), partials)
-    return fsum(partials)/n
+    return math.fsum(partials)/n
 
 
 # === Simple multivariate statistics ===
@@ -512,7 +469,7 @@ def sum(data):
     partials = []
     for x in data:
         ap(x, partials)
-    return fsum(partials)
+    return math.fsum(partials)
 
 
 def product(data):
@@ -604,9 +561,9 @@ def Sxy(xdata, ydata=None):
         ap(x, sumx)
         ap(y, sumy)
         ap(x*y, sumxy)
-    sumx = fsum(sumx)
-    sumy = fsum(sumy)
-    sumxy = fsum(sumxy)
+    sumx = math.fsum(sumx)
+    sumy = math.fsum(sumy)
+    sumxy = math.fsum(sumxy)
     return n*sumxy - sumx*sumy
 
 
@@ -640,8 +597,8 @@ def xsums(xdata):
         n += 1
         ap(x, sumx)
         ap(x*x, sumx2)
-    sumx = fsum(sumx)
-    sumx2 = fsum(sumx2)
+    sumx = math.fsum(sumx)
+    sumx2 = math.fsum(sumx2)
     Sxx = n*sumx2 - sumx*sumx
     statsums = namedtuple('statsums', 'n sumx sumx2 Sxx')
     return statsums(*(n, sumx, sumx2, Sxx))
@@ -691,11 +648,11 @@ def xysums(xdata, ydata=None):
         ap(x*y, sumxy)
         ap(x*x, sumx2)
         ap(y*y, sumy2)
-    sumx = fsum(sumx)
-    sumy = fsum(sumy)
-    sumxy = fsum(sumxy)
-    sumx2 = fsum(sumx2)
-    sumy2 = fsum(sumy2)
+    sumx = math.fsum(sumx)
+    sumy = math.fsum(sumy)
+    sumxy = math.fsum(sumxy)
+    sumx2 = math.fsum(sumx2)
+    sumy2 = math.fsum(sumy2)
     Sxx = n*sumx2 - sumx*sumx
     Syy = n*sumy2 - sumy*sumy
     Sxy = n*sumxy - sumx*sumy
