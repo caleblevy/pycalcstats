@@ -62,7 +62,7 @@ noadd = [NoAddition()] * 1000
 nomul = [NoMultiplication()] * 1000
 nodiv = [NoDivision()] * 1000
 precision_sequence = [1, 1e100, 1, -1e100] * 10000
-semiprecision_sequence = [0.123456789012345] * 10000000
+semiprecision_sequence = [0.123456789012345] * 10000
 list_seqs = [   sequence,
                 vanishing_sequence,
                 pi_multiples,
