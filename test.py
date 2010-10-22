@@ -13,6 +13,8 @@ This module contains some lightweight tests for the stats module.
 import unittest
 from math import pi, e
 
+import stats
+
 #------------------------------------------------------------------------------#
 #                    Arithmetically Inconvenient Types                         #
 #------------------------------------------------------------------------------#
@@ -95,6 +97,9 @@ addition_seqs = [noadd]
 multiplication_seqs = [nomul]
 # the sequences that test numeric precision
 numeric_seqs = [precision_sequence, semiprecision_sequence]
+# all of the above
+all_seqs = list_seqs + tuple_seqs + set_seqs
+
 #------------------------------------------------------------------------------#
 #                                  Tests                                       #
 #------------------------------------------------------------------------------#
@@ -106,7 +111,9 @@ class UsabilityTests(unittest.TestCase):
             f(dataset)
 
     def test_mean(self):
-                
+        # test to make sure it handles everthing except the noadd
+        seqs = filter(lambda x: x != noadd, list_seqs)
+        self.run_with_datasets(stats.mean, seqs)
 
     def test_harmonic_mean(self):
         pass
