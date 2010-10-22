@@ -152,6 +152,15 @@ class UsabilityTests(unittest.TestCase):
         my_seqs = list_seqs + tuple_seqs + set_seqs
         self.run_with_datasets(f, my_seqs)
 
+    def run_all_bivariate(self, f, f_filter):
+        # test to make sure it handles everthing except those filtered
+        pre_seqs = list(filter(f_filter, seqs))
+        list_seqs = [list(zip(x, x)) for x in pre_seqs]
+        tuple_seqs = [tuple(i) for i in list_seqs]
+        set_seqs = [set(i) for i in list_seqs]
+        my_seqs = list_seqs + tuple_seqs + set_seqs
+        self.run_with_datasets(f, my_seqs)        
+
     def test_mean(self):
         # test to make sure it handles everthing except the noadd
         self.run_all(stats.mean, lambda x: x != noadd)
@@ -246,7 +255,7 @@ class UsabilityTests(unittest.TestCase):
 
     def test_xysums(self):
         # test to make sure it handles everthing
-        self.run_all(stats.xysums, lambda x: x not in [noadd])
+        self.run_all_bivariate(stats.xysums, lambda x: x not in [noadd])
 
     def test_Sxx(self):
         # test to make sure it handles everthing
