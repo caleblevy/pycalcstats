@@ -63,24 +63,7 @@ nomul = [NoMultiplication()] * 1000
 nodiv = [NoDivision()] * 1000
 precision_sequence = [1, 1e100, 1, -1e100] * 10000
 semiprecision_sequence = [0.123456789012345] * 10000
-list_seqs = [   sequence,
-                vanishing_sequence,
-                pi_multiples,
-                e_multiples,
-                inv_pi_multiples,
-                inv_e_multiples,
-                zeros,
-                ones,
-                noadd,
-                nomul,
-                nodiv,
-                precision_sequence,
-                semiprecision_sequence
-            ]
-# tuple versions of the above
-tuple_seqs = [tuple(i) for i in list_seqs]
-# set versions of the above
-set_seqs = [set(i) for i in list_seqs]
+
 # the sequences that are only integers
 int_seqs = [sequence, zeros, ones]
 # the sequences that are only floats
@@ -91,15 +74,30 @@ float_seqs = [  vanishing_sequence,
                 precision_sequence, 
                 semiprecision_sequence
              ]
+
 # the sequences that test various arithmetic properties
 division_seqs = [zeros, nodiv]
 addition_seqs = [noadd]
 multiplication_seqs = [nomul]
+
 # the sequences that test numeric precision
 numeric_seqs = [precision_sequence, semiprecision_sequence]
-# all of the above
-all_seqs = list_seqs + tuple_seqs + set_seqs
 
+# all of the above
+seqs = [    sequence,
+            vanishing_sequence,
+            pi_multiples,
+            e_multiples,
+            inv_pi_multiples,
+            inv_e_multiples,
+            zeros,
+            ones,
+            noadd,
+            nomul,
+            nodiv,
+            precision_sequence,
+            semiprecision_sequence
+        ]
 #------------------------------------------------------------------------------#
 #                                  Tests                                       #
 #------------------------------------------------------------------------------#
@@ -112,17 +110,35 @@ class UsabilityTests(unittest.TestCase):
 
     def test_mean(self):
         # test to make sure it handles everthing except the noadd
-        seqs = filter(lambda x: x != noadd, list_seqs)
-        self.run_with_datasets(stats.mean, seqs)
+        list_seqs = filter(lambda x: x != noadd, seqs)
+        tuple_seqs = [tuple(i) for i in list_seqs]
+        set_seqs = [set(i) for i in list_seqs]
+        additive_seqs = list_seqs + tuple_seqs + set_seqs
+        self.run_with_datasets(stats.mean, additive_seqs)
 
     def test_harmonic_mean(self):
-        pass
+        # test to make sure it handles everthing except the noadd
+        list_seqs = filter(lambda x: x != noadd, seqs)
+        tuple_seqs = [tuple(i) for i in list_seqs]
+        set_seqs = [set(i) for i in list_seqs]
+        additive_seqs = list_seqs + tuple_seqs + set_seqs
+        self.run_with_datasets(stats.harmonic_mean, additive_seqs)
 
     def test_geometric_mean(self):
-        pass
+        # test to make sure it handles everthing except the noadd and nomul
+        list_seqs = filter(lambda x: x not in [noadd, nomul], seqs)
+        tuple_seqs = [tuple(i) for i in list_seqs]
+        set_seqs = [set(i) for i in list_seqs]
+        additive_seqs = list_seqs + tuple_seqs + set_seqs
+        self.run_with_datasets(stats.geometric_mean, additive_seqs)
 
     def test_quadratic_mean(self):
-        pass
+        # test to make sure it handles everthing except the nomul
+        list_seqs = filter(lambda x: x not in [nomul], seqs)
+        tuple_seqs = [tuple(i) for i in list_seqs]
+        set_seqs = [set(i) for i in list_seqs]
+        additive_seqs = list_seqs + tuple_seqs + set_seqs
+        self.run_with_datasets(stats.quadratic_mean, additive_seqs)
 
     def test_median(self):
         pass
