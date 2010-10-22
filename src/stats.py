@@ -521,22 +521,6 @@ def product(data):
     >>> product([1.0, 2, -3, 2, -1])
     12.0
 
-    ap = add_partial
-    log = math.log
-    pos, neg = [], []
-    z = 0.0
-    sign = 1
-    for x in data:
-        if x > 0.0:
-            ap(log(x), pos)
-        elif x < 0.0:
-            ap(log(-x), neg)
-            sign = -sign
-        else:
-            z -= float('inf')
-    pos = fsum(pos)
-    neg = fsum(neg)
-    return sign*math.exp(pos+neg+z)
     """
     return functools.reduce(operator.mul, data)
 
