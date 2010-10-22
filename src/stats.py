@@ -502,7 +502,7 @@ def Sxx(xdata):
     If you need all three of Sxx, Syy and Sxy, it is more efficient to use
     xysums() instead.
     """
-    data = iter(data)
+    data = iter(xdata)
     first = next(data)
     if isinstance(first, tuple):
         if len(first) != 2:
@@ -525,7 +525,7 @@ def Syy(ydata):
     If you need all three of Sxx, Syy and Sxy, it is more efficient to use
     xysums() instead.
     """
-    data = iter(data)
+    data = iter(ydata)
     first = next(data)
     if isinstance(first, tuple):
         if len(first) != 2:
@@ -552,7 +552,7 @@ def Sxy(xdata, ydata=None):
     if ydata is None:
         data = xdata
     else:
-        data = itertools.izip(xdata, ydata)
+        data = zip(xdata, ydata)
     n = 0
     sumx, sumy, sumxy = [], [], []
     ap = add_partial
