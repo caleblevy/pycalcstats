@@ -1,0 +1,21 @@
+=====================================================================
+                         C H A N G E   L O G
+=====================================================================
+
+
+Version 0.1.1a  2010-10-??????
+    * stats is now aimed at Python 3.1 or better. Support functions for
+      Python 2.5 have been removed.
+    * stats now aims to guarantee a single pass through the data for most
+      routines.
+    * Serious numerical instability in variance and standard deviation
+      functions due to use of a naive algorithm. (Thanks to Kurt Smith for
+      spotting this). Changed to Welford's method for calculating variance.
+    * Similar changes to correlation, covariance and linear regression.
+    * More tests. Thanks to geremy condra.
+
+
+Version 0.1a    2010-10-18
+    Initial release, for Python 2.5.
+
+

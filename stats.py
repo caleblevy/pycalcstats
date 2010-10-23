@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 ##  Module stats.py
 ##
@@ -25,7 +25,7 @@
 
 
 """
-'Scientific calculator' statistics.
+'Scientific calculator' statistics for Python 3.
 
 >>> mean([-1.0, 2.5, 3.25, 5.75])
 2.625
@@ -33,12 +33,18 @@
 >>> mean(data)
 2.375
 
+
+TO DO:
+Unless otherwise noted, all statistical functions will operate on data in
+a single pass. This allows them to process data sets that are too large to
+fit in memory at once. Exceptions include functions such as median, which
+will sort the data (in place, if possible) before processing.
+
 """
-from __future__ import division
 
 # Module metadata.
-__version__ = "0.1a"
-__date__ = "2010-10-17"
+__version__ = "0.1.1a"
+__date__ = "2010-10-24"
 __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
@@ -64,53 +70,11 @@ __all__ = [
     ]
 
 
-from __builtin__ import sum as _sum
-
 import functools
 import itertools
 import math
 
-
-try:
-    next
-except NameError:
-    def next(iterator):
-        """Return the next item of an iterator.
-
-        >>> next(iter([1, 2]))
-        1
-
-        """
-        return iterator.next()
-
-
-try:
-    from math import isnan
-except ImportError:
-    def isnan(x):
-        """Return True if x is a NAN float, otherwise False.
-
-        >>> isnan(float('nan'))
-        True
-        >>> isnan(1.5)
-        False
-
-        """
-        return isinstance(x, float) and x != x
-
-
-try:
-    from collections import namedtuple
-except ImportError:
-    # Quick and dirty replacement for namedtuple.
-    def namedtuple(classname, fieldnames):
-        class inner(tuple):
-            def __new__(cls, *args):
-                return tuple.__new__(cls, args)
-        inner.__name__ = classname
-        for i, name in enumerate(fieldnames.split()):
-            setattr(inner, name, property(lambda self, i=i: self[i]))
-        return inner
+from collections import namedtuple
 
 
 # === Exceptions ===
@@ -120,6 +84,24 @@ class StatsError(ValueError):
 
 
 # === Utility functions and classes ===
+
+
+# Save a reference to the built-in sum, as we're going to shadow it later.
+_sum = sum  
+
+
+def sorted_data(func):
+    """Decorator to sort data passed to stats functions."""
+    @functools.wraps(func)
+    def inner(data):
+        if isinstance(data, list):
+            # Sort in place.
+            data.sort()
+        else:
+            data = sorted(data)
+        return func(data)
+    return inner
+
 
 # Modified from http://code.activestate.com/recipes/393090/
 def add_partial(x, partials):
@@ -143,6 +125,8 @@ def add_partial(x, partials):
             i += 1
         x = hi
     partials[i:] = [x]
+    # XXX How large does partials grow? We want to support huge iterator
+    # XXX data sequences, it would be bad if partials grows equally huge.
 
 
 def makeseq(data):
@@ -167,11 +151,23 @@ def mean(data):
     The arithmetic mean is the sum of the data divided by the number of data.
     It is commonly called "the average".
     """
-    data = makeseq(data)
-    n = len(data)
+    # Fast path for sequence data.
+    try:
+        n = len(data)
+    except TypeError:
+        # Slower path for iterable data with no len.
+        ap = add_partial
+        partials = []
+        n = 0
+        for x in data:
+            ap(x, partials)
+            n += 1
+        sumx = _sum(partials, 0.0)
+    else:
+        sumx = sum(data)
     if n == 0:
         raise StatsError('no data')
-    return sum(data)/n
+    return sumx/n
 
 
 def harmonic_mean(data):
@@ -184,15 +180,16 @@ def harmonic_mean(data):
     arithmetic mean of the reciprocals of the data. It is best suited for
     averaging rates.
     """
-    data = makeseq(data)
-    n = len(data)
-    if n == 0:
-        raise StatsError('no data')
     try:
-        return n/sum(1.0/x for x in data)
+        m = mean(1.0/x for x in data)
     except ZeroDivisionError:
-        # FIXME need to preserve the sign of the zero.
+        # FIXME need to preserve the sign of the zero?
+        # FIXME is it safe to assume that if data contains 1 or more zeroes,
+        # the harmonic mean must itself be zero?
         return 0.0
+    # FIXME if m is zero, the following will raise ZeroDivisionError. Would
+    # it be better to return float('inf') (plus or minus)?
+    return 1.0/m
 
 
 def geometric_mean(data):
@@ -235,18 +232,21 @@ def quadratic_mean(data):
     return math.sqrt(mean(x*x for x in data))
 
 
+@sorted_data
 def median(data):
     """Returns the median (middle) value of a sequence of numbers.
 
     >>> median([3.0, 5.0, 2.0])
     3.0
 
-    The median equals the second quartile or the 50th percentile.
+    The median is the middle data point in a sorted sequence of values. If
+    the argument to median is a list, it will be sorted in place, otherwise
+    the values will be collected into a sorted list.
 
-    The median is commonly used as an average. It is more robust than the mean
-    for data that contains outliers.
+    The median is commonly used as an average. It is more robust than the
+    mean for data that contains outliers. The median is equivalent to the
+    second quartile or the 50th percentile.
     """
-    data = sorted(data)
     n = len(data)
     n2 = n//2
     if n%2 == 1:
@@ -255,11 +255,11 @@ def median(data):
     else:
         # If there are an even number of items, we take the average
         # of the two middle ones.
-        return (data[n2-1] +data[n2])/2
+        return (data[n2-1] + data[n2])/2
 
 
 def mode(data):
-    """Returns the most common element of a sequence of numbers.
+    """Returns the single most common element of a sequence of numbers.
 
     >>> mode([5.0, 7.0, 2.0, 3.0, 2.0, 2.0, 1.0, 3.0])
     2.0
@@ -370,7 +370,7 @@ def iqr(data):
 
     The IQR is the difference between the first and third quartile.
     """
-    raise NotImplemented('not implemented yet')
+    raise NotImplementedError('not implemented yet')
 
 
 def average_deviation(xdata, Mx=None):
@@ -438,7 +438,7 @@ def cov(xdata, ydata=None):
     ...      (1.7, 2.9)])  #doctest: +ELLIPSIS
     0.201666666666...
 
-    >>> print cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25])
+    >>> print(cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
     1.1675
     >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])  #doctest: +ELLIPSIS
     0.201666666666...
@@ -447,9 +447,9 @@ def cov(xdata, ydata=None):
     as both the x and y values:
 
     >>> data = [1.2, 0.75, 1.5, 2.45, 1.75]
-    >>> print cov(data, data)
+    >>> print(cov(data, data))
     0.40325
-    >>> print variance(data)
+    >>> print(variance(data))
     0.40325
 
     """
@@ -460,9 +460,9 @@ def cov(xdata, ydata=None):
 def pcov(xdata, ydata=None):
     """Return the population covariance between (x, y) data.
 
-    >>> print pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25])
+    >>> print(pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
     0.934
-    >>> print pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
+    >>> print(pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)]))
     0.15125
 
     """
@@ -508,11 +508,7 @@ def sum(data):
     20000.0
 
     """
-    ap = add_partial
-    partials = []
-    for x in data:
-        ap(x, partials)
-    return _sum(partials, 0.0)
+    return math.fsum(data)
 
 
 def product(data):
@@ -611,7 +607,7 @@ def Sxy(xdata, ydata=None):
     if ydata is None:
         data = xdata
     else:
-        data = itertools.izip(xdata, ydata)
+        data = zip(xdata, ydata)
     n = 0
     sumx, sumy, sumxy = [], [], []
     ap = add_partial
@@ -696,7 +692,7 @@ def xysums(xdata, ydata=None):
     if ydata is None:
         data = xdata
     else:
-        data = itertools.izip(xdata, ydata)
+        data = zip(xdata, ydata)
     ap = add_partial
     n = 0
     sumx, sumy, sumxy, sumx2, sumy2 = [], [], [], [], []
