@@ -1,17 +1,16 @@
+#! /usr/bin/env python3
+
 from distutils.core import setup
 
-from stats import __version__, __author__, __author_email__
-
-setup(
-    name = "stats",
-    py_modules=["stats"],
-    version = __version__,
-    author = __author__,
-    author_email = __author_email__,
-    url = 'http://pypi.python.org/pypi/stats',
-    keywords = ["statistics", "mathematics", "calculator"],
-    description = "Calculator-style statistical functions",
-    long_description = """\
+setup(  name="stats.py",
+	version="0.1.1a",
+    	description="Elementary statistics module for Python",
+	author="Steven D'Aprano",
+	author_email="steve+python@pearwood.info",
+	url="http://pypi.python.org/pypi/stats/0.1a",
+	package_dir={'': 'src'},
+        packages=['stats'],
+        long_description = """\
 Statistical functions
 ---------------------
 
@@ -30,12 +29,15 @@ Multivariate statistics including:
 
 and others.
 
-Requires Python 3.1.
+Requires Python 2.5, 2.6, 2.7 or 3.1.
 """,
-    license = 'MIT',  # apologies for the American spelling
-    classifiers = [
+        license = 'MIT',  # apologies for the American spelling
+        classifiers = [
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python",
+        "Programming Language :: Python :: 2.5",
+        "Programming Language :: Python :: 2.6",
+        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3.1",
         "Environment :: Other Environment",
         "Intended Audience :: Developers",
@@ -45,4 +47,3 @@ Requires Python 3.1.
         "License :: OSI Approved :: MIT License",
         ],
     )
-
