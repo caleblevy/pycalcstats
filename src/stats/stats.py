@@ -271,7 +271,27 @@ def quartiles(data):
     known as the median) and the third quartile Q3 from sortable sequence
     data.
     """
-    raise NotImplementedError('not implemented yet')
+    n = len(data)
+    rem = n%4
+    a, m, b = n//4, n//2, (3*n)//4
+    if rem == 0:
+        q1 = (data[a-1] + data[a])/2
+        q2 = (data[m-1] + data[m])/2
+        q3 = (data[b-1] + data[b])/2
+    elif rem == 1:
+        q1 = (data[a-1] + data[a])/2
+        q2 = data[m]
+        q3 = (data[b-1] + data[b])/2
+    elif rem == 2:
+        q1 = data[a]
+        q2 = (data[m-1] + data[m])/2
+        q3 = data[b]
+    else:
+        assert rem == 3
+        q1 = data[a]
+        q2 = data[m]
+        q3 = data[b]
+    return (q1, q2, q3)
 
 
 # Measures of spread (dispersion or variability)
