@@ -13,7 +13,7 @@ This module contains some lightweight tests for the stats module.
 import unittest
 from math import pi, e
 
-import stats
+from stats import stats
 
 #------------------------------------------------------------------------------#
 #                    Arithmetically Inconvenient Types                         #
@@ -207,10 +207,10 @@ class UsabilityTests(unittest.TestCase):
         self.run_all(stats.midrange, lambda x: x not in [noadd])
 
     def test_standard_deviation(self):
-        self.run_all(stats.standard_deviation, lambda x: x not in [noadd, ones, semiprecision_sequence])
+        self.run_all(stats.stdev, lambda x: x not in [noadd, ones, semiprecision_sequence])
 
     def test_pstdev(self):
-        self.run_all(stats.population_standard_deviation, lambda x: x not in [noadd, ones, semiprecision_sequence])
+        self.run_all(stats.pstdev, lambda x: x not in [noadd, ones, semiprecision_sequence])
 
     def test_variance(self):
         # variance requires addition and that there be a well-defined variance.
