@@ -49,3 +49,7 @@ __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
 
+from stats import *
+
+
+
