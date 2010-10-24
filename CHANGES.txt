@@ -13,6 +13,7 @@ Version 0.1.1a  2010-10-??????
       spotting this). Changed to Welford's method for calculating variance.
     * Similar changes to correlation, covariance and linear regression.
     * More tests. Thanks to geremy condra.
+    * stats is now a package.
 
 
 Version 0.1a    2010-10-18
