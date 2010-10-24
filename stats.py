@@ -114,6 +114,11 @@ def minmax(*values, key=None):
 
     >>> minmax(5, 2, 1, 3, 4)
     (1, 5)
+    >>> minmax([2, 5, 3, 1, 4])
+    (1, 5)
+
+    minmax also takes an optional key function:
+
     >>> minmax('aa bbbb c ddd eeeee f ggggg'.split(), key=len)
     ('c', 'eeeee')
 
@@ -135,7 +140,7 @@ def minmax(*values, key=None):
         else:
             it = ((key(x), x) for x in values)
         try:
-            minimum = maximum = next(values)
+            minimum = maximum = next(it)
         except StopIteration:
             raise ValueError('minmax() arg is empty')
         try:
