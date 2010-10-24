@@ -33,8 +33,8 @@ if sys.version < "3.0":
 # === Test suites ===
 
 class GlobalTest(unittest.TestCase):
-    def testState(self):
-        """Test the state of globals."""
+    """Test the state and/or existence of globals."""
+    def testSum(self):
         self.assert_(stats._sum is sum)
     def testMeta(self):
         """Test existence of metadata."""
@@ -108,6 +108,19 @@ class MinmaxTest(unittest.TestCase):
         self.assertEquals(result, expected)
 
 
+class SortedDataDecoratorTest(unittest.TestCase):
+    """Test that the sorted_data decorator works correctly."""
+    def testDecorator(self):
+        @stats.sorted_data
+        def f(data):
+            return data
+
+        values = random.sample(range(1000), 100)
+        result = f(values)
+        self.assertEquals(result, sorted(values))
+
+
+
 
 # ============================================================================
 
@@ -115,6 +128,7 @@ if __name__ == '__main__':
     # Define a function that prints, or doesn't, according to whether or not
     # we're in (slightly) quiet mode. Note that we always print "skip" and
     # failure messages.
+    # FIX ME can we make unittest run silently if there are no errors?
     if '-q' in sys.argv[1:]:
         def pr(s):
             pass
