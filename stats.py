@@ -66,7 +66,7 @@ __all__ = [
     # Sums and products:
     'sum', 'sumsq', 'product', 'xsums', 'xysums', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
-    'sterrmean', 'StatsError',
+    'sterrmean', 'StatsError', 'minmax',
     ]
 
 
@@ -103,6 +103,27 @@ def sorted_data(func):
     return inner
 
 
+def minmax(*values, **kw):
+    """minmax(iterable [, key=func]) -> (minimum, maximum)
+    minmax(a, b, c, ... [key=func]) -> (minimum, maximum)
+
+    With a single iterable argument, return a two-tuple of its smallest
+    item and largest item. With two or more arguments, return the smallest
+    and largest arguments.
+    """
+    if len(values) == 1:
+        values = values[0]
+    if isinstance(values, collections.Sequence):
+        # For speed, fall back on built-in min and max functions when
+        # data is a sequence and can be safely iterated over twice.
+        minimum = min(values, **kw)
+        maximum = max(values, **kw)
+    else:
+        # Iterator argument, so fall back on a slow pure-Python solution.
+        raise NotImplementedError('not yet implemented')
+    return (minimum, maximum)
+
+
 # Modified from http://code.activestate.com/recipes/393090/
 def add_partial(x, partials):
     """Helper function for full-precision summation of binary floats.
@@ -125,8 +146,6 @@ def add_partial(x, partials):
             i += 1
         x = hi
     partials[i:] = [x]
-    # XXX How large does partials grow? We want to support huge iterator
-    # XXX data sequences, it would be bad if partials grows equally huge.
 
 
 def makeseq(data):
@@ -162,9 +181,9 @@ def mean(data):
         for x in data:
             ap(x, partials)
             n += 1
-        sumx = _sum(partials, 0.0)
+        sumx = _sum(partials, 0.0)  # Use the built-in version of sum.
     else:
-        sumx = sum(data)
+        sumx = sum(data)  # Not the built-in version.
     if n == 0:
         raise StatsError('no data')
     return sumx/n
@@ -288,10 +307,23 @@ def midrange(data):
     The midrange is halfway between the smallest and largest element. It is
     a weak measure of central tendency.
     """
-    data = makeseq(data)
-    if len(data) == 0:
-        raise StatsError('no data')
-    return (min(data) + max(data))/2
+    a, b = minmax(data)
+    return (a + b)/2
+
+
+# Quartiles, deciles and percentiles
+# ----------------------------------
+
+
+@sorted_data
+def quartiles(data):
+    """Return (Q1, Q2, Q3) for data.
+
+    Returns a tuple of the first quartile Q1, the second quartile Q2 (also
+    known as the median) and the third quartile Q3 from sortable sequence
+    data.
+    """
+    raise NotImplementedError('not implemented yet')
 
 
 # Measures of spread (dispersion or variability)
@@ -359,10 +391,8 @@ def range(data):
     The range is the difference between the smallest and largest element. It
     is a weak measure of statistical variability.
     """
-    data = makeseq(data)
-    if len(data) == 0:
-        raise StatsError('no data')
-    return max(data) - min(data)
+    a, b = minmax(data)
+    return b - a
 
 
 def iqr(data):
@@ -370,7 +400,8 @@ def iqr(data):
 
     The IQR is the difference between the first and third quartile.
     """
-    raise NotImplementedError('not implemented yet')
+    q1, q2, q3 = quartiles(data)
+    return q3 - q1
 
 
 def average_deviation(xdata, Mx=None):

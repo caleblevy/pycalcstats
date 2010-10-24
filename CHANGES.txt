@@ -5,7 +5,7 @@
 
 Version 0.1.1a  2010-10-??????
     * stats is now aimed at Python 3.1 or better. Support functions for
-      Python 2.5 have been removed.
+      older versions have been removed.
     * stats now aims to guarantee a single pass through the data for most
       routines.
     * Serious numerical instability in variance and standard deviation
