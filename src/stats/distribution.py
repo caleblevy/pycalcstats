@@ -91,13 +91,13 @@ def precompute(cls, update_prefix='update_', recompute_prefix='recompute_'):
 class MethodStorage:
     """Decorator to add a function attribute of the given name and value"""
 
-	def __init__(self, name, value):
-		self.varname = name
-		self.initial_value = value
+    def __init__(self, name, value):
+        self.varname = name
+        self.initial_value = value
 
-	def __call__(self, f):
-		setattr(f, self.varname, self.initial_value)
-		return f
+    def __call__(self, f):
+        setattr(f, self.varname, self.initial_value)
+        return f
 
 #------------------------------------------------------------------------------#
 
