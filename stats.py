@@ -70,6 +70,7 @@ __all__ = [
     ]
 
 
+import collections
 import functools
 import itertools
 import math
@@ -103,24 +104,55 @@ def sorted_data(func):
     return inner
 
 
-def minmax(*values, **kw):
+def minmax(*values, key=None):
     """minmax(iterable [, key=func]) -> (minimum, maximum)
-    minmax(a, b, c, ... [key=func]) -> (minimum, maximum)
+    minmax(a, b, c, ... [, key=func]) -> (minimum, maximum)
 
     With a single iterable argument, return a two-tuple of its smallest
     item and largest item. With two or more arguments, return the smallest
-    and largest arguments.
+    and largest arguments. In the event of ties, the first item seen wins.
+
+    >>> minmax(5, 2, 1, 3, 4)
+    (1, 5)
+    >>> minmax('aa bbbb c ddd eeeee f ggggg'.split(), key=len)
+    ('c', 'eeeee')
+
     """
     if len(values) == 1:
         values = values[0]
     if isinstance(values, collections.Sequence):
         # For speed, fall back on built-in min and max functions when
         # data is a sequence and can be safely iterated over twice.
+        if not values:
+            raise ValueError('minmax() arg is empty')
+        kw = {} if key is None else {'key': key}
         minimum = min(values, **kw)
         maximum = max(values, **kw)
     else:
         # Iterator argument, so fall back on a slow pure-Python solution.
-        raise NotImplementedError('not yet implemented')
+        if key is None:
+            it = ((x, x) for x in values)
+        else:
+            it = ((key(x), x) for x in values)
+        try:
+            minimum = maximum = next(values)
+        except StopIteration:
+            raise ValueError('minmax() arg is empty')
+        try:
+            while True:
+                a = next(it)
+                try:
+                    b = next(it)
+                except StopIteration:
+                    b = a
+                if b[0] < a[0]:
+                    a, b, = b, a
+                if a[0] < minimum[0]: minimum = a
+                if b[0] > maximum[0]: maximum = b
+        except StopIteration:
+            pass
+        # Extract the data points from the pairs (data, key(data)).
+        minimum, maximum = minimum[1], maximum[1]
     return (minimum, maximum)
 
 
@@ -686,7 +718,7 @@ def xsums(xdata):
     sumx = _sum(sumx, 0.0)
     sumx2 = _sum(sumx2, 0.0)
     Sxx = n*sumx2 - sumx*sumx
-    statsums = namedtuple('statsums', 'n sumx sumx2 Sxx')
+    statsums = collections.namedtuple('statsums', 'n sumx sumx2 Sxx')
     return statsums(*(n, sumx, sumx2, Sxx))
 
 
@@ -742,7 +774,7 @@ def xysums(xdata, ydata=None):
     Sxx = n*sumx2 - sumx*sumx
     Syy = n*sumy2 - sumy*sumy
     Sxy = n*sumxy - sumx*sumy
-    statsums = namedtuple(
+    statsums = collections.namedtuple(
         'statsums', 'n sumx sumy sumxy sumx2 sumy2 Sxx Syy Sxy')
     return statsums(*(n, sumx, sumy, sumxy, sumx2, sumy2, Sxx, Syy, Sxy))
 
