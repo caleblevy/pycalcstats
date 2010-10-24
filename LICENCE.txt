@@ -1,4 +1,4 @@
-Module stats.py
+Package stats.py
 
 Copyright (c) 2010 Steven D'Aprano.
 
