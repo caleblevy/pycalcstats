@@ -12,10 +12,13 @@ Runs:
 import doctest
 import gc
 import itertools
+import math
 import os
+import pickle
 import random
 import sys
 import unittest
+import zipfile
 
 
 # Reminder to myself that this has to be run under Python3.
@@ -125,6 +128,49 @@ class SortedDataDecoratorTest(unittest.TestCase):
         values = random.sample(range(1000), 100)
         result = f(values)
         self.assertEquals(result, sorted(values))
+
+
+class CompareAgainstNumpyTest(unittest.TestCase):
+    places = 12
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        # Read data from test data file.
+        zf = zipfile.ZipFile('sample_data.zip', 'r')
+        self.data = pickle.loads(zf.read('data.pkl'))
+        self.expected = pickle.loads(zf.read('results.pkl'))
+        zf.close()
+    # FIXME assertAlmostEquals is not really the right way to do these
+    # tests, as decimal places != significant figures. See EVILHACK in
+    # testSum.
+    def testSum(self):
+        result = stats.sum(self.data)
+        expected = self.expected['sum']
+        n = int(math.log(result, 10))  # EVILHACK
+        self.assertAlmostEqual(result, expected, places=self.places-n)
+    def testProduct(self):
+        result = stats.product(self.data)
+        expected = self.expected['product']
+        self.assertAlmostEqual(result, expected, places=self.places)
+    def testMean(self):
+        result = stats.mean(self.data)
+        expected = self.expected['mean']
+        self.assertAlmostEqual(result, expected, places=self.places)
+    def testRange(self):
+        result = stats.range(self.data)
+        expected = self.expected['range']
+        self.assertAlmostEqual(result, expected, places=self.places)
+    def testMidrange(self):
+        result = stats.midrange(self.data)
+        expected = self.expected['midrange']
+        self.assertAlmostEqual(result, expected, places=self.places)
+    def testStdev(self):
+        result = stats.stdev(self.data)
+        expected = self.expected['stdev']
+        self.assertAlmostEqual(result, expected, places=self.places)
+    def testVar(self):
+        result = stats.variance(self.data)
+        expected = self.expected['variance']
+        self.assertAlmostEqual(result, expected, places=self.places)
 
 
 
