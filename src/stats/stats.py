@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 
 
+# Coding standards:
+#
+# * aim for at least 12 decimal places of accuracy in results
+# * where possible, functions should work lazily, e.g. operate on iterators
+#   on a single pass
+# * sorting should operate on a copy of the original data
+#   i.e. use sorted(data) not list(data).sort()
+
+
 
 # Implementation note re doctests:
 # Doctest examples have been either calculated by hand (for simple examples)
@@ -9,13 +18,16 @@
 
 __all__ = [
     # Means and averages:
-    'mean', 'harmonic_mean', 'geometric_mean', 'quadratic_mean', 'median',
-    'mode', 'midrange',
+    'mean', 'harmonic_mean', 'geometric_mean', 'quadratic_mean',
+    # Other measures of central tendancy:
+    'median', 'mode', 'midrange',
+    # Other point statistics:
+    'quartiles',
     # Measures of spread:
     'stdev', 'pstdev', 'variance', 'pvariance', 'range', 'iqr',
     'average_deviation',
     # Multivariate statistics:
-    'corr', 'cov', 'pcov', 'errsumsq', 'linr',
+    'qcorr', 'corr', 'cov', 'pcov', 'errsumsq', 'linr',
     # Sums and products:
     'sum', 'sumsq', 'product', 'xsums', 'xysums', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
@@ -42,11 +54,7 @@ def sorted_data(func):
     """Decorator to sort data passed to stats functions."""
     @functools.wraps(func)
     def inner(data):
-        if isinstance(data, list):
-            # Sort in place.
-            data.sort()
-        else:
-            data = sorted(data)
+        data = sorted(data)
         return func(data)
     return inner
 
@@ -59,7 +67,9 @@ def minmax(*values, **kw):
     item and largest item. With two or more arguments, return the smallest
     and largest arguments.
     """
-    if len(values) == 1:
+    if len(values) == 0:
+        raise TypeError('minmax expected at least one argument, but got none')
+    elif len(values) == 1:
         values = values[0]
     if isinstance(values, collections.Sequence):
         # For speed, fall back on built-in min and max functions when
@@ -68,7 +78,33 @@ def minmax(*values, **kw):
         maximum = max(values, **kw)
     else:
         # Iterator argument, so fall back on a slow pure-Python solution.
-        raise NotImplementedError('not yet implemented')
+        if list(kw.keys()) not in ([], ['key']):
+            raise TypeError('minmax received an unexpected keyword argument')
+        key = kw.get('key')
+        if key is not None:
+            it = ((key(value), value) for value in values)
+        else:
+            it = ((value, value) for value in values)
+        try:
+            keyed_min, minimum = next(it)
+        except StopIteration:
+            raise ValueError('minmax argument is empty')
+        keyed_max, maximum = keyed_min, minimum
+        try:
+            while True:
+                a = next(it)
+                try:
+                    b = next(it)
+                except StopIteration:
+                    b = a
+                if a[0] > b[0]:
+                    a, b = b, a
+                if a[0] < keyed_min:
+                    keyed_min, minimum = a
+                if b[0] > keyed_max:
+                    keyed_max, maximum = b
+        except StopIteration:
+            pass
     return (minimum, maximum)
 
 
@@ -286,8 +322,7 @@ def quartiles(data):
         q1 = data[a]
         q2 = (data[m-1] + data[m])/2
         q3 = data[b]
-    else:
-        assert rem == 3
+    else:  # rem == 3
         q1 = data[a]
         q2 = data[m]
         q3 = data[b]
@@ -394,6 +429,65 @@ def average_deviation(xdata, Mx=None):
 
 
 # === Simple multivariate statistics ===
+
+
+def qcorr(xdata, ydata=None):
+    """Return the Q correlation coefficient of (x, y) data.
+
+    if ydata is None or not given, then xdata must be an iterable of (x, y)
+    pairs. Otherwise, both xdata and ydata must be iterables of values, which
+    will be truncated to the shorter of the two.
+
+    qcorr(xydata) -> float
+    qcorr(xdata, ydata) -> float
+
+    The Q correlation can be found by drawing a scatter graph of the points,
+    diving the graph into four quadrants by marking the medians of the X
+    and Y values, and then counting the points in each quadrant. Points on
+    the median lines are skipped.
+
+    The Q correlation coefficient is +1 in the case of a perfect positive
+    correlation (i.e. an increasing linear relationship):
+
+    >>> qcorr([1, 2, 3, 4, 5], [3, 5, 7, 9, 11])
+    1.0
+
+    -1 in the case of a perfect anti-correlation (i.e. a decreasing linear
+    relationship):
+
+    >>> qcorr([(1, 10), (2, 8), (3, 6), (4, 4), (5, 2)])
+    -1.0
+
+    and some value between -1 and 1 in all other cases, indicating the degree
+    of linear dependence between the variables.
+    """
+    if ydata is None:
+        xydata = list(xdata)
+    else:
+        xydata = list(zip(xdata, ydata))
+    del xdata, ydata
+    n = len(xydata)
+    xmed = median(x for x,y in xydata)
+    ymed = median(y for x,y in xydata)
+    # Traditionally, we count the values in each quadrant, but in fact we
+    # really only need to count the diagonals: quadrants 1 and 3 together,
+    # and quadrants 2 and 4 together.
+    quad13 = quad24 = skipped = 0
+    for x,y in xydata:
+        if x > xmed:
+            if y > ymed:  quad13 += 1
+            elif y < ymed:  quad24 += 1
+            else:  skipped += 1
+        elif x < xmed:
+            if y > ymed:  quad24 += 1
+            elif y < ymed:  quad13 += 1
+            else:  skipped += 1
+        else:
+            skipped += 1
+    assert quad13 + quad24 + skipped == n
+    q = (quad13 - quad24)/(n - skipped)
+    assert -1.0 <= q <= 1.0
+    return q
 
 
 def corr(xdata, ydata=None):

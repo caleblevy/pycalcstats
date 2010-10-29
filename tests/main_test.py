@@ -18,12 +18,15 @@ import sys
 import unittest
 
 
-# Module being tested.
-import stats
-
 # Reminder to myself that this has to be run under Python3.
 if sys.version < "3.0":
     raise RuntimeError("run this under Python3")
+
+
+# Module being tested.
+import stats
+
+print(stats.__file__)
 
 
 # === Helper functions ===
@@ -34,8 +37,6 @@ if sys.version < "3.0":
 
 class GlobalTest(unittest.TestCase):
     """Test the state and/or existence of globals."""
-    def testSum(self):
-        self.assert_(stats._sum is sum)
     def testMeta(self):
         """Test existence of metadata."""
         attrs = ("__doc__ __version__ __date__ __author__"
@@ -107,11 +108,17 @@ class MinmaxTest(unittest.TestCase):
         result = stats.minmax(iter(data), key=len)
         self.assertEquals(result, expected)
 
+    def testFailures(self):
+        """Test minmax failure modes."""
+        self.assertRaises(TypeError, stats.minmax)
+        self.assertRaises(ValueError, stats.minmax, [])
+        self.assertRaises(TypeError, stats.minmax, 1)
+
 
 class SortedDataDecoratorTest(unittest.TestCase):
     """Test that the sorted_data decorator works correctly."""
     def testDecorator(self):
-        @stats.sorted_data
+        @stats.stats.sorted_data
         def f(data):
             return data
 
@@ -141,14 +148,20 @@ if __name__ == '__main__':
     gc.collect()
     assert not gc.garbage
     #
-    # Run doctests in the stats module.
+    # Run doctests in the stats package.
     #
     failures, tests = doctest.testmod(stats)
     if failures:
         print("Skipping further tests while doctests failing.")
         sys.exit(1)
     else:
-        pr("Module doc tests: failed %d, attempted %d" % (failures, tests))
+        pr("Package doc tests: failed %d, attempted %d" % (failures, tests))
+    failures, tests = doctest.testmod(stats.stats)
+    if failures:
+        print("Skipping further tests while doctests failing.")
+        sys.exit(1)
+    else:
+        pr("stats.stats doc tests: failed %d, attempted %d" % (failures, tests))
     #
     # Run doctests in the example text file.
     #
