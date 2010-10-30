@@ -32,6 +32,8 @@ __all__ = [
     'sum', 'sumsq', 'product', 'xsums', 'xysums', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
     'sterrmean', 'StatsError', 'minmax',
+    # Statistics of circular quantities:
+    'circular_mean',
     ]
 
 import math
@@ -357,6 +359,27 @@ def pstdev(data):
     return math.sqrt(pvariance(data))
 
 
+def _welford(data):
+    """Welford's method of calculating the running variance."""
+    data = iter(data)
+    k = 1
+    try:
+        M = next(data)
+        S = 0.0
+    except StopIteration:
+        pass
+    else:
+        for k, x in enumerate(data, 2):
+            Mprev = M
+            M += (x-Mprev)/k
+            S += (x-Mprev)*(x-M)
+    if k < 2:
+        raise ValueError()
+    S = sum(S)
+    assert S > 0.0
+    return (S, k)
+
+
 def variance(data):
     """Return the sample variance of data.
 
@@ -367,8 +390,8 @@ def variance(data):
     If data represents the entire population, and not just a sample, then
     use pvariance instead.
     """
-    t = xsums(data)
-    return t.Sxx/(t.n*(t.n-1))
+    S, k = _welford(data)
+    return S/(k-1)
 
 
 def pvariance(data):
@@ -381,8 +404,8 @@ def pvariance(data):
     You should use pvariance when data represents the entire population rather
     than a statistical sampling.
     """
-    t = xsums(data)
-    return t.Sxx/(t.n**2)
+    S, k = _welford(data)
+    return S/k
 
 
 def range(data):
@@ -830,6 +853,19 @@ def sterrmean(s, n):
     return s/math.sqrt(n)
 
 
+# === Statistics of circular quantities ===
+
+def circular_mean(data):
+    """Return the mean of circular quantities such as angles or day times."""
+    # http://en.wikipedia.org/wiki/Mean_of_circular_quantities
+    raise NotImplementedError('not yet done')
+    # Assuming the data is that of angles:
+    #data = ((math.cos(theta), math.sin(theta)) for theta in data)
+    #x = mean(cosines)
+    #y = mean(sines)
+    #return math.atan2(y, x)  # Note the order is swapped.
+    # radius sqrt(x**2 + y**2) is a measure of variance: var = 1 - r
+    # Stdev is calculated by sqrt(ln(1/r**2)) = sqrt(-2*ln(r))
 
 
 
