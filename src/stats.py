@@ -55,6 +55,8 @@ __all__ = [
     'stdev', 'pstdev', 'variance', 'pvariance',
     'stdev1', 'pstdev1', 'variance1', 'pvariance1',
     'range', 'iqr', 'average_deviation',
+    # Other moments:
+    'skew', 'kurtosis',
     # Multivariate statistics:
     'qcorr', 'corr', 'cov', 'pcov', 'errsumsq', 'linr',
     # Sums and products:
@@ -368,9 +370,6 @@ def quartiles(data):
 # ----------------------------------------------
 
 
-# Variance and standard deviation.
-
-
 def stdev(data, m=None):
     """stdev(data [, m]) -> sample standard deviation of data.
 
@@ -619,6 +618,79 @@ def average_deviation(data, m=None):
     return total/n
 
 
+# Other moments of the data
+# -------------------------
+
+def skew(data, m=None, s=None):
+    """skew(data [,m [,s]]) -> sample skew of data.
+
+    If you know one or both of the population mean and standard deviation,
+    or estimates of them, then you can pass the mean as optional argument m
+    and the standard deviation as s.
+
+    >>> skew([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
+    0.921954445729...
+
+    The reliablity of the result as an estimate for the true skew depends on
+    the estimated mean and standard deviation given. If m or s are not given,
+    or are None, they are estimated from the data.
+    """
+    if m is None or s is None:
+        data = as_sequence(data)
+        if m is None: m = mean(data)
+        if s is None: s = stdev(data, m)
+    # Try fast path.
+    try:
+        n = len(data)
+    except TypeError:
+        # Slow path for iterables without len.
+        ap = add_partial
+        partials = []
+        n = 0
+        for x in xdata:
+            n += 1
+            ap(((x - m)/s)**3, partials)
+        total = sum(partials)
+    else:
+        total = sum(((x-m)/s)**3 for x in data)
+    return total/n
+
+
+def kurtosis(data, m=None, s=None):
+    """kurtosis(data [,m [,s]]) -> sample kurtosis of data.
+
+    If you know one or both of the population mean and standard deviation,
+    or estimates of them, then you can pass the mean as optional argument m
+    and the standard deviation as s.
+
+    >>> skew([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
+    0.921954445729...
+
+    The reliablity of the result as an estimate for the true skew depends on
+    the estimated mean and standard deviation given. If m or s are not given,
+    or are None, they are estimated from the data.
+    """
+    if m is None or s is None:
+        data = as_sequence(data)
+        if m is None: m = mean(data)
+        if s is None: s = stdev(data, m)
+    # Try fast path.
+    try:
+        n = len(data)
+    except TypeError:
+        # Slow path for iterables without len.
+        ap = add_partial
+        partials = []
+        n = 0
+        for x in xdata:
+            n += 1
+            ap(((x - m)/s)**4, partials)
+        total = sum(partials)
+    else:
+        total = sum(((x-m)/s)**4 for x in data)
+    return total/n - 3
+
+
 # === Simple multivariate statistics ===
 
 
@@ -810,8 +882,8 @@ def sum(data):
     7.25
 
     Due to round-off error, the builtin sum can suffer from catastrophic
-    cancellation, e.g. sum([1, 1e100, 1, -1e100] * 10000) => 0.0
-    This version avoids that error:
+    cancellation, e.g. sum([1, 1e100, 1, -1e100] * 10000) returns zero
+    instead of the correct value of 20000. This function avoids that error:
 
     >>> sum([1, 1e100, 1, -1e100] * 10000)
     20000.0
@@ -1049,7 +1121,7 @@ def sterrmean(s, n):
 # === Statistics of circular quantities ===
 
 def circular_mean(data):
-    """Return the mean of circular quantities such as angles or day times."""
+    """Return the mean of circular quantities such as angles."""
     # http://en.wikipedia.org/wiki/Mean_of_circular_quantities
     raise NotImplementedError('not yet done')
     # Assuming the data is that of angles:
