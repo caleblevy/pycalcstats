@@ -376,7 +376,6 @@ def _welford(data):
             S += (x-Mprev)*(x-M)
     if k < 2:
         raise ValueError()
-    S = sum(S)
     assert S > 0.0
     return (S, k)
 
