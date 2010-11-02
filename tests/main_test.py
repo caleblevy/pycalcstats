@@ -163,17 +163,13 @@ class CompareAgainstExternalResultsTest(unittest.TestCase):
         result = stats.midrange(self.data)
         expected = self.expected['midrange']
         self.assertAlmostEqual(result, expected, places=self.places)
-    def testStdev(self):
-        result = stats.stdev(self.data)
-        expected = self.expected['stdev']
-        self.assertAlmostEqual(result, expected, places=self.places)
-    def testVar(self):
-        result = stats.variance(self.data)
-        expected = self.expected['variance']
+    def testPStdev(self):
+        result = stats.pstdev(self.data)
+        expected = self.expected['pstdev']
         self.assertAlmostEqual(result, expected, places=self.places)
     def testPVar(self):
         result = stats.pvariance(self.data)
-        expected = self.expected['variance']
+        expected = self.expected['pvariance']
         self.assertAlmostEqual(result, expected, places=self.places)
 
 
