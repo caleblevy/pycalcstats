@@ -9,6 +9,7 @@
 # * sorting should operate on a copy of the original data
 #   i.e. use sorted(data) not list(data).sort()
 
+# touch
 
 
 # Implementation note re doctests:
@@ -544,6 +545,31 @@ def corr(xdata, ydata=None):
     elif r < -1.0:
         assert (r + 1.0) >= -1e-15, 'r out of range (< -1.0)'
         r = -1.0
+    return r
+
+
+def corr1(xdata, ydata):
+    """Calculate an estimate of the Pearson's correlation coefficient with
+    a single pass over the data."""
+    sum_sq_x = 0
+    sum_sq_y = 0
+    sum_coproduct = 0
+    mean_x = next(xdata)
+    mean_y = next(ydata)
+    for i,x,y in zip(itertools.count(2), xdata, ydata):
+        sweep = (i-1)/i
+        delta_x = x - mean_x
+        delta_y = y - mean_y
+        sum_sq_x += sweep*delta_x**2
+        sum_sq_y += sweep*(delta_y**2)
+        sum_coproduct += sweep*(delta_x*delta_y)
+        mean_x += delta_x/i
+        mean_y += delta_y/i
+    pop_sd_x = sqrt(sum_sq_x)
+    pop_sd_y = sqrt(sum_sq_y)
+    cov_x_y = sum_coproduct
+    r = cov_x_y/(pop_sd_x*pop_sd_y)
+    assert -1.0 <= r <= 1.0
     return r
 
 
