@@ -130,22 +130,22 @@ class SortedDataDecoratorTest(unittest.TestCase):
         self.assertEquals(result, sorted(values))
 
 
-class CompareAgainstNumpyTest(unittest.TestCase):
-    places = 12
+class CompareAgainstExternalResultsTest(unittest.TestCase):
+    places = 8
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
-        # Read data from test data file.
-        zf = zipfile.ZipFile('sample_data.zip', 'r')
+        # Read data from external test data file.
+        # (In this case, produced by numpy and Python 2.5.)
+        zf = zipfile.ZipFile('test_data.zip', 'r')
         self.data = pickle.loads(zf.read('data.pkl'))
         self.expected = pickle.loads(zf.read('results.pkl'))
         zf.close()
     # FIXME assertAlmostEquals is not really the right way to do these
-    # tests, as decimal places != significant figures. See EVILHACK in
-    # testSum.
+    # tests, as decimal places != significant figures.
     def testSum(self):
         result = stats.sum(self.data)
         expected = self.expected['sum']
-        n = int(math.log(result, 10))  # EVILHACK
+        n = int(math.log(result, 10))  # Yuck.
         self.assertAlmostEqual(result, expected, places=self.places-n)
     def testProduct(self):
         result = stats.product(self.data)
@@ -169,6 +169,10 @@ class CompareAgainstNumpyTest(unittest.TestCase):
         self.assertAlmostEqual(result, expected, places=self.places)
     def testVar(self):
         result = stats.variance(self.data)
+        expected = self.expected['variance']
+        self.assertAlmostEqual(result, expected, places=self.places)
+    def testPVar(self):
+        result = stats.pvariance(self.data)
         expected = self.expected['variance']
         self.assertAlmostEqual(result, expected, places=self.places)
 
