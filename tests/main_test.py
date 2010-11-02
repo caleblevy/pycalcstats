@@ -121,7 +121,7 @@ class MinmaxTest(unittest.TestCase):
 class SortedDataDecoratorTest(unittest.TestCase):
     """Test that the sorted_data decorator works correctly."""
     def testDecorator(self):
-        @stats.stats.sorted_data
+        @stats.sorted_data
         def f(data):
             return data
 
@@ -201,13 +201,7 @@ if __name__ == '__main__':
         print("Skipping further tests while doctests failing.")
         sys.exit(1)
     else:
-        pr("Package doc tests: failed %d, attempted %d" % (failures, tests))
-    failures, tests = doctest.testmod(stats.stats)
-    if failures:
-        print("Skipping further tests while doctests failing.")
-        sys.exit(1)
-    else:
-        pr("stats.stats doc tests: failed %d, attempted %d" % (failures, tests))
+        pr("Doctests: failed %d, attempted %d" % (failures, tests))
     #
     # Run doctests in the example text file.
     #

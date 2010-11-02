@@ -1,20 +1,47 @@
 #!/usr/bin/env python3
 
+##  Package stats.py
+##
+##  Copyright (c) 2010 Steven D'Aprano.
+##
+##  Permission is hereby granted, free of charge, to any person obtaining
+##  a copy of this software and associated documentation files (the
+##  "Software"), to deal in the Software without restriction, including
+##  without limitation the rights to use, copy, modify, merge, publish,
+##  distribute, sublicense, and/or sell copies of the Software, and to
+##  permit persons to whom the Software is furnished to do so, subject to
+##  the following conditions:
+##
+##  The above copyright notice and this permission notice shall be
+##  included in all copies or substantial portions of the Software.
+##
+##  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+##  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+##  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+##  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+##  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+##  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+##  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-# Coding standards:
-#
-# * aim for at least 12 decimal places of accuracy in results
-# * where possible, functions should work lazily, e.g. operate on iterators
-#   on a single pass
-# * sorting should operate on a copy of the original data
-#   i.e. use sorted(data) not list(data).sort()
 
-# touch
+"""
+'Scientific calculator' statistics for Python 3.
+
+>>> mean([-1.0, 2.5, 3.25, 5.75])
+2.625
+>>> data = iter([-1.0, 2.5, 3.25, 5.75, 0.0, 3.75])
+>>> mean(data)
+2.375
+
+"""
 
 
-# Implementation note re doctests:
-# Doctest examples have been either calculated by hand (for simple examples)
-# or calculated with a HP-48GX calculator (for less simple examples.)
+# Module metadata.
+__version__ = "0.1.1a"
+__date__ = "2010-11-02"
+__author__ = "Steven D'Aprano"
+__author_email__ = "steve+python@pearwood.info"
+
 
 
 __all__ = [
@@ -25,8 +52,9 @@ __all__ = [
     # Other point statistics:
     'quartiles',
     # Measures of spread:
-    'stdev', 'pstdev', 'variance', 'pvariance', 'range', 'iqr',
-    'average_deviation',
+    'stdev', 'pstdev', 'variance', 'pvariance',
+    'stdev1', 'pstdev1', 'variance1', 'pvariance1',
+    'range', 'iqr', 'average_deviation',
     # Multivariate statistics:
     'qcorr', 'corr', 'cov', 'pcov', 'errsumsq', 'linr',
     # Sums and products:
@@ -135,10 +163,10 @@ def add_partial(x, partials):
     partials[i:] = [x]
 
 
-def makeseq(data):
+def as_sequence(iterable):
     """Helper function to convert iterable arguments into sequences."""
-    if isinstance(data, (list, tuple)): return data
-    return list(data)
+    if isinstance(iterable, (list, tuple)): return iterable
+    else: return list(iterable)
 
 
 # === Basic univariate statistics ===
@@ -155,7 +183,8 @@ def mean(data):
     2.5
 
     The arithmetic mean is the sum of the data divided by the number of data.
-    It is commonly called "the average".
+    It is commonly called "the average". It is a measure of the central
+    location of the data.
     """
     # Fast path for sequence data.
     try:
@@ -168,11 +197,14 @@ def mean(data):
         for x in data:
             ap(x, partials)
             n += 1
+        # FIXME given that this is a re-implementation of the math.fsum
+        # algorithm, is there any advantage to calling math.fsum here?
+        # Or should we just call the built-in sum on the partials?
         sumx = math.fsum(partials)
     else:
         sumx = sum(data)  # Not the built-in version.
     if n == 0:
-        raise StatsError('no data')
+        raise StatsError('mean of empty sequence is not defined')
     return sumx/n
 
 
@@ -193,9 +225,9 @@ def harmonic_mean(data):
         # FIXME is it safe to assume that if data contains 1 or more zeroes,
         # the harmonic mean must itself be zero?
         return 0.0
-    # FIXME if m is zero, the following will raise ZeroDivisionError. Would
-    # it be better to return float('inf') (plus or minus)?
-    return 1.0/m
+    if m == 0.0:
+        return math.copysign(float('inf'), m)
+    return 1/m
 
 
 def geometric_mean(data):
@@ -220,7 +252,7 @@ def geometric_mean(data):
             raise StatsError('geometric mean of negative number')
         return 0.0
     if count == 0:
-        raise StatsError('no data')
+        raise StatsError('geometric mean of empty sequence is not defined')
     p = math.exp(math.fsum(partials))
     return pow(p, 1.0/count)
 
@@ -231,7 +263,7 @@ def quadratic_mean(data):
     >>> quadratic_mean([2, 2, 4, 5])
     3.5
 
-    The quadratic mean, or root-mean-square (RMS) is the square root of the
+    The quadratic mean, or root-mean-square (RMS), is the square root of the
     arithmetic mean of the squares of the data. It is best used when
     quantities vary from positive to negative.
     """
@@ -278,7 +310,7 @@ def mode(data):
         [(count, value) for (value, count) in count_elems(data).items()],
         reverse=True)
     if len(L) == 0:
-        raise StatsError('no data')
+        raise StatsError('no mode for empty sequence')
     # Test if there are more than one modes.
     if len(L) > 1 and L[0][0] == L[1][0]:
         raise StatsError('no distinct mode')
@@ -336,28 +368,182 @@ def quartiles(data):
 # ----------------------------------------------
 
 
-def stdev(data):
-    """Return the sample standard deviation of data.
+# Variance and standard deviation.
+
+
+def stdev(data, m=None):
+    """stdev(data [, m]) -> sample standard deviation of data.
 
     >>> stdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
     1.08108741552...
 
+    If you know the population mean, or an estimate of it, then you can pass
+    the mean as the optional argument m:
+
+    >>> stdev([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
+    0.921954445729...
+
+    The reliablity of the result as an estimate for the true standard
+    deviation depends on the estimate for the mean given. If m is not given,
+    or is None, the sample mean of the data will be used.
+
     If data represents the entire population, and not just a sample, then
-    use pstdev instead.
+    you should use pstdev instead.
     """
-    return math.sqrt(variance(data))
+    return math.sqrt(variance(data, m))
 
 
-def pstdev(data):
-    """Return the population standard deviation of data.
+def pstdev(data, m=None):
+    """pstdev(data [, m]) -> population standard deviation of data.
 
     >>> pstdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
     0.986893273527...
 
-    You should use pstdev when data represents the entire population rather
-    than a statistical sampling.
+    If you know the true population mean by some other means, then you can
+    pass that as the optional argument m:
+
+    >>> pstdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75], 2.875)  #doctest: +ELLIPSIS
+    0.986893273527...
+
+    The reliablity of the result as an estimate for the true standard
+    deviation depends on the estimate for the mean given. If m is not given,
+    or is None, the sample mean of the data will be used.
+
+    If data represents a statistical sample rather than the entire
+    population, you should use stdev instead.
     """
-    return math.sqrt(pvariance(data))
+    return math.sqrt(pvariance(data, m))
+
+
+def variance(data, m=None):
+    """variance(data [, m]) -> sample variance of data.
+
+    >>> variance([0.25, 0.5, 1.25, 1.25,
+    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
+    1.37202380952...
+
+    If you know the population mean, or an estimate of it, then you can pass
+    the mean as the optional argument m. See also stdev.
+
+    If data represents the entire population, and not just a sample, then
+    you should use pvariance instead.
+    """
+    s, n = _var(data, m)
+    if n < 2:
+        raise StatsError('sample variance or standard deviation'
+        ' requires at least two data points')
+    return s/(n-1)
+
+
+def pvariance(data, m=None):
+    """pvariance(data [, m]) -> population variance of data.
+
+    >>> pvariance([0.25, 0.5, 1.25, 1.25,
+    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
+    1.17602040816...
+
+    If you know the population mean, or an estimate of it, then you can pass
+    the mean as the optional argument m. See also pstdev.
+
+    If data represents a statistical sample rather than the entire
+    population, you should use variance instead.
+    """
+    s, n = _var(data, m)
+    if n < 1:
+        raise StatsError('population variance or standard deviation'
+        ' requires at least one data point')
+    return s/n
+
+
+def _var(data, m):
+    """Helper function for calculating variance directly."""
+    if m is None:
+        # Two pass algorithm.
+        data = as_sequence(data)
+        m = mean(data)
+    # Fast path for sequences.
+    try:
+        n = len(data)
+    except TypeError:
+        # Slow path for iterables without a len.
+        ap = add_partial
+        partials = []
+        n = 0
+        for x in data:
+            n += 1
+            ap((x-m)**2, partials)
+        total = sum(partials)
+    else:
+        total = sum((x-m)**2 for x in data)
+    return (total, n)
+
+
+def stdev1(data):
+    """stdev1(data) -> sample standard deviation.
+
+    Return an estimate of the sample standard deviation for data using
+    a single pass.
+
+    >>> stdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    1.08108741552...
+
+    If data represents the entire population rather than a statistical
+    sample, then use pstdev1 instead.
+    """
+    return math.sqrt(variance1(data))
+
+
+def pstdev1(data):
+    """pstdev1(data) -> population standard deviation.
+
+    Return an estimate of the population standard deviation for data using
+    a single pass.
+
+    >>> pstdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    0.986893273527...
+
+    If data is a statistical sample rather than the entire population, you
+    should use stdev1 instead.
+    """
+    return math.sqrt(pvariance1(data))
+
+
+def variance1(data):
+    """variance1(data) -> sample variance.
+
+    Return an estimate of the sample variance for data using a single pass.
+
+    >>> variance1([0.25, 0.5, 1.25, 1.25,
+    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
+    1.37202380952...
+
+    If data represents the entire population rather than a statistical
+    sample, then you should use pvariance1 instead.
+    """
+    s, n = _welford(data)
+    if n < 2:
+        raise StatsError('sample variance or standard deviation'
+        ' requires at least two data points')
+    return s/(n-1)
+
+
+def pvariance1(data):
+    """pvariance1(data) -> population variance.
+
+    Return an estimate of the population variance for data using one pass
+    through the data.
+
+    >>> pvariance1([0.25, 0.5, 1.25, 1.25,
+    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
+    1.17602040816...
+
+    If data represents a statistical sample rather than the entire
+    population, then you should use variance1 instead.
+    """
+    s, n = _welford(data)
+    if n < 1:
+        raise StatsError('pvariance requires at least one data point')
+    return s/n
 
 
 def _welford(data):
@@ -378,34 +564,6 @@ def _welford(data):
         raise ValueError()
     assert S > 0.0
     return (S, k)
-
-
-def variance(data):
-    """Return the sample variance of data.
-
-    >>> variance([0.25, 0.5, 1.25, 1.25,
-    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
-    1.37202380952...
-
-    If data represents the entire population, and not just a sample, then
-    use pvariance instead.
-    """
-    S, k = _welford(data)
-    return S/(k-1)
-
-
-def pvariance(data):
-    """Return the population variance of data.
-
-    >>> pvariance([0.25, 0.5, 1.25, 1.25,
-    ...            1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
-    1.17602040816...
-
-    You should use pvariance when data represents the entire population rather
-    than a statistical sampling.
-    """
-    S, k = _welford(data)
-    return S/k
 
 
 def range(data):
@@ -430,25 +588,35 @@ def iqr(data):
     return q3 - q1
 
 
-def average_deviation(xdata, Mx=None):
-    """Return the average absolute deviation of data.
+def average_deviation(data, m=None):
+    """average_deviation(data [, m]) -> average absolute deviation of data.
 
-    xdata = iterable of data values
-    Mx = measure of central tendency for xdata.
+    data = iterable of data values
+    m (optional) = measure of central tendency for data.
 
-    Mx is usually chosen to be the mean or median. If Mx is not given, or
-    is None, the mean is calculated from xdata and that value is used.
+    m is usually chosen to be the mean or median. If m is not given, or
+    is None, the mean is calculated from data and that value is used.
     """
-    if Mx is None:
-        xdata = makeseq(xdata)
-        Mx = mean(xdata)
-    ap = add_partial
-    partials = []
-    n = 0
-    for x in xdata:
-        n += 1
-        ap(abs(x - Mx), partials)
-    return math.fsum(partials)/n
+    if m is None:
+        data = as_sequence(data)
+        m = mean(data)
+    # Try a fast path for sequence data.
+    try:
+        n = len(data)
+    except TypeError:
+        # Slow path for iterables without a len.
+        ap = add_partial
+        partials = []
+        n = 0
+        for x in xdata:
+            n += 1
+            ap(abs(x - Mx), partials)
+        total = sum(partials)
+    else:
+        total = sum(abs(x-m))
+    if n < 1:
+        raise StatsError('absolute deviation requires at least 1 data point')
+    return total/n
 
 
 # === Simple multivariate statistics ===
