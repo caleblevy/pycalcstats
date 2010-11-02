@@ -130,6 +130,20 @@ class SortedDataDecoratorTest(unittest.TestCase):
         self.assertEquals(result, sorted(values))
 
 
+class VarianceTest(unittest.TestCase):
+    data = (4.0, 7.0, 13.0, 16.0)
+    expected = 30.0  # Expected (exact) sample variance.
+
+    def test_small(self):
+        self.assertEquals(stats.variance(self.data), self.expected)
+    def test_big(self):
+        data = [x + 1e6 for x in self.data]
+        self.assertEquals(stats.variance(data), self.expected)
+    def test_huge(self):
+        data = [x + 1e9 for x in self.data]
+        self.assertEquals(stats.variance(data), self.expected)
+
+
 class CompareAgainstExternalResultsTest(unittest.TestCase):
     places = 8
     def __init__(self, *args, **kwargs):

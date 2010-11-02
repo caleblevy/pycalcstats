@@ -467,14 +467,17 @@ def _var(data, m):
         # Slow path for iterables without a len.
         ap = add_partial
         partials = []
-        n = 0
-        for x in data:
-            n += 1
+        for n, x in enumerate(data, 1):
             ap((x-m)**2, partials)
         total = sum(partials)
     else:
         total = sum((x-m)**2 for x in data)
     return (total, n)
+    # FIXME this may not be accurate enough, a more accurate algorithm
+    # is the compensated version:
+    # sum2 = sum(x-m)**2) as above
+    # sumc = sum(x-m)
+    # return (sum2 - sumc**2/n), n
 
 
 def stdev1(data):
@@ -519,7 +522,7 @@ def variance1(data):
     If data represents the entire population rather than a statistical
     sample, then you should use pvariance1 instead.
     """
-    s, n = _welford(data)
+    n, s = _welford(data)
     if n < 2:
         raise StatsError('sample variance or standard deviation'
         ' requires at least two data points')
@@ -539,30 +542,35 @@ def pvariance1(data):
     If data represents a statistical sample rather than the entire
     population, then you should use variance1 instead.
     """
-    s, n = _welford(data)
+    n, s = _welford(data)
     if n < 1:
         raise StatsError('pvariance requires at least one data point')
     return s/n
 
 
 def _welford(data):
-    """Welford's method of calculating the running variance."""
+    """Welford's method of calculating the running variance.
+
+    This calculates the second moment M2 = sum( (x-m)**2 ) where m=mean of x.
+    Returns (n, M2) where n = number of items.
+    """
+    # FIXME for better results, use this on the residues (x - m) instead of x.
+    # Except that would require two passes...
     data = iter(data)
-    k = 1
+    n = 0
+    M2 = 0.0  # Current sum of powers of differences from the mean.
     try:
-        M = next(data)
-        S = 0.0
+        m = next(data)  # Current estimate of the mean.
+        n = 1
     except StopIteration:
         pass
     else:
-        for k, x in enumerate(data, 2):
-            Mprev = M
-            M += (x-Mprev)/k
-            S += (x-Mprev)*(x-M)
-    if k < 2:
-        raise ValueError()
-    assert S > 0.0
-    return (S, k)
+        for n, x in enumerate(data, 2):
+            delta = x - m
+            m += delta/n
+            M2 += delta*(x - m)  # m here is the new, updated mean.
+    assert M2 >= 0.0
+    return (n, M2)
 
 
 def range(data):
@@ -628,8 +636,8 @@ def skew(data, m=None, s=None):
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
 
-    >>> skew([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
-    0.921954445729...
+    >>> skew([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])  #doctest: +ELLIPSIS
+    1.12521290135...
 
     The reliablity of the result as an estimate for the true skew depends on
     the estimated mean and standard deviation given. If m or s are not given,
@@ -663,12 +671,12 @@ def kurtosis(data, m=None, s=None):
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
 
-    >>> skew([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
-    0.921954445729...
+    >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])  #doctest: +ELLIPSIS
+    -0.1063790369...
 
-    The reliablity of the result as an estimate for the true skew depends on
-    the estimated mean and standard deviation given. If m or s are not given,
-    or are None, they are estimated from the data.
+    The reliablity of the result as an estimate for the true kurtosis depends
+    on the estimated mean and standard deviation given. If m or s are not
+    given, or are None, they are estimated from the data.
     """
     if m is None or s is None:
         data = as_sequence(data)
@@ -688,7 +696,37 @@ def kurtosis(data, m=None, s=None):
         total = sum(partials)
     else:
         total = sum(((x-m)/s)**4 for x in data)
-    return total/n - 3
+    k = total/n - 3
+    assert k >= -2
+    return k
+
+
+def _terriberry(data):
+    """Terriberry's algorithm for a single pass estimate of skew and kurtosis.
+
+    This calculates the second, third and fourth moments
+        M2 = sum( (x-m)**2 )
+        M3 = sum( (x-m)**3 )
+        M4 = sum( (x-m)**4 )
+    where m = mean of x.
+
+    Returns (n, M2, M3, M4) where n = number of items.
+    """
+    n = m = M2 = M3 = M4 = 0
+    for n, x in enumerate(data, 1):
+        delta = x - m
+        delta_n = delta/n
+        delta_n2 = delta_n*delta_n
+        term = delta*delta_n*(n-1)
+        m += delta_n
+        M4 += term*delta_n2*(n*n - 3*n + 3) + 6*delta_n2*M2 - 4*delta_n*M3
+        M3 += term*delta_n*(n-2) - 3*delta_n*M2
+        M2 += term
+    return (n, M2, M3, M4)
+    # skewness = sqrt(n)*M3 / sqrt(M2**3)
+    # kurtosis = (n*M4) / (M2*M2) - 3
+
+
 
 
 # === Simple multivariate statistics ===
@@ -1104,18 +1142,42 @@ def count_elems(data):
 
 # === Other statistical formulae ===
 
-def sterrmean(s, n):
-    """sterrmean(s, n) -> float
+def sterrmean(s, n, N=None):
+    """sterrmean(s, n [, N]) -> standard error of the mean.
 
-    Return the standard error of the mean.
+    Return the standard error of the mean, optionally with a correction for
+    finite population. Arguments given are:
+
+    s: the standard deviation of the sample
+    n: the size of the sample
+    N (optional): the size of the population, or None
+
+    If the sample size n is larger than (approximately) 5% of the population,
+    it is necessary to make a finite population correction. To do so, give
+    the argument N, which must be larger than or equal to n.
 
     >>> sterrmean(2, 16)
     0.5
+    >>> sterrmean(2, 16, 21)
+    0.25
 
-    s = standard deviation of the sample
-    n = number of items in the sample
     """
-    return s/math.sqrt(n)
+    if N is not None and N < n:
+        raise StatsError('population size must be at least sample size')
+    if n < 0:
+        raise StatsError('cannot have negative sample size')
+    if s < 0.0:
+        raise StatsError('cannot have negative standard deviation')
+    if n == 0:
+        if N == 0: return float('nan')
+        else: return float('inf')
+    sem = s/math.sqrt(n)
+    if N is not None:
+        # Finite population correction.
+        f = (N - n)/(N - 1)  # FPC squared.
+        assert 0 <= f <= 1
+        sem *= math.sqrt(f)
+    return sem
 
 
 # === Statistics of circular quantities ===
