@@ -325,6 +325,53 @@ class MidrangeTest(MeanTest):
 
 
 
+class QuartileTest(unittest.TestCase):
+    def testSorting(self):
+        """Test that quartiles doesn't sort in place."""
+        data = [2, 4, 1, 3, 0, 5]
+        assert data != sorted(data)
+        save = data[:]
+        assert save is not data
+        _ = stats.quartiles(data)
+        self.assertEquals(data, save)
+
+    def testTooFewItems(self):
+        self.assertRaises(ValueError, stats.quartiles, [])
+        self.assertRaises(ValueError, stats.quartiles, [1])
+        self.assertRaises(ValueError, stats.quartiles, [1, 2])
+
+    def testUnsorted(self):
+        data = [3, 2, 1, 0, 5]
+        assert data != sorted(data)
+        self.assertEquals(stats.quartiles(data), (1, 2.5, 4))
+
+    def testSmall(self):
+        data = [0, 1, 2]
+        self.assertEquals(stats.quartiles(data), (0, 1, 2))
+        data.append(3)
+        self.assertEquals(stats.quartiles(data), (0.5, 1.5, 2.5))
+        data.append(4)
+        self.assertEquals(stats.quartiles(data), (0.5, 2, 3.5))
+        data.append(5)
+        self.assertEquals(stats.quartiles(data), (1, 2.5, 4))
+        data.append(6)
+        self.assertEquals(stats.quartiles(data), (1, 3, 5))
+
+    def testBig(self):
+        data = list(range(1000, 2000))
+        assert len(data) == 1000
+        assert len(data)%4 == 0
+        random.shuffle(data)
+        self.assertEquals(stats.quartiles(data), (1249.5, 1499.5, 1749.5))
+        data.append(2000)
+        random.shuffle(data)
+        self.assertEquals(stats.quartiles(data), (1249.5, 1500, 1749.5))
+        data.append(2001)
+        random.shuffle(data)
+        self.assertEquals(stats.quartiles(data), (1249.5, 1500.5, 1749.5))
+
+
+
 # ============================================================================
 
 if __name__ == '__main__':
