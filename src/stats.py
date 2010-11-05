@@ -288,6 +288,8 @@ def median(data):
     second quartile or the 50th percentile.
     """
     n = len(data)
+    if n == 0:
+        raise StatsError('no median for empty iterable')
     n2 = n//2
     if n%2 == 1:
         # For an odd number of items, we take the middle one.
@@ -312,7 +314,7 @@ def mode(data):
         [(count, value) for (value, count) in count_elems(data).items()],
         reverse=True)
     if len(L) == 0:
-        raise StatsError('no mode for empty sequence')
+        raise StatsError('no mode for empty iterable')
     # Test if there are more than one modes.
     if len(L) > 1 and L[0][0] == L[1][0]:
         raise StatsError('no distinct mode')
@@ -328,7 +330,11 @@ def midrange(data):
     The midrange is halfway between the smallest and largest element. It is
     a weak measure of central tendency.
     """
-    a, b = minmax(data)
+    try:
+        a, b = minmax(data)
+    except ValueError as e:
+        e.args = ('no midrange for empty iterable',)
+        raise
     return (a + b)/2
 
 
@@ -345,6 +351,8 @@ def quartiles(data):
     data.
     """
     n = len(data)
+    if n < 3:
+        raise StatsError('need at least 3 items to split data into quartiles')
     rem = n%4
     a, m, b = n//4, n//2, (3*n)//4
     if rem == 0:
@@ -1133,7 +1141,7 @@ def count_elems(data):
     D = {}
     for element in data:
         D[element] = D.get(element, 0) + 1
-    return collections.Counter(data)
+    return D  #collections.Counter(data)
 
 
 # === Trimming of data ===

@@ -187,6 +187,142 @@ class CompareAgainstExternalResultsTest(unittest.TestCase):
         self.assertAlmostEqual(result, expected, places=self.places)
 
 
+class MeanTest(unittest.TestCase):
+    data = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
+    expected = 5.5
+    func = stats.mean
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        # Black magic to force self.func to be a function rather
+        # than a method.
+        self.func = self.__class__.func
+
+    def setUp(self):
+        random.shuffle(self.data)
+
+    def myAssertEquals(self, a, b, **kwargs):
+        if hasattr(self, 'delta'):
+            diff = abs(a-b)
+            self.assertLessEqual(diff, self.delta, **kwargs)
+        else:
+            self.assertEquals(a, b, **kwargs)
+
+    def testEmpty(self):
+        self.assertRaises(ValueError, self.func, [])
+
+    def testSeq(self):
+        self.myAssertEquals(self.func(self.data), self.expected)
+
+    def testBigData(self):
+        data = [x + 1e9 for x in self.data]
+        expected = self.expected + 1e9
+        self.myAssertEquals(self.func(data), expected)
+
+    def testIter(self):
+        self.myAssertEquals(self.func(iter(self.data)), self.expected)
+
+    def testSingleton(self):
+        for x in self.data:
+            self.myAssertEquals(self.func([x]), x)
+
+
+class HarmonicMeanTest(MeanTest):
+    func = stats.harmonic_mean
+    expected = 3.4995090404755
+    delta = 1e-8
+
+    def testBigData(self):
+        data = [x + 1e9 for x in self.data]
+        expected = 1000000005.5  # Calculated with HP-48GX
+        diff = abs(self.func(data) - expected)
+        self.assertLessEqual(diff, 1e-6)
+
+
+class GeometricMeanTest(MeanTest):
+    func = stats.geometric_mean
+    expected = 4.56188290183
+    delta = 1e-11
+
+    def testBigData(self):
+        data = [x + 1e9 for x in self.data]
+        # HP-48GX calculates this as 1000000005.48
+        expected = 1000000005.5
+        self.assertEquals(self.func(data), expected)
+
+    def testNegative(self):
+        data = [1.0, 2.0, -3.0, 4.0]
+        assert any(x < 0.0 for x in data)
+        self.assertRaises(ValueError, self.func, data)
+
+    def testZero(self):
+        data = [1.0, 2.0, 0.0, 4.0]
+        assert any(x == 0.0 for x in data)
+        self.assertEquals(self.func(data), 0.0)
+
+
+class QuadraticMeanTest(MeanTest):
+    func = stats.quadratic_mean
+    expected = 6.19004577259
+    delta = 1e-11
+
+    def testBigData(self):
+        data = [x + 1e9 for x in self.data]
+        expected = 1000000005.5  # Calculated with HP-48GX
+        self.assertEquals(self.func(data), expected)
+
+    def testNegative(self):
+        data = [-x for x in self.data]
+        self.myAssertEquals(self.func(data), self.expected)
+
+
+class MedianTest(MeanTest):
+    func = stats.median
+
+    def testSeq(self):
+        assert len(self.data) % 2 == 1
+        MeanTest.testSeq(self)
+
+    def testEven(self):
+        data = self.data[:] + [0.0]
+        self.assertEquals(self.func(data), 4.95)
+
+    def testSorting(self):
+        """Test that median doesn't sort in place."""
+        data = [2, 4, 1, 3]
+        assert data != sorted(data)
+        save = data[:]
+        assert save is not data
+        _ = stats.median(data)
+        self.assertEquals(data, save)
+
+
+class ModeTest(MeanTest):
+    data = [1.1, 2.2, 2.2, 3.3, 4.4, 5.5, 5.5, 5.5, 5.5, 6.6, 6.6, 7.7, 8.8]
+    func = stats.mode
+    expected = 5.5
+
+    def testModeless(self):
+        data = list(set(self.data))
+        random.shuffle(data)
+        self.assertRaises(ValueError, self.func, data)
+
+    def testBimodal(self):
+        data = self.data[:]
+        n = data.count(self.expected)
+        data.extend([6.6]*(n-data.count(6.6)))
+        assert data.count(6.6) == n
+        self.assertRaises(ValueError, self.func, data)
+
+
+class MidrangeTest(MeanTest):
+    func = stats.midrange
+
+    def testMidrange(self):
+        self.assertEquals(stats.midrange([1.0, 2.5]), 1.75)
+        self.assertEquals(stats.midrange([1.0, 2.0, 4.0]), 2.5)
+        self.assertEquals(stats.midrange([2.0, 4.0, 1.0]), 2.5)
+
 
 
 # ============================================================================
