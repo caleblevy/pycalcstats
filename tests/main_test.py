@@ -326,58 +326,108 @@ class MidrangeTest(MeanTest):
 
 
 class QuartileTest(unittest.TestCase):
+    func = stats.quartiles
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        # Black magic to force self.func to be a function rather
+        # than a method.
+        self.func = self.__class__.func
+
     def testSorting(self):
         """Test that quartiles doesn't sort in place."""
         data = [2, 4, 1, 3, 0, 5]
         assert data != sorted(data)
         save = data[:]
         assert save is not data
-        _ = stats.quartiles(data)
+        _ = self.func(data)
         self.assertEquals(data, save)
 
     def testTooFewItems(self):
-        self.assertRaises(ValueError, stats.quartiles, [])
-        self.assertRaises(ValueError, stats.quartiles, [1])
-        self.assertRaises(ValueError, stats.quartiles, [1, 2])
+        self.assertRaises(ValueError, self.func, [])
+        self.assertRaises(ValueError, self.func, [1])
+        self.assertRaises(ValueError, self.func, [1, 2])
 
     def testUnsorted(self):
         data = [3, 4, 2, 1, 0, 5]
         assert data != sorted(data)
-        self.assertEquals(stats.quartiles(data), (1, 2.5, 4))
+        self.assertEquals(self.func(data), (1, 2.5, 4))
 
     def testIter(self):
-        self.assertEquals(stats.quartiles(range(12)), (2.5, 5.5, 8.5))
-        self.assertEquals(stats.quartiles(range(13)), (2.5, 6, 9.5))
-        self.assertEquals(stats.quartiles(range(14)), (3, 6.5, 10))
-        self.assertEquals(stats.quartiles(range(15)), (3, 7, 11))
+        self.assertEquals(self.func(range(12)), (2.5, 5.5, 8.5))
+        self.assertEquals(self.func(range(13)), (2.5, 6, 9.5))
+        self.assertEquals(self.func(range(14)), (3, 6.5, 10))
+        self.assertEquals(self.func(range(15)), (3, 7, 11))
 
     def testSmall(self):
         data = [0, 1, 2]
-        self.assertEquals(stats.quartiles(data), (0, 1, 2))
+        self.assertEquals(self.func(data), (0, 1, 2))
         data.append(3)
-        self.assertEquals(stats.quartiles(data), (0.5, 1.5, 2.5))
+        self.assertEquals(self.func(data), (0.5, 1.5, 2.5))
         data.append(4)
-        self.assertEquals(stats.quartiles(data), (0.5, 2, 3.5))
+        self.assertEquals(self.func(data), (0.5, 2, 3.5))
         data.append(5)
-        self.assertEquals(stats.quartiles(data), (1, 2.5, 4))
+        self.assertEquals(self.func(data), (1, 2.5, 4))
         data.append(6)
-        self.assertEquals(stats.quartiles(data), (1, 3, 5))
+        self.assertEquals(self.func(data), (1, 3, 5))
 
     def testBig(self):
         data = list(range(1000, 2000))
         assert len(data) == 1000
         assert len(data)%4 == 0
         random.shuffle(data)
-        self.assertEquals(stats.quartiles(data), (1249.5, 1499.5, 1749.5))
+        self.assertEquals(self.func(data), (1249.5, 1499.5, 1749.5))
         data.append(2000)
         random.shuffle(data)
-        self.assertEquals(stats.quartiles(data), (1249.5, 1500, 1750.5))
+        self.assertEquals(self.func(data), (1249.5, 1500, 1750.5))
         data.append(2001)
         random.shuffle(data)
-        self.assertEquals(stats.quartiles(data), (1250, 1500.5, 1751))
+        self.assertEquals(self.func(data), (1250, 1500.5, 1751))
         data.append(2002)
         random.shuffle(data)
-        self.assertEquals(stats.quartiles(data), (1250, 1501, 1752))
+        self.assertEquals(self.func(data), (1250, 1501, 1752))
+
+
+class QuantileTest(unittest.TestCase):
+    func = stats.quantile
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        # Black magic to force self.func to be a function rather
+        # than a method.
+        self.func = self.__class__.func
+
+    def testSorting(self):
+        # Test that quantile doesn't sort in place.
+        data = [2, 4, 1, 3, 0, 5]
+        assert data != sorted(data)
+        save = data[:]
+        assert save is not data
+        _ = self.func(data, 0.9)
+        self.assertEquals(data, save)
+
+    def testQuantileArgOutOfRange(self):
+        data = [1, 2, 3, 4]
+        self.assertRaises(ValueError, self.func, data, -0.1)
+        self.assertRaises(ValueError, self.func, data, 1.1)
+
+    def testTooFewItems(self):
+        self.assertRaises(ValueError, self.func, [], 0.1)
+        self.assertRaises(ValueError, self.func, [1], 0.1)
+
+    def testUnsorted(self):
+        data = [3, 4, 2, 1, 0, 5]
+        assert data != sorted(data)
+        self.assertEquals(self.func(data, 0.1), 0.5)
+        self.assertEquals(self.func(data, 0.9), 4.5)
+
+    def testIter(self):
+        self.assertEquals(self.func(range(12), 0.3), 3.3)
+
+    def testUnitInterval(self):
+        data = [0, 1]
+        for f in (0.01, 0.1, 0.2, 0.25, 0.5, 0.55, 0.8, 0.9, 0.99):
+            self.assertEquals(self.func(data, f), f)
 
 
 
