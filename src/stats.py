@@ -50,7 +50,7 @@ __all__ = [
     # Other measures of central tendancy:
     'median', 'mode', 'midrange',
     # Other point statistics:
-    'quartiles',
+    'quartiles', 'quantile',
     # Measures of spread:
     'stdev', 'pstdev', 'variance', 'pvariance',
     'stdev1', 'pstdev1', 'variance1', 'pvariance1',
@@ -86,9 +86,9 @@ class StatsError(ValueError):
 def sorted_data(func):
     """Decorator to sort data passed to stats functions."""
     @functools.wraps(func)
-    def inner(data):
+    def inner(data, *args, **kwargs):
         data = sorted(data)
-        return func(data)
+        return func(data, *args, **kwargs)
     return inner
 
 
@@ -349,6 +349,14 @@ def quartiles(data):
     Returns a tuple of the first quartile Q1, the second quartile Q2 (also
     known as the median) and the third quartile Q3 from sortable sequence
     data.
+
+    >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
+    (2.0, 3.5, 5.0)
+
+    Where quartiles don't fall precisely on a data point, they are calculated
+    by the arithmetic mean of the point before and the point after the "true"
+    quartile. This may return slightly different results from those returned
+    by the quantile() and percentile() functions.
     """
     n = len(data)
     if n < 3:
@@ -362,7 +370,7 @@ def quartiles(data):
     elif rem == 1:
         q1 = (data[a-1] + data[a])/2
         q2 = data[m]
-        q3 = (data[b-1] + data[b])/2
+        q3 = (data[b] + data[b+1])/2
     elif rem == 2:
         q1 = data[a]
         q2 = (data[m-1] + data[m])/2
@@ -372,6 +380,34 @@ def quartiles(data):
         q2 = data[m]
         q3 = data[b]
     return (q1, q2, q3)
+
+
+@sorted_data
+def quantile(data, p):
+    """Return the pth quantile of data.
+
+    p must be a number between 0 and 1 inclusive. If p does not fall exactly
+    on a data point, the result returned is the linear interpolation between
+    the data point just before p and the data point just after p.
+
+    >>> quantile([2.0, 2.0, 3.0, 4.0, 5.0, 6.0], 0.75)
+    4.75
+
+    """
+    if not 0.0 <= p <= 1.0:
+        raise StatsError('quantile argument must be between 0.0 and 1.0')
+    n = len(data)
+    if n < 2:
+        raise StatsError('need at least 2 items to split data into quantiles')
+    x = p*(n-1)
+    m = int(x)
+    f = x - m
+    if f:
+        a = data[m]
+        delta = data[m+1] - a
+        return a + f*delta
+    else:
+        return data[m]
 
 
 # Measures of spread (dispersion or variability)
@@ -582,7 +618,7 @@ def _welford(data):
 
 
 def range(data):
-    """Return the range of a sequence of numbers.
+    """Return the statistical range of data.
 
     >>> range([1.0, 3.5, 7.5, 2.0, 0.25])
     7.25
@@ -596,6 +632,9 @@ def range(data):
 
 def iqr(data):
     """Returns the Inter-Quartile Range of a sequence of numbers.
+
+    >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])
+    3.25
 
     The IQR is the difference between the first and third quartile.
     """

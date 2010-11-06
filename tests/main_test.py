@@ -341,9 +341,15 @@ class QuartileTest(unittest.TestCase):
         self.assertRaises(ValueError, stats.quartiles, [1, 2])
 
     def testUnsorted(self):
-        data = [3, 2, 1, 0, 5]
+        data = [3, 4, 2, 1, 0, 5]
         assert data != sorted(data)
         self.assertEquals(stats.quartiles(data), (1, 2.5, 4))
+
+    def testIter(self):
+        self.assertEquals(stats.quartiles(range(12)), (2.5, 5.5, 8.5))
+        self.assertEquals(stats.quartiles(range(13)), (2.5, 6, 9.5))
+        self.assertEquals(stats.quartiles(range(14)), (3, 6.5, 10))
+        self.assertEquals(stats.quartiles(range(15)), (3, 7, 11))
 
     def testSmall(self):
         data = [0, 1, 2]
@@ -365,10 +371,13 @@ class QuartileTest(unittest.TestCase):
         self.assertEquals(stats.quartiles(data), (1249.5, 1499.5, 1749.5))
         data.append(2000)
         random.shuffle(data)
-        self.assertEquals(stats.quartiles(data), (1249.5, 1500, 1749.5))
+        self.assertEquals(stats.quartiles(data), (1249.5, 1500, 1750.5))
         data.append(2001)
         random.shuffle(data)
-        self.assertEquals(stats.quartiles(data), (1249.5, 1500.5, 1749.5))
+        self.assertEquals(stats.quartiles(data), (1250, 1500.5, 1751))
+        data.append(2002)
+        random.shuffle(data)
+        self.assertEquals(stats.quartiles(data), (1250, 1501, 1752))
 
 
 
