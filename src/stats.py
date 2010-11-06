@@ -173,6 +173,27 @@ def as_sequence(iterable):
     else: return list(iterable)
 
 
+def isplit(iterable, n):
+    """Split iterable into n independent item-iterators.
+
+    iterable is expected to yield N-tuples (a, b, c, ..., n). split()
+    returns a tuple of N iterators:
+        iter1 -> a, a2, a3, ..., aN
+        iter2 -> b, b2, b3, ..., bN
+        iter3 -> c, c2, c3, ..., cN
+        ...
+        iterN -> n, n2, n3, ..., nN
+
+    Note: the same disclaimer about memory consumption applies as for
+    itertools.tee. See the docs for further details.
+    """
+    iterators = []
+    for i, iterator in enumerate(itertools.tee(iterable, n)):
+        f = lambda it, i=i: (t[i] for t in it)
+        iterators.append(f(iterator))
+    return tuple(iterators)
+
+
 # === Basic univariate statistics ===
 
 
@@ -1308,22 +1329,33 @@ def sterrmean(s, n, N=None):
 
 # === Statistics of circular quantities ===
 
-def circular_mean(data):
-    """Return the mean of circular quantities such as angles."""
+def circular_mean(data, deg=True):
+    """Return the mean of circular quantities such as angles.
+
+    >>> circular_mean([15, 355])  # Like [15, -5]  #doctest: +ELLIPSIS
+    4.9999999999...
+
+    If optional argument deg is a true value (the default), the angles are
+    interpreted as degrees, otherwise they are interpreted as radians.
+    """
     # http://en.wikipedia.org/wiki/Mean_of_circular_quantities
-    raise NotImplementedError('not yet done')
-    # Assuming the data is that of angles:
-    #data = ((math.cos(theta), math.sin(theta)) for theta in data)
-    #x = mean(cosines)
-    #y = mean(sines)
-    #return math.atan2(y, x)  # Note the order is swapped.
-    # radius sqrt(x**2 + y**2) is a measure of variance: var = 1 - r
-    # Stdev is calculated by sqrt(ln(1/r**2)) = sqrt(-2*ln(r))
+    if deg:
+        # We expect the angles to be given in degrees rather than radians.
+        data = (math.radians(theta) for theta in data)
+    data = ((math.cos(theta), math.sin(theta)) for theta in data)
+    cosines, sines = isplit(data, 2)
+    # FIXME this will use significant storage if data is very large.
+    # Possible solution: rewrite mean to operate on data sets in parallel?
+    x = mean(cosines)
+    y = mean(sines)
+    theta = math.atan2(y, x)  # Note the order is swapped.
+    if deg:
+        theta = math.degrees(theta)
+    return theta
 
 
 
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
-
 
