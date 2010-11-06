@@ -459,6 +459,17 @@ class QuantileTest(unittest.TestCase):
             self.assertEquals(self.func(data, f), f)
 
 
+class CircularMeanTest(unittest.TestCase):
+    def testSmall(self):
+        places = 12
+        t = stats.circular_mean([0, 360])
+        self.assertEquals(round(t, places), 0.0)
+        t = stats.circular_mean([10, 20, 30])
+        self.assertEquals(round(t, places), 20.0)
+        t = stats.circular_mean([355, 5, 15])
+        self.assertEquals(round(t, places), 5.0)
+
+
 
 # ============================================================================
 
