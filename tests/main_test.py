@@ -130,6 +130,35 @@ class SortedDataDecoratorTest(unittest.TestCase):
         self.assertEquals(result, sorted(values))
 
 
+class AsSequenceTest(unittest.TestCase):
+    def testIdentity(self):
+        data = [1, 2, 3]
+        self.assert_(stats.as_sequence(data) is data)
+        data = tuple(data)
+        self.assert_(stats.as_sequence(data) is data)
+
+    def testSubclass(self):
+        # Helper function.
+        def make_subclass(kind):
+            class Subclass(kind):
+                pass
+            return Subclass
+
+        for cls in (tuple, list):
+            subcls = make_subclass(cls)
+            data = subcls([1, 2, 3])
+            assert type(data) is not cls
+            assert issubclass(type(data), cls)
+            self.assert_(stats.as_sequence(data) is data)
+
+    def testOther(self):
+        data = range(20)
+        assert type(data) is not list
+        result = stats.as_sequence(data)
+        self.assertEquals(result, list(data))
+        self.assert_(isinstance(result, list))
+
+
 class VarianceTest(unittest.TestCase):
     data = (4.0, 7.0, 13.0, 16.0)
     expected = 30.0  # Expected (exact) sample variance.
