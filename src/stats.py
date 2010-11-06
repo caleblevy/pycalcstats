@@ -49,8 +49,10 @@ __all__ = [
     'mean', 'harmonic_mean', 'geometric_mean', 'quadratic_mean',
     # Other measures of central tendancy:
     'median', 'mode', 'midrange',
+    # Moving averages:
+    'running_average', 'weighted_running_average', 'simple_moving_average',
     # Other point statistics:
-    'quartiles', 'quantile',
+    'quartiles', 'quantile', 'decile', 'percentile',
     # Measures of spread:
     'stdev', 'pstdev', 'variance', 'pvariance',
     'stdev1', 'pstdev1', 'variance1', 'pvariance1',
@@ -338,6 +340,73 @@ def midrange(data):
     return (a + b)/2
 
 
+# Moving averages
+# ---------------
+
+def running_average(data):
+    """Iterate over data, yielding the running average.
+
+    >>> list(running_average([40, 30, 50, 46, 39, 44]))
+    [40, 35.0, 40.0, 41.5, 41.0, 41.5]
+
+    The running average is also known as the cumulative moving average.
+    Given data [a, b, c, d, ...] it yields the values:
+        a, (a+b)/2, (a+b+c)/3, (a+b+c+d)/4, ...
+
+    that is, the average of the first item, the first two items, the first
+    three items, the first four items, ...
+    """
+    it = iter(data)
+    ca = next(it)
+    yield ca
+    for i, x in enumerate(it, 2):
+        ca = (x + (i-1)*ca)/i
+        yield ca
+
+
+def weighted_running_average(data):
+    """Iterate over data, yielding a running average with exponentially
+    decreasing weights.
+
+    >>> list(weighted_running_average([40, 30, 50, 46, 39, 44]))
+    [40, 35.0, 42.5, 44.25, 41.625, 42.8125]
+
+    This running average yields the average between the previous running
+    average and the current data point. Given data [a, b, c, d, ...] it
+    yields the values:
+        a, (a+b)/2, ((a+b)/2 + c)/2, (((a+b)/2 + c)/2 + d)/2, ...
+
+    The values yielded are weighted means where the weight on older points
+    decreases exponentially.
+    """
+    it = iter(data)
+    ca = next(it)
+    yield ca
+    for x in it:
+        ca = (ca + x)/2
+        yield ca
+
+
+def simple_moving_average(data, window=3):
+    """Iterate over data, yielding the simple moving average with a fixed
+    window size (defaulting to three).
+
+    >>> list(simple_moving_average([40, 30, 50, 46, 39, 44]))
+    [40.0, 42.0, 45.0, 43.0]
+
+    """
+    it = iter(data)
+    d = collections.deque(itertools.islice(it, window))
+    if len(d) != window:
+        raise StatsError('too few data points for given window size')
+    s = sum(d)
+    yield s/window
+    for x in it:
+        s += x - d.popleft()
+        d.append(x)
+        yield s/window
+
+
 # Quartiles, deciles and percentiles
 # ----------------------------------
 
@@ -408,6 +477,16 @@ def quantile(data, p):
         return a + f*delta
     else:
         return data[m]
+
+
+def decile(data, d):
+    """Return the dth decile of data."""
+    return quantile(data, d/10)
+
+
+def percentile(data, p):
+    """Return the pth decile of data."""
+    return quantile(data, p/100)
 
 
 # Measures of spread (dispersion or variability)
