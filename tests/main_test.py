@@ -26,10 +26,16 @@ if sys.version < "3.0":
     raise RuntimeError("run this under Python3")
 
 
+# Adjust the path to find the module being tested.
+import main_test as mt  # This module.
+loc = os.path.split(mt.__file__)[0]
+parent = os.path.split(loc)[0]
+sys.path.append(os.path.join(parent, 'src'))
+del mt, loc, parent
+
+
 # Module being tested.
 import stats
-
-print(stats.__file__)
 
 
 # === Helper functions ===

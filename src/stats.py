@@ -48,11 +48,11 @@ __all__ = [
     # Means and averages:
     'mean', 'harmonic_mean', 'geometric_mean', 'quadratic_mean',
     # Other measures of central tendancy:
-    'median', 'mode', 'midrange',
+    'median', 'mode', 'midrange', 'trimean',
     # Moving averages:
     'running_average', 'weighted_running_average', 'simple_moving_average',
     # Other point statistics:
-    'quartiles', 'fractile', 'decile', 'percentile',
+    'quartiles', 'quantile', 'decile', 'percentile', 'hinges',
     # Measures of spread:
     'stdev', 'pstdev', 'variance', 'pvariance',
     'stdev1', 'pstdev1', 'variance1', 'pvariance1',
@@ -68,6 +68,9 @@ __all__ = [
     # Statistics of circular quantities:
     'circular_mean',
     ]
+
+
+import _stats_quantiles as _quantiles
 
 import math
 import operator
@@ -340,6 +343,13 @@ def midrange(data):
     return (a + b)/2
 
 
+@sorted_data
+def trimean(data):
+    H1, H2 = hinges(data)
+    M = median(data)
+    return (H1 + 2*M + H2)/4
+
+
 # Moving averages
 # ---------------
 
@@ -407,18 +417,25 @@ def simple_moving_average(data, window=3):
         yield s/window
 
 
-# Quartiles, deciles and percentiles
-# ----------------------------------
+# Quantiles (fractiles) and hinges
+# --------------------------------
 
 
-# Arggh!!! Nobody can agree on how to calculate quantiles!!! There are at
-# least five methods for calculating quartiles, and R offers nine methods
-# for calculating general quantiles (fractiles). See here for an overview:
-# http://mathforum.org/library/drmath/view/60969.html
+# Grrr arggh!!! Nobody can agree on how to calculate quantiles.
+# Langford (2006) finds no fewer than a dozen methods for calculating
+# quartiles. Mathword and Dr Math suggest five:
+#   http://www.amstat.org/publications/jse/v14n3/langford.html
+#   http://mathforum.org/library/drmath/view/60969.html
+#   http://mathworld.wolfram.com/Quartile.html
 
+# R offers nine different methods for calculating quantiles (fractiles).
+
+
+# We start with the five (common? useful?) methods of calculating quartiles.
 def _quartiles_tukey(data):
-    """Return sample quartiles (Q1, Q2=M, Q3) using Tukey's method."""
-    # Assumes that data has already been sorted and has at least 3 items.
+    """Return sample quartiles using Tukey's method."""
+    # Returns the median, and the median of the two halves, including the
+    # median in each half.
     rem = n%4
     a, m, b = n//4, n//2, (3*n)//4
     if rem == 0:
@@ -441,42 +458,55 @@ def _quartiles_tukey(data):
 
 
 @sorted_data
-def _quartiles_mm(data):
-    """Return sample quartiles (Q1, Q2=M, Q3) using Tukey's method."""
-    pass
+def _quartiles_ms(data):
+    """Return sample quartiles using Mendenhall and Sincich's method."""
+    n = len(data)
+    midpoint = n//2
+    lower = _round((n+1)/4, 'up')
+    upper = _round(3*(n+1)/4, 'down')
+    # Subtract 1 to adjust for zero-based indexing.
+    return (data[lower-1], data[midpoint], data[upper-1])
 
 
 @sorted_data
-def _quartiles_ms(data):
-    """Return sample quartiles (Q1, Q2=M, Q3) using the method recommended
-    by Mendenhall and Sincich."""
-    pass
+def _quartiles_mm(data):
+    """Return sample quartiles using Moore and McCabe's method."""
+    # Returns the median, and the median of the two halves, excluding the
+    # median from each half. Also used by TI-85.
+    rem = n%4
+    a, m, b = n//4, n//2, (3*n)//4
+    if rem == 0:
+        q1 = (data[a-1] + data[a])/2
+        q2 = (data[m-1] + data[m])/2
+        q3 = (data[b-1] + data[b])/2
+    elif rem == 1:
+        q1 = (data[a-1] + data[a])/2
+        q2 = data[m]
+        q3 = (data[b] + data[b+1])/2
+    elif rem == 2:
+        q1 = data[a]
+        q2 = (data[m-1] + data[m])/2
+        q3 = data[b]
+    else:  # rem == 3
+        q1 = data[a]
+        q2 = data[m]
+        q3 = data[b]
+    return (q1, q2, q3)
 
 
 @sorted_data
 def _quartiles_minitab(data):
-    """Return sample quartiles (Q1, Q2=M, Q3) using the method used by
-    the Mintab statistics software."""
+    """Return sample quartiles using the method used by Minitab."""
     pass
 
 
 @sorted_data
 def _quartiles_excel(data):
-    """Return sample quartiles (Q1, Q2=M, Q3) using the method used by
-    the Excel spreadsheet software."""
+    """Return sample quartiles using the method used by Excel."""
+    # Method recommended by Freund and Perles.
     pass
 
 
-_QUARTILE_MAP = {
-    0: _quartiles_tukey,    't': _quartiles_tukey,
-    1: _quartiles_mm,       'mm': _quartiles_mm,
-                            'ti-85': _quartiles_mm,
-    2: _quartiles_ms,       'ms': _quartiles_ms,
-    3: _quartiles_minitab,  'mt': _quartiles_minitab,
-                            'minitab': _quartiles_minitab,
-    4: _quartiles_excel,    'fp': _quartiles_excel,
-                            'excel': _quartiles_excel,
-    }
 
 
 @sorted_data
@@ -484,37 +514,46 @@ def quartiles(data, method=0):
     """Return the sample quartiles (Q1, Q2, Q3) for data.
 
     Returns a 3-tuple of the first, second and third quartiles (Q1, Q2, Q3)
-    as calculated by the specified method. Valid methods are:
-
-    Method  Aliases          Description
-    ======  ===============  ============================================
-    0       't'              Tukey's method: medians of the two halves
-    1       'mm', 'ti-85'    method recommended by Moore and McCabe
-    2       'ms'             method recommended by Mendenhall and Sincich
-    3       'mt', 'minitab'  method used by Mintab software
-    4       'fp', 'excel'    method recommended by Freund and Perles
-
-    Aliases are case-insensitive. Method 1 is used by the Texas Instruments
-    calculator TI-85, method 4 is used by Excel. The default method is 0,
-    Tukey's method.
-
-    (also
-    known as the median) and the third quartile Q3 from sortable sequence
-    data, using Tukey's method.
+    as calculated by the optional method. Q2 is not necessarily the median.
 
     >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
     (2.0, 3.5, 5.0)
 
-    Where quartiles don't fall precisely on a data point, they are calculated
-    by the arithmetic mean of the point before and the point after the "true"
-    quartile. This may return slightly different results from those returned
-    by the quantile() and percentile() functions.
+    The values returned are such that (approximately) one quarter of the data
+    is below Q1, one half below Q2, and three-quarters below Q3. The exact
+    proportions, and the exact values of the cut-offs, depend on the method
+    of calculation. Valid methods and their case-insensitive aliases are:
+
+    Method  Aliases          Description
+    ======  ===============  ============================================
+    0       't'              method recommended by Tukey
+    1       'm&m', 'ti-85'   method recommended by Moore and McCabe
+    2       'm&s'            method recommended by Mendenhall and Sincich
+    3       'mt', 'minitab'  method used by Minitab software
+    4       'fp', 'excel'    method recommended by Freund and Perles
+
+    The default is method 0, Tukey's method. Tukey's method has the property
+    that Q2 will equal the median. The quartiles will either be data points,
+    or halfway between data points.
+
+    Method 1 is used by the Texas Instruments calculator model TI-85. It also
+    results in Q2 equal to the median, and the quartiles will also be either
+    data points, or half-way between data points.
+
+    Method 2 never interpolates between values, it will only return values
+    in the data set. If Q2 falls between two data points, it returns the
+    lower of the two.
+
+    Method 3 is used by Minitab. It uses linear interpolation between points.
+
+    Method 4 is used by Excel, and also uses linear interpolation between
+    points.
     """
     # Select a method.
     if isinstance(method, str):
         method = method.lower()
-    if method in _QUARTILE_MAP:
-        func = _QUARTILE_MAP[method]
+    if method in _quantiles.MAP:
+        func = _quantiles.MAP[method]
     else:
         raise StatsError(
             'unrecognised method selector `%s` for quartiles' % method
@@ -526,7 +565,7 @@ def quartiles(data, method=0):
 
 
 @sorted_data
-def fractile(data, f):
+def quantile(data, f):
     """Return the fractile f of the way through the data.
 
     f is the fraction of the data to be included. f must be a number between
@@ -567,6 +606,18 @@ def decile(data, d):
 def percentile(data, p):
     """Return the pth decile of data."""
     return quantile(data, p/100)
+
+
+@sorted_data
+def hinges(data):
+    """Return hinges (H1, H2) from data.
+
+    Hinges are exactly equivalent to quartiles Q1 and Q3 for data sets of
+    length 4N + 5, for integer N. Where the length is not exactly of that
+    form, we use Tukey's method.
+    """
+    h1, _, h2 = _quartiles_tukey(data)
+    return (h1, h2)
 
 
 # Measures of spread (dispersion or variability)
