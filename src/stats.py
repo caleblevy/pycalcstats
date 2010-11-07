@@ -422,89 +422,15 @@ def simple_moving_average(data, window=3):
 
 
 # Grrr arggh!!! Nobody can agree on how to calculate quantiles.
-# Langford (2006) finds no fewer than a dozen methods for calculating
-# quartiles. Mathword and Dr Math suggest five:
+# Langford (2006) finds no fewer than FIFTEEN methods for calculating
+# quartiles (although some are equivalent to others):
 #   http://www.amstat.org/publications/jse/v14n3/langford.html
+# Mathword and Dr Math suggest five:
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
 
-# R offers nine different methods for calculating quantiles (fractiles).
-
-
-# We start with the five (common? useful?) methods of calculating quartiles.
-def _quartiles_tukey(data):
-    """Return sample quartiles using Tukey's method."""
-    # Returns the median, and the median of the two halves, including the
-    # median in each half.
-    rem = n%4
-    a, m, b = n//4, n//2, (3*n)//4
-    if rem == 0:
-        q1 = (data[a-1] + data[a])/2
-        q2 = (data[m-1] + data[m])/2
-        q3 = (data[b-1] + data[b])/2
-    elif rem == 1:
-        q1 = (data[a-1] + data[a])/2
-        q2 = data[m]
-        q3 = (data[b] + data[b+1])/2
-    elif rem == 2:
-        q1 = data[a]
-        q2 = (data[m-1] + data[m])/2
-        q3 = data[b]
-    else:  # rem == 3
-        q1 = data[a]
-        q2 = data[m]
-        q3 = data[b]
-    return (q1, q2, q3)
-
-
-@sorted_data
-def _quartiles_ms(data):
-    """Return sample quartiles using Mendenhall and Sincich's method."""
-    n = len(data)
-    midpoint = n//2
-    lower = _round((n+1)/4, 'up')
-    upper = _round(3*(n+1)/4, 'down')
-    # Subtract 1 to adjust for zero-based indexing.
-    return (data[lower-1], data[midpoint], data[upper-1])
-
-
-@sorted_data
-def _quartiles_mm(data):
-    """Return sample quartiles using Moore and McCabe's method."""
-    # Returns the median, and the median of the two halves, excluding the
-    # median from each half. Also used by TI-85.
-    rem = n%4
-    a, m, b = n//4, n//2, (3*n)//4
-    if rem == 0:
-        q1 = (data[a-1] + data[a])/2
-        q2 = (data[m-1] + data[m])/2
-        q3 = (data[b-1] + data[b])/2
-    elif rem == 1:
-        q1 = (data[a-1] + data[a])/2
-        q2 = data[m]
-        q3 = (data[b] + data[b+1])/2
-    elif rem == 2:
-        q1 = data[a]
-        q2 = (data[m-1] + data[m])/2
-        q3 = data[b]
-    else:  # rem == 3
-        q1 = data[a]
-        q2 = data[m]
-        q3 = data[b]
-    return (q1, q2, q3)
-
-
-@sorted_data
-def _quartiles_minitab(data):
-    """Return sample quartiles using the method used by Minitab."""
-    pass
-
-
-@sorted_data
-def _quartiles_excel(data):
-    """Return sample quartiles using the method used by Excel."""
-    # Method recommended by Freund and Perles.
-    pass
+# Additionally, the statistics language R offers nine different methods for
+# calculating general quantiles.
 
 
 
@@ -582,18 +508,18 @@ def quantile(data, f):
     4.75
 
     """
-    if not 0.0 <= p <= 1.0:
+    if not 0.0 <= f <= 1.0:
         raise StatsError('quantile argument must be between 0.0 and 1.0')
     n = len(data)
     if n < 2:
         raise StatsError('need at least 2 items to split data into quantiles')
-    x = p*(n-1)
+    x = f*(n-1)
     m = int(x)
-    f = x - m
-    if f:
+    p = x - m
+    if p:
         a = data[m]
         delta = data[m+1] - a
-        return a + f*delta
+        return a + p*delta
     else:
         return data[m]
 

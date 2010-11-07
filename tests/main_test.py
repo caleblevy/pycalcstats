@@ -36,6 +36,7 @@ del mt, loc, parent
 
 # Module being tested.
 import stats
+import _stats_quantiles
 
 
 # === Helper functions ===
@@ -368,8 +369,8 @@ class DrMathTests(unittest.TestCase):
     C = range(1, 11)
     D = range(1, 12)
 
-    def testTukey(self):
-        f = stats._quartiles_tukey
+    def testInclusive(self):
+        f = _stats_quantiles.inclusive
         q1, q2, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
@@ -383,8 +384,8 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3.5)
         self.assertEquals(q3, 8.5)
 
-    def testMM(self):
-        f = stats._quartiles_mm
+    def testExclusive(self):
+        f = _stats_quantiles.inclusive
         q1, q2, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
@@ -398,8 +399,8 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 9.0)
 
-    def testMS(self):
-        f = stats._quartiles_ms
+    def notestms_quartile(self):
+        f = _stats_quantiles.ms_quartile
         q1, q2, q3 = f(self.A)
         self.assertEquals(q1, 2)
         self.assertEquals(q3, 7)
@@ -413,8 +414,8 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3)
         self.assertEquals(q3, 9)
 
-    def testMinitab(self):
-        f = stats._quartiles_minitab
+    def notestMinitab(self):
+        f = _stats_quantiles.minitab
         q1, q2, q3 = f(self.A)
         self.assertEquals(q1, 2.25)
         self.assertEquals(q3, 6.75)
@@ -428,8 +429,8 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 9.0)
 
-    def testExcel(self):
-        f = stats._quartiles_excel
+    def notestExcel(self):
+        f = _stats_quantiles.excel
         q1, q2, q3 = f(self.A)
         self.assertEquals(q1, 2.75)
         self.assertEquals(q3, 6.25)
