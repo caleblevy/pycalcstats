@@ -52,7 +52,7 @@ __all__ = [
     # Moving averages:
     'running_average', 'weighted_running_average', 'simple_moving_average',
     # Other point statistics:
-    'quartiles', 'quantile', 'decile', 'percentile',
+    'quartiles', 'fractile', 'decile', 'percentile',
     # Measures of spread:
     'stdev', 'pstdev', 'variance', 'pvariance',
     'stdev1', 'pstdev1', 'variance1', 'pvariance1',
@@ -411,25 +411,14 @@ def simple_moving_average(data, window=3):
 # ----------------------------------
 
 
-@sorted_data
-def quartiles(data):
-    """Return (Q1, Q2, Q3) for data.
+# Arggh!!! Nobody can agree on how to calculate quantiles!!! There are at
+# least five methods for calculating quartiles, and R offers nine methods
+# for calculating general quantiles (fractiles). See here for an overview:
+# http://mathforum.org/library/drmath/view/60969.html
 
-    Returns a tuple of the first quartile Q1, the second quartile Q2 (also
-    known as the median) and the third quartile Q3 from sortable sequence
-    data.
-
-    >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
-    (2.0, 3.5, 5.0)
-
-    Where quartiles don't fall precisely on a data point, they are calculated
-    by the arithmetic mean of the point before and the point after the "true"
-    quartile. This may return slightly different results from those returned
-    by the quantile() and percentile() functions.
-    """
-    n = len(data)
-    if n < 3:
-        raise StatsError('need at least 3 items to split data into quartiles')
+def _quartiles_tukey(data):
+    """Return sample quartiles (Q1, Q2=M, Q3) using Tukey's method."""
+    # Assumes that data has already been sorted and has at least 3 items.
     rem = n%4
     a, m, b = n//4, n//2, (3*n)//4
     if rem == 0:
@@ -452,10 +441,101 @@ def quartiles(data):
 
 
 @sorted_data
-def quantile(data, p):
-    """Return the pth quantile of data.
+def _quartiles_mm(data):
+    """Return sample quartiles (Q1, Q2=M, Q3) using Tukey's method."""
+    pass
 
-    p must be a number between 0 and 1 inclusive. If p does not fall exactly
+
+@sorted_data
+def _quartiles_ms(data):
+    """Return sample quartiles (Q1, Q2=M, Q3) using the method recommended
+    by Mendenhall and Sincich."""
+    pass
+
+
+@sorted_data
+def _quartiles_minitab(data):
+    """Return sample quartiles (Q1, Q2=M, Q3) using the method used by
+    the Mintab statistics software."""
+    pass
+
+
+@sorted_data
+def _quartiles_excel(data):
+    """Return sample quartiles (Q1, Q2=M, Q3) using the method used by
+    the Excel spreadsheet software."""
+    pass
+
+
+_QUARTILE_MAP = {
+    0: _quartiles_tukey,    't': _quartiles_tukey,
+    1: _quartiles_mm,       'mm': _quartiles_mm,
+                            'ti-85': _quartiles_mm,
+    2: _quartiles_ms,       'ms': _quartiles_ms,
+    3: _quartiles_minitab,  'mt': _quartiles_minitab,
+                            'minitab': _quartiles_minitab,
+    4: _quartiles_excel,    'fp': _quartiles_excel,
+                            'excel': _quartiles_excel,
+    }
+
+
+@sorted_data
+def quartiles(data, method=0):
+    """Return the sample quartiles (Q1, Q2, Q3) for data.
+
+    Returns a 3-tuple of the first, second and third quartiles (Q1, Q2, Q3)
+    as calculated by the specified method. Valid methods are:
+
+    Method  Aliases          Description
+    ======  ===============  ============================================
+    0       't'              Tukey's method: medians of the two halves
+    1       'mm', 'ti-85'    method recommended by Moore and McCabe
+    2       'ms'             method recommended by Mendenhall and Sincich
+    3       'mt', 'minitab'  method used by Mintab software
+    4       'fp', 'excel'    method recommended by Freund and Perles
+
+    Aliases are case-insensitive. Method 1 is used by the Texas Instruments
+    calculator TI-85, method 4 is used by Excel. The default method is 0,
+    Tukey's method.
+
+    (also
+    known as the median) and the third quartile Q3 from sortable sequence
+    data, using Tukey's method.
+
+    >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
+    (2.0, 3.5, 5.0)
+
+    Where quartiles don't fall precisely on a data point, they are calculated
+    by the arithmetic mean of the point before and the point after the "true"
+    quartile. This may return slightly different results from those returned
+    by the quantile() and percentile() functions.
+    """
+    # Select a method.
+    if isinstance(method, str):
+        method = method.lower()
+    if method in _QUARTILE_MAP:
+        func = _QUARTILE_MAP[method]
+    else:
+        raise StatsError(
+            'unrecognised method selector `%s` for quartiles' % method
+            )
+    n = len(data)
+    if n < 3:
+        raise StatsError('need at least 3 items to split data into quartiles')
+    return func(data)
+
+
+@sorted_data
+def fractile(data, f):
+    """Return the fractile f of the way through the data.
+
+    f is the fraction of the data to be included. f must be a number between
+    0 and 1 inclusive. The fractile (also known as quantile)
+     
+     f=0 gives the minimum data point, f=1 gives the
+    maximum, otherwise any fractional value gives the data point such that the fraction f of the data is less than that value.
+
+    If p does not fall exactly
     on a data point, the result returned is the linear interpolation between
     the data point just before p and the data point just after p.
 
