@@ -1311,13 +1311,25 @@ def sterrmean(s, n, N=None):
 def circular_mean(data, deg=True):
     """Return the mean of circular quantities such as angles.
 
-    >>> circular_mean([15, 355])  # Like [15, -5]  #doctest: +ELLIPSIS
+    Taking the mean of angles requires some care. Consider the mean of 15
+    degrees and 355 degrees. The conventional mean of the two would be 185
+    degrees, but a better result would be 5 degrees. This matches the result
+    of averaging 15 and -5 degrees, -5 being equivalent to 355.
+
+    >>> circular_mean([15, 355])  #doctest: +ELLIPSIS
     4.9999999999...
 
     If optional argument deg is a true value (the default), the angles are
-    interpreted as degrees, otherwise they are interpreted as radians.
+    interpreted as degrees, otherwise they are interpreted as radians:
+
+    >>> pi = math.pi
+    >>> circular_mean([pi/4, -pi/4], False)
+    0.0
+    >>> theta = circular_mean([pi/3, 2*pi-pi/6], False)
+    >>> theta  # Exact value is pi/12  #doctest: +ELLIPSIS
+    0.261799387799...
+
     """
-    # http://en.wikipedia.org/wiki/Mean_of_circular_quantities
     radians, cos, sin = math.radians, math.cos, math.sin
     ap = add_partial
     if deg:
@@ -1327,7 +1339,7 @@ def circular_mean(data, deg=True):
         ap(cos(theta), cosines)
         ap(sin(theta), sines)
     if n == 0:
-        raise StatsError('mean of empty sequence is not defined')
+        raise StatsError('circular mean of empty sequence is not defined')
     x = math.fsum(cosines)/n
     y = math.fsum(sines)/n
     theta = math.atan2(y, x)  # Note the order is swapped.
