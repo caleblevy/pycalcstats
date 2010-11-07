@@ -353,6 +353,90 @@ class MidrangeTest(MeanTest):
         self.assertEquals(stats.midrange([2.0, 4.0, 1.0]), 2.5)
 
 
+class DrMathTests(unittest.TestCase):
+    # Sample data for testing quartiles taken from Dr Math page:
+    # http://mathforum.org/library/drmath/view/60969.html
+    # FIXME results given doesn't include Q2 points.
+    A = range(1, 9)
+    B = range(1, 10)
+    C = range(1, 11)
+    D = range(1, 12)
+
+    def testTukey(self):
+        f = stats._quartiles_tukey
+        q1, q2, q3 = f(self.A)
+        self.assertEquals(q1, 2.5)
+        self.assertEquals(q3, 6.5)
+        q1, q2, q3 = f(self.B)
+        self.assertEquals(q1, 3.0)
+        self.assertEquals(q3, 7.0)
+        q1, q2, q3 = f(self.C)
+        self.assertEquals(q1, 3.0)
+        self.assertEquals(q3, 8.0)
+        q1, q2, q3 = f(self.D)
+        self.assertEquals(q1, 3.5)
+        self.assertEquals(q3, 8.5)
+
+    def testMM(self):
+        f = stats._quartiles_mm
+        q1, q2, q3 = f(self.A)
+        self.assertEquals(q1, 2.5)
+        self.assertEquals(q3, 6.5)
+        q1, q2, q3 = f(self.B)
+        self.assertEquals(q1, 2.5)
+        self.assertEquals(q3, 7.5)
+        q1, q2, q3 = f(self.C)
+        self.assertEquals(q1, 3.0)
+        self.assertEquals(q3, 8.0)
+        q1, q2, q3 = f(self.D)
+        self.assertEquals(q1, 3.0)
+        self.assertEquals(q3, 9.0)
+
+    def testMS(self):
+        f = stats._quartiles_ms
+        q1, q2, q3 = f(self.A)
+        self.assertEquals(q1, 2)
+        self.assertEquals(q3, 7)
+        q1, q2, q3 = f(self.B)
+        self.assertEquals(q1, 3)
+        self.assertEquals(q3, 7)
+        q1, q2, q3 = f(self.C)
+        self.assertEquals(q1, 3)
+        self.assertEquals(q3, 8)
+        q1, q2, q3 = f(self.D)
+        self.assertEquals(q1, 3)
+        self.assertEquals(q3, 9)
+
+    def testMinitab(self):
+        f = stats._quartiles_minitab
+        q1, q2, q3 = f(self.A)
+        self.assertEquals(q1, 2.25)
+        self.assertEquals(q3, 6.75)
+        q1, q2, q3 = f(self.B)
+        self.assertEquals(q1, 2.5)
+        self.assertEquals(q3, 7.5)
+        q1, q2, q3 = f(self.C)
+        self.assertEquals(q1, 2.75)
+        self.assertEquals(q3, 8.25)
+        q1, q2, q3 = f(self.D)
+        self.assertEquals(q1, 3.0)
+        self.assertEquals(q3, 9.0)
+
+    def testExcel(self):
+        f = stats._quartiles_excel
+        q1, q2, q3 = f(self.A)
+        self.assertEquals(q1, 2.75)
+        self.assertEquals(q3, 6.25)
+        q1, q2, q3 = f(self.B)
+        self.assertEquals(q1, 3.0)
+        self.assertEquals(q3, 7.0)
+        q1, q2, q3 = f(self.C)
+        self.assertEquals(q1, 3.25)
+        self.assertEquals(q3, 7.75)
+        q1, q2, q3 = f(self.D)
+        self.assertEquals(q1, 3.5)
+        self.assertEquals(q3, 8.5)
+
 
 class QuartileTest(unittest.TestCase):
     func = stats.quartiles
