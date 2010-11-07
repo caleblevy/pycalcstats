@@ -8,10 +8,6 @@
 # ---------------------------------------------
 
 
-# These functions that follow all assume that the data is a sorted
-# list of length at least 3. No error checking is performed.
-
-
 def inclusive(data):
     """Return sample quartiles using Tukey's method."""
     # Returns the median, and the median of the two halves, including the
@@ -20,22 +16,22 @@ def inclusive(data):
     rem = n%4
     a, m, b = n//4, n//2, (3*n)//4
     if rem == 0:
-        q1 = (data[a-1] + data[a])/2
-        q2 = (data[m-1] + data[m])/2
-        q3 = (data[b-1] + data[b])/2
+        q1 = (a-1, a)
+        q2 = (m-1, m)
+        q3 = (b-1, b)
     elif rem == 1:
-        q1 = data[a]
-        q2 = data[m]
-        q3 = data[b]
+        q1 = a
+        q2 = m
+        q3 = b
     elif rem == 2:
-        q1 = data[a]
-        q2 = (data[m-1] + data[m])/2
-        q3 = data[b]
+        q1 = a
+        q2 = (m-1, m)
+        q3 = b
     else:  # rem == 3
-        q1 = (data[a-1] + data[a])/2
-        q2 = data[m]
-        q3 = (data[b-1] + data[b])/2
-    return (q1, q2, q3)
+        q1 = (a-1, a)
+        q2 = m
+        q3 = (b-1, b)
+    return (getitem(data, q1), getitem(data, q2), getitem(data, q3))
 
 
 def exclusive(data):
@@ -46,32 +42,32 @@ def exclusive(data):
     rem = n%4
     a, m, b = n//4, n//2, (3*n)//4
     if rem == 0:
-        q1 = (data[a-1] + data[a])/2
-        q2 = (data[m-1] + data[m])/2
-        q3 = (data[b-1] + data[b])/2
+        q1 = (a-1, a)
+        q2 = (m-1, m)
+        q3 = (b-1, b)
     elif rem == 1:
-        q1 = (data[a-1] + data[a])/2
-        q2 = data[m]
-        q3 = (data[b] + data[b+1])/2
+        q1 = (a-1, a)
+        q2 = m
+        q3 = (b, b+1)  # b-1, b ?
     elif rem == 2:
-        q1 = data[a]
-        q2 = (data[m-1] + data[m])/2
-        q3 = data[b]
+        q1 = a
+        q2 = (m-1, m)
+        q3 = b
     else:  # rem == 3
-        q1 = data[a]
-        q2 = data[m]
-        q3 = data[b]
-    return (q1, q2, q3)
+        q1 = a
+        q2 = m
+        q3 = b
+    return (getitem(data, q1), getitem(data, q2), getitem(data, q3))
 
 
 def ms_quartile(data):
     """Return sample quartiles using Mendenhall and Sincich's method."""
     n = len(data)
-    midpoint = n//2
-    lower = _round((n+1)/4, 'up')
-    upper = _round(3*(n+1)/4, 'down')
+    mid = n//2
     # Subtract 1 to adjust for zero-based indexing.
-    return (data[lower-1], data[midpoint], data[upper-1])
+    lower = _round((n+1)/4, 'up') - 1
+    upper = _round(3*(n+1)/4, 'down') - 1
+    return (getitem(data, lower), getitem(data, mid), getitem(data, upper))
 
 
 def minitab(data):
@@ -100,6 +96,26 @@ MAP = {
                     'excel': excel,
     }
 
+
+
+def getitem(data, idx):
+    """Helper function for quantiles. Return the value of data at idx.
+
+    If idx is an integer, returns data[idx].
+    If idx is a two-tuple (a, b), returns the mean of data[a] and data[b].
+    If idx is a float, returns the linear interpolation between data[n] and
+    data[n+1], where n = int(idx).
+    """
+    if isinstance(idx, int):
+        return data[idx]
+    elif isinstance(idx, tuple):
+        a, b = idx
+        return (data[a] + data[b])/2
+    elif isinstance(idx, float):
+        n = int(idx)
+        f = idx % 1
+        x, y = data[n:n+1]
+        return x + f*(y-x)
 
 
 
