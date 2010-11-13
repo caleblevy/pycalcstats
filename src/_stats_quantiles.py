@@ -3,76 +3,87 @@
 # ==============================================
 
 
+# This module contains private functions for calculating quantiles.
+# Do NOT use anything in this module directly. Everything here is subject
+# to change WITHOUT NOTICE.
 
-# Quantiles (fractiles), quartiles and related.
-# ---------------------------------------------
+
+
+# === Quartiles ===
+
+# Langford (2006) describes 15 methods for calculating quartiles, although
+# some are mathematically equivalent to others:
+#   http://www.amstat.org/publications/jse/v14n3/langford.html
+#
+# We currently support the five methods described by Mathword and Dr Math:
+#   http://mathforum.org/library/drmath/view/60969.html
+#   http://mathworld.wolfram.com/Quartile.html
 
 
 def inclusive(data):
-    """Return sample quartiles using Tukey's method."""
-    # Returns the median, and the median of the two halves, including the
-    # median in each half.
+    """Return sample quartiles using Tukey's method.
+
+    Q1 and Q3 are calculated as the medians of the two halves of the data,
+    where the median Q2 is included in both halves.
+    """
     n = len(data)
-    rem = n%4
-    a, m, b = n//4, n//2, (3*n)//4
-    if rem == 0:
-        q1 = (a-1, a)
-        q2 = (m-1, m)
-        q3 = (b-1, b)
-    elif rem == 1:
-        q1 = a
-        q2 = m
-        q3 = b
-    elif rem == 2:
-        q1 = a
-        q2 = (m-1, m)
-        q3 = b
-    else:  # rem == 3
-        q1 = (a-1, a)
-        q2 = m
-        q3 = (b-1, b)
-    return (getitem(data, q1), getitem(data, q2), getitem(data, q3))
+    i = (n+1)//4
+    m = n//2
+    if n%4 in (0, 3):
+        q1 = (data[i] + data[i-1])/2
+        q3 = (data[-i-1] + data[-i])/2
+    else:
+        q1 = data[i]
+        q3 = data[-i-1]
+    if n%2 == 0:
+        q2 = (data[m-1] + data[m])/2
+    else:
+        q2 = data[m]
+    return (q1, q2, q3)
 
 
 def exclusive(data):
-    """Return sample quartiles using Moore and McCabe's method."""
-    # Returns the median, and the median of the two halves, excluding the
-    # median from each half. Also used by TI-85 calculators and newer models.
+    """Return sample quartiles using Moore and McCabe's method.
+
+    Q1 and Q3 are calculated as the medians of the two halves of the data,
+    where the median Q2 is excluded from both halves.
+
+    This is the method used by Texas Instruments model TI-85 calculator.
+    """
     n = len(data)
-    rem = n%4
-    a, m, b = n//4, n//2, (3*n)//4
-    if rem == 0:
-        q1 = (a-1, a)
-        q2 = (m-1, m)
-        q3 = (b-1, b)
-    elif rem == 1:
-        q1 = (a-1, a)
-        q2 = m
-        q3 = (b, b+1)  # b-1, b ?
-    elif rem == 2:
-        q1 = a
-        q2 = (m-1, m)
-        q3 = b
-    else:  # rem == 3
-        q1 = a
-        q2 = m
-        q3 = b
-    return (getitem(data, q1), getitem(data, q2), getitem(data, q3))
+    i = n//4
+    m = n//2
+    if n%4 in (0, 1):
+        q1 = (data[i] + data[i-1])/2
+        q3 = (data[-i-1] + data[-i])/2
+    else:
+        q1 = data[i]
+        q3 = data[-i-1]
+    if n%2 == 0:
+        q2 = (data[m-1] + data[m])/2
+    else:
+        q2 = data[m]
+    return (q1, q2, q3)
 
 
-def ms_quartile(data):
+def ms(data):
     """Return sample quartiles using Mendenhall and Sincich's method."""
     n = len(data)
-    mid = n//2
-    # Subtract 1 to adjust for zero-based indexing.
-    lower = _round((n+1)/4, 'up') - 1
-    upper = _round(3*(n+1)/4, 'down') - 1
-    return (getitem(data, lower), getitem(data, mid), getitem(data, upper))
+    M = round((n+1)/2, EVEN)
+    L = round((n+1)/4, UP)
+    assert (n-i) == round(3*(n+1)/4, DOWN)
+    # Subtract 1 to adjust for zero-based indexes.
+    return (data[L-1], data[M-1], data[-L-1])
 
 
 def minitab(data):
     """Return sample quartiles using the method used by Minitab."""
-    raise NotImplementedError
+    n = len(data)
+    # Subtract 1 to adjust for zero-based indexes.
+    M = (n+1)/2 - 1
+    L = (n+1)/4 - 1
+    U = 3*(n+1)/4 - 1
+    return (interpolate(data, L), interpolate(data, M), interpolate(data, U))
 
 
 def excel(data):
@@ -82,56 +93,115 @@ def excel(data):
 
 
 
+# Numeric method selectors for quartiles:
+QUARTILE_MAP = {
+    0: inclusive,
+    1: exclusive,
+    2: ms,
+    3: minitab,
+    4: excel,
+    }
+    # Note: if you modify this, you must also update the docstring for
+    # the quartiles function in stats.py.
 
-# Note: if you modify this, you must also update the docstring for
-# the quartiles function in stats.py.
-MAP = {
-    0: inclusive,   't': inclusive,
-    1: exclusive,   'm&m': exclusive,
-                    'ti-85': exclusive,
-    2: ms_quartile, 'm&s': ms_quartile,
-    3: minitab,     'mt': minitab,
-                    'minitab': minitab,
-    4: excel,       'fp':excel,
-                    'excel': excel,
+
+# Lowercase aliases for the numeric method selectors for quartiles:
+QUARTILE_ALIASES = {
+    'inclusive': 0,
+    'incl': 0,
+    'tukey': 0,
+    'hinges': 0,
+    'exclusive': 1,
+    'excl': 1,
+    'm&m': 1,
+    'ti-85': 1,
+    'm&s': 2,
+    'minitab': 3,
+    'fp': 4,
+    'excel': 4,
     }
 
 
 
-def getitem(data, idx):
-    """Helper function for quantiles. Return the value of data at idx.
+# === Quantiles (fractiles) ===
 
-    If idx is an integer, returns data[idx].
-    If idx is a two-tuple (a, b), returns the mean of data[a] and data[b].
-    If idx is a float, returns the linear interpolation between data[n] and
-    data[n+1], where n = int(idx).
-    """
-    if isinstance(idx, int):
-        return data[idx]
-    elif isinstance(idx, tuple):
-        a, b = idx
-        return (data[a] + data[b])/2
-    elif isinstance(idx, float):
-        n = int(idx)
-        f = idx % 1
-        x, y = data[n:n+1]
-        return x + f*(y-x)
+def placeholder(data, p):
+    pass
+
+r1 = r2 = r3 = r4 = r5 = r6 = r7 = r8 = r9 = placeholder
 
 
+# Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
+# calculation methods with the same number.
+QUANTILE_MAP = {
+    0: placeholder,
+    1: r1,
+    2: r2,
+    3: r3,
+    4: r4,
+    5: r5,
+    6: r6,
+    7: r7,
+    8: r8,
+    9: r9,
+    }
+    # Note: if you add any additional methods to this, you must also update
+    # the docstring for the quantiles function in stats.py.
 
-def _round(x, direction):
-    """Round non-negative x with direction (up, down) on ties."""
-    direction = direction.lower()
-    assert direction in ('up', 'down')
+
+# Lowercase aliases for the numeric method selectors for quantiles:
+QUANTILE_ALIASES = {
+    'sas-1': 4,
+    'sas-2': 3,
+    'sas-3': 1,
+    'sas-4': 6,
+    'sas-5': 2,
+    'excel': 7,
+    }
+
+
+# === Helper functions ===
+
+# Rounding modes:
+UP = 0
+DOWN = 1
+EVEN = 2
+
+def round(x, rounding_mode):
+    """Round non-negative x, with ties rounding according to rounding_mode."""
+    assert rounding_mode in (UP, DOWN, EVEN)
     assert x >= 0.0
-    if direction == 'up':
-        if x%1 >= 0.5:
-            return int(x) + 1
+    n, f = int(x), x%1
+    if rounding_mode == UP:
+        if f >= 0.5:
+            return n+1
         else:
-            return int(x)
+            return n
+    elif rounding_mode == DOWN:
+        if f > 0.5:
+            return n+1
+        else:
+            return n
     else:
-        if x%1 > 0.5:
-            return int(x) + 1
+        # Banker's rounding to EVEN.
+        if f > 0.5:
+            return n+1
+        elif f < 0.5:
+            return n
         else:
-            return int(x)
+            if n%2:
+                # n is odd, so round up to even.
+                return n+1
+            else:
+                # n is even, so round down.
+                return n
+
+
+def interpolate(data, i):
+    if i%1:
+        i, f = int(i), i%1
+        a, b = data[i:i+2]
+        return a + f*(b-a)
+    else:
+        return data[i]
 

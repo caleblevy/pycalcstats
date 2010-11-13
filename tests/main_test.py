@@ -9,8 +9,10 @@ Runs:
 
 """
 
+import collections
 import doctest
 import gc
+import inspect
 import itertools
 import math
 import os
@@ -34,25 +36,127 @@ sys.path.append(os.path.join(parent, 'src'))
 del mt, loc, parent
 
 
-# Module being tested.
+# Modules being tested.
 import stats
 import _stats_quantiles
 
 
 # === Helper functions ===
 
+
 # === Data sets for testing ===
+
 
 # === Test suites ===
 
-class GlobalTest(unittest.TestCase):
-    """Test the state and/or existence of globals."""
+
+# Miscellaneous tests
+# -------------------
+
+class GlobalsTest(unittest.TestCase):
+    # Test the state and/or existence of globals.
     def testMeta(self):
-        """Test existence of metadata."""
+        # Test existence of metadata.
         attrs = ("__doc__ __version__ __date__ __author__"
                  " __author_email__ __all__").split()
         for meta in attrs:
             self.failUnless(hasattr(stats, meta), "missing %s" % meta)
+
+
+class CompareAgainstExternalResultsTest(unittest.TestCase):
+    # Test the results we generate against some numpy equivalents.
+    places = 8
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        # Read data from external test data file.
+        # (In this case, produced by numpy and Python 2.5.)
+        zf = zipfile.ZipFile('test_data.zip', 'r')
+        self.data = pickle.loads(zf.read('data.pkl'))
+        self.expected = pickle.loads(zf.read('results.pkl'))
+        zf.close()
+
+    # FIXME assertAlmostEquals is not really the right way to do these
+    # tests, as decimal places != significant figures.
+    def testSum(self):
+        result = stats.sum(self.data)
+        expected = self.expected['sum']
+        n = int(math.log(result, 10))  # Yuck.
+        self.assertAlmostEqual(result, expected, places=self.places-n)
+
+    def testProduct(self):
+        result = stats.product(self.data)
+        expected = self.expected['product']
+        self.assertAlmostEqual(result, expected, places=self.places)
+
+    def testMean(self):
+        result = stats.mean(self.data)
+        expected = self.expected['mean']
+        self.assertAlmostEqual(result, expected, places=self.places)
+
+    def testRange(self):
+        result = stats.range(self.data)
+        expected = self.expected['range']
+        self.assertAlmostEqual(result, expected, places=self.places)
+
+    def testMidrange(self):
+        result = stats.midrange(self.data)
+        expected = self.expected['midrange']
+        self.assertAlmostEqual(result, expected, places=self.places)
+
+    def testPStdev(self):
+        result = stats.pstdev(self.data)
+        expected = self.expected['pstdev']
+        self.assertAlmostEqual(result, expected, places=self.places)
+
+    def testPVar(self):
+        result = stats.pvariance(self.data)
+        expected = self.expected['pvariance']
+        self.assertAlmostEqual(result, expected, places=self.places)
+
+
+# Test helper and utility functions
+# ---------------------------------
+
+class SortedDataDecoratorTest(unittest.TestCase):
+    """Test that the sorted_data decorator works correctly."""
+    def testDecorator(self):
+        @stats.sorted_data
+        def f(data):
+            return data
+
+        values = random.sample(range(1000), 100)
+        result = f(values)
+        self.assertEquals(result, sorted(values))
+
+
+class MultivariateDecoratorTest(unittest.TestCase):
+    """Test that the multivariate decorator works correctly."""
+    def get_decorated_result(self, *args):
+        @stats.multivariate
+        def f(data):
+            return list(data)
+        return f(*args)
+
+    def test_xy_apart(self):
+        xdata = range(8)
+        ydata = (2**i for i in xdata)
+        expected = [(i, 2**i) for i in range(8)]
+        result = self.get_decorated_result(xdata, ydata)
+        self.assertEquals(result, expected)
+
+    def test_xy_together(self):
+        xdata = range(64)
+        ydata = (2*i-3 for i in xdata)
+        expected = [(i, 2*i-3) for i in range(64)]
+        result = self.get_decorated_result(zip(xdata, ydata))
+        self.assertEquals(result, expected)
+
+    def test_x_alone(self):
+        xdata = [2, 4, 6, 8]
+        expected = [(2, None), (4, None), (6, None), (8, None)]
+        result = self.get_decorated_result(xdata)
+        self.assertEquals(result, expected)
 
 
 class MinmaxTest(unittest.TestCase):
@@ -125,16 +229,13 @@ class MinmaxTest(unittest.TestCase):
         self.assertRaises(TypeError, stats.minmax, 1)
 
 
-class SortedDataDecoratorTest(unittest.TestCase):
-    """Test that the sorted_data decorator works correctly."""
-    def testDecorator(self):
-        @stats.sorted_data
-        def f(data):
-            return data
-
-        values = random.sample(range(1000), 100)
-        result = f(values)
-        self.assertEquals(result, sorted(values))
+class AddPartialTest(unittest.TestCase):
+    def testInplace(self):
+        # Test that add_partial modifies list in place and returns None.
+        L = []
+        result = stats.add_partial(1.5, L)
+        self.assertEquals(L, [1.5])
+        self.assert_(result is None)
 
 
 class AsSequenceTest(unittest.TestCase):
@@ -166,62 +267,52 @@ class AsSequenceTest(unittest.TestCase):
         self.assert_(isinstance(result, list))
 
 
-class VarianceTest(unittest.TestCase):
-    data = (4.0, 7.0, 13.0, 16.0)
-    expected = 30.0  # Expected (exact) sample variance.
+class CombineXYDataTest(unittest.TestCase):
+    def test_xy_together(self):
+        xydata = [(1, 2), (3, 4), (5, 6)]
+        expected = xydata[:]
+        result = stats.combine_xydata(xydata)
+        self.assertEquals(list(result), expected)
 
-    def test_small(self):
-        self.assertEquals(stats.variance(self.data), self.expected)
-    def test_big(self):
-        data = [x + 1e6 for x in self.data]
-        self.assertEquals(stats.variance(data), self.expected)
-    def test_huge(self):
-        data = [x + 1e9 for x in self.data]
-        self.assertEquals(stats.variance(data), self.expected)
+    def test_xy_apart(self):
+        xdata = [1, 3, 5]
+        ydata = [2, 4, 6]
+        expected = list(zip(xdata, ydata))
+        result = stats.combine_xydata(xdata, ydata)
+        self.assertEquals(list(result), expected)
+
+    def test_x_alone(self):
+        xdata = [1, 3, 5]
+        expected = list(zip(xdata, [None]*len(xdata)))
+        result = stats.combine_xydata(xdata)
+        self.assertEquals(list(result), expected)
 
 
-class CompareAgainstExternalResultsTest(unittest.TestCase):
-    places = 8
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        # Read data from external test data file.
-        # (In this case, produced by numpy and Python 2.5.)
-        zf = zipfile.ZipFile('test_data.zip', 'r')
-        self.data = pickle.loads(zf.read('data.pkl'))
-        self.expected = pickle.loads(zf.read('results.pkl'))
-        zf.close()
-    # FIXME assertAlmostEquals is not really the right way to do these
-    # tests, as decimal places != significant figures.
-    def testSum(self):
-        result = stats.sum(self.data)
-        expected = self.expected['sum']
-        n = int(math.log(result, 10))  # Yuck.
-        self.assertAlmostEqual(result, expected, places=self.places-n)
-    def testProduct(self):
-        result = stats.product(self.data)
-        expected = self.expected['product']
-        self.assertAlmostEqual(result, expected, places=self.places)
-    def testMean(self):
-        result = stats.mean(self.data)
-        expected = self.expected['mean']
-        self.assertAlmostEqual(result, expected, places=self.places)
-    def testRange(self):
-        result = stats.range(self.data)
-        expected = self.expected['range']
-        self.assertAlmostEqual(result, expected, places=self.places)
-    def testMidrange(self):
-        result = stats.midrange(self.data)
-        expected = self.expected['midrange']
-        self.assertAlmostEqual(result, expected, places=self.places)
-    def testPStdev(self):
-        result = stats.pstdev(self.data)
-        expected = self.expected['pstdev']
-        self.assertAlmostEqual(result, expected, places=self.places)
-    def testPVar(self):
-        result = stats.pvariance(self.data)
-        expected = self.expected['pvariance']
-        self.assertAlmostEqual(result, expected, places=self.places)
+class ValidateIntTest(unittest.TestCase):
+    def testIntegers(self):
+        for n in (-100, -1, 0, 1, 23, 42, 2**80):
+            stats._validate_int(n)
 
+    def testGoodFloats(self):
+        for n in (-100.0, -1.0, 0.0, 1.0, 23.0, 42.0, 1.23456e18):
+            stats._validate_int(n)
+
+    def testBadFloats(self):
+        for x in (-100.1, -1.2, 0.3, 1.4, 23.5, 42.6, float('nan')):
+            self.assertRaises(ValueError, stats._validate_int, x)
+
+    def testBadInfinity(self):
+        for x in (float('-inf'), float('inf')):
+            self.assertRaises(OverflowError, stats._validate_int, x)
+
+    def testBadTypes(self):
+        for obj in ("a", "1", None, []):
+            self.assertRaises((ValueError, TypeError),
+                stats._validate_int, obj)
+
+
+# Tests for univariate statistics: means and averages
+# ---------------------------------------------------
 
 class MeanTest(unittest.TestCase):
     data = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
@@ -360,10 +451,105 @@ class MidrangeTest(MeanTest):
         self.assertEquals(stats.midrange([2.0, 4.0, 1.0]), 2.5)
 
 
+class TrimeanTest(unittest.TestCase):
+    data = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
+    expected = 5.5
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.trimean
+
+    def testFailures(self):
+        self.assertRaises(ValueError, self.func, [])
+        self.assertRaises(ValueError, self.func, [1])
+        self.assertRaises(ValueError, self.func, [1, 2])
+
+    def generic_sequence_test(self, data, n, expected):
+        assert len(data)%4 == n
+        random.shuffle(data)
+        result = self.func(data)
+        self.assertEquals(result, expected)
+        data = [x + 1e9 for x in data]
+        result = self.func(data)
+        self.assertEquals(result, expected+1e9)
+
+    def testSeq0(self):
+        data = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8]
+        expected = ((2.2+3.3)/2 + 4.4 + 5.5 + (6.6+7.7)/2)/4
+        self.generic_sequence_test(data, 0, expected)
+
+    def testSeq1(self):
+        data = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
+        expected = (3.3 + 5.5*2 + 7.7)/4
+        self.generic_sequence_test(data, 1, expected)
+
+    def testSeq2(self):
+        data = [0.0, 1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
+        expected = (2.2 + 4.4 + 5.5 + 7.7)/4
+        self.generic_sequence_test(data, 2, expected)
+
+    def testSeq3(self):
+        data = [-1.1, 0.0, 1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
+        expected = ((1.1+2.2)/2 + 4.4*2 + (6.6+7.7)/2)/4
+        self.generic_sequence_test(data, 3, expected)
+
+    def testIter(self):
+        data = [1.1, 3.3, 4.4, 6.6, 7.7, 9.9]
+        expected = (3.3 + 4.4 + 6.6 + 7.7)/4
+        self.assertEquals(self.func(iter(data)), expected)
+
+
+# Tests for moving averages
+# -------------------------
+
+class RunningAverageTest(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.running_average
+
+    def testGenerator(self):
+        # Test that function is a generator.
+        self.assert_(inspect.isgeneratorfunction(self.func))
+
+    def testFinal(self):
+        # Test the final result has the expected value.
+        data = [3.2*i - 12.3 for i in range(0, 35, 3)]
+        random.shuffle(data)
+        expected = stats.mean(data)
+        results = list(self.func(data))
+        self.assertAlmostEquals(results[-1], expected)
+
+
+class WeightedRunningAverageTest(RunningAverageTest):
+    def __init__(self, *args, **kwargs):
+        RunningAverageTest.__init__(self, *args, **kwargs)
+        self.func = stats.weighted_running_average
+
+    def testFinal(self):
+        # Test the final result has the expected value.
+        data = [64, 32, 16, 8, 4, 2, 1]
+        results = list(self.func(data))
+        self.assertEquals(results[-1], 4)
+
+class SimpleMovingAverageTest(RunningAverageTest):
+    def __init__(self, *args, **kwargs):
+        RunningAverageTest.__init__(self, *args, **kwargs)
+        self.func = stats.simple_moving_average
+
+    def testFinal(self):
+        # Test the final result has the expected value.
+        data = [1, 2, 3, 4, 5, 6, 7, 8]
+        results = list(self.func(data))
+        self.assertEquals(results[-1], 7.0)
+
+
+# Test quantiles
+# --------------
+
 class DrMathTests(unittest.TestCase):
     # Sample data for testing quartiles taken from Dr Math page:
     # http://mathforum.org/library/drmath/view/60969.html
-    # FIXME results given doesn't include Q2 points.
+    # Q2 values are not cheked in this test.
     A = range(1, 9)
     B = range(1, 10)
     C = range(1, 11)
@@ -371,82 +557,99 @@ class DrMathTests(unittest.TestCase):
 
     def testInclusive(self):
         f = _stats_quantiles.inclusive
-        q1, q2, q3 = f(self.A)
+        q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
-        q1, q2, q3 = f(self.B)
+        q1, _, q3 = f(self.B)
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 7.0)
-        q1, q2, q3 = f(self.C)
+        q1, _, q3 = f(self.C)
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 8.0)
-        q1, q2, q3 = f(self.D)
+        q1, _, q3 = f(self.D)
         self.assertEquals(q1, 3.5)
         self.assertEquals(q3, 8.5)
 
     def testExclusive(self):
-        f = _stats_quantiles.inclusive
-        q1, q2, q3 = f(self.A)
+        f = _stats_quantiles.exclusive
+        q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
-        q1, q2, q3 = f(self.B)
+        q1, _, q3 = f(self.B)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 7.5)
-        q1, q2, q3 = f(self.C)
+        q1, _, q3 = f(self.C)
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 8.0)
-        q1, q2, q3 = f(self.D)
+        q1, _, q3 = f(self.D)
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 9.0)
 
     def notestms_quartile(self):
-        f = _stats_quantiles.ms_quartile
-        q1, q2, q3 = f(self.A)
+        f = _stats_quantiles.ms
+        q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2)
         self.assertEquals(q3, 7)
-        q1, q2, q3 = f(self.B)
+        q1, _, q3 = f(self.B)
         self.assertEquals(q1, 3)
         self.assertEquals(q3, 7)
-        q1, q2, q3 = f(self.C)
+        q1, _, q3 = f(self.C)
         self.assertEquals(q1, 3)
         self.assertEquals(q3, 8)
-        q1, q2, q3 = f(self.D)
+        q1, _, q3 = f(self.D)
         self.assertEquals(q1, 3)
         self.assertEquals(q3, 9)
 
     def notestMinitab(self):
         f = _stats_quantiles.minitab
-        q1, q2, q3 = f(self.A)
+        q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.25)
         self.assertEquals(q3, 6.75)
-        q1, q2, q3 = f(self.B)
+        q1, _, q3 = f(self.B)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 7.5)
-        q1, q2, q3 = f(self.C)
+        q1, _, q3 = f(self.C)
         self.assertEquals(q1, 2.75)
         self.assertEquals(q3, 8.25)
-        q1, q2, q3 = f(self.D)
+        q1, _, q3 = f(self.D)
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 9.0)
 
     def notestExcel(self):
         f = _stats_quantiles.excel
-        q1, q2, q3 = f(self.A)
+        q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.75)
         self.assertEquals(q3, 6.25)
-        q1, q2, q3 = f(self.B)
+        q1, _, q3 = f(self.B)
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 7.0)
-        q1, q2, q3 = f(self.C)
+        q1, _, q3 = f(self.C)
         self.assertEquals(q1, 3.25)
         self.assertEquals(q3, 7.75)
-        q1, q2, q3 = f(self.D)
+        q1, _, q3 = f(self.D)
         self.assertEquals(q1, 3.5)
         self.assertEquals(q3, 8.5)
 
 
+class QuartileAliases(unittest.TestCase):
+    allowed_methods = set(_stats_quantiles.QUARTILE_MAP.keys())
+
+    def testAliasesMapping(self):
+        # Test that the quartile function exposes a mapping of aliases.
+        self.assert_(hasattr(stats.quartiles, 'aliases'))
+        aliases = stats.quartiles.aliases
+        self.assert_(isinstance(aliases, collections.Mapping))
+        self.assert_(aliases)
+
+    def testAliasesValues(self):
+        for method in stats.quartiles.aliases.values():
+            self.assert_(method in self.allowed_methods)
+
+
 class QuartileTest(unittest.TestCase):
     func = stats.quartiles
+    # Methods to be tested.
+    methods = [0, 1]
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -454,44 +657,104 @@ class QuartileTest(unittest.TestCase):
         # than a method.
         self.func = self.__class__.func
 
-    def testSorting(self):
+    # Helper methods:
+
+    def compare_sorted_with_unsorted(self, n, method):
+        data = list(range(n))
+        result1 = self.func(data, method)
+        random.shuffle(data)
+        result2 = self.func(data, method)
+        self.assertEquals(result1, result2)
+
+    def compare_types(self, n, method):
+        data = range(n)
+        result1 = self.func(data, method)
+        data = list(data)
+        result2 = self.func(data, method)
+        result3 = self.func(tuple(data), method)
+        result4 = self.func(iter(data), method)
+        self.assertEquals(result1, result2)
+        self.assertEquals(result1, result3)
+        self.assertEquals(result1, result4)
+
+    def expect_failure(self, data):
+        self.assertRaises(ValueError, self.func, data)
+        for method in self.methods:
+            self.assertRaises(ValueError, self.func, data, method)
+
+    # Generic tests that don't care about the specific values:
+
+    def testNoSorting(self):
         """Test that quartiles doesn't sort in place."""
         data = [2, 4, 1, 3, 0, 5]
-        assert data != sorted(data)
         save = data[:]
         assert save is not data
-        _ = self.func(data)
-        self.assertEquals(data, save)
+        assert data != sorted(data)
+        for method in self.methods:
+            _ = self.func(data, method)
+            self.assertEquals(data, save)
 
     def testTooFewItems(self):
-        self.assertRaises(ValueError, self.func, [])
-        self.assertRaises(ValueError, self.func, [1])
-        self.assertRaises(ValueError, self.func, [1, 2])
+        for data in ([], [1], [1, 2]):
+            self.expect_failure(data)
 
-    def testUnsorted(self):
-        data = [3, 4, 2, 1, 0, 5]
-        assert data != sorted(data)
-        self.assertEquals(self.func(data), (1, 2.5, 4))
+    def testSorted(self):
+        # Test that sorted and unsorted data give the same results.
+        for n in (8, 9, 10, 11):  # n%4 -> 0...4
+            for method in self.methods:
+                self.compare_sorted_with_unsorted(n, method)
 
     def testIter(self):
-        self.assertEquals(self.func(range(12)), (2.5, 5.5, 8.5))
-        self.assertEquals(self.func(range(13)), (2.5, 6, 9.5))
-        self.assertEquals(self.func(range(14)), (3, 6.5, 10))
-        self.assertEquals(self.func(range(15)), (3, 7, 11))
+        # Test that iterators and sequences give the same result.
+        for n in (8, 9, 10, 11):  # n%4 -> 0...4
+            for method in self.methods:
+                self.compare_types(n, method)
 
-    def testSmall(self):
-        data = [0, 1, 2]
-        self.assertEquals(self.func(data), (0, 1, 2))
-        data.append(3)
-        self.assertEquals(self.func(data), (0.5, 1.5, 2.5))
-        data.append(4)
-        self.assertEquals(self.func(data), (0.5, 2, 3.5))
-        data.append(5)
-        self.assertEquals(self.func(data), (1, 2.5, 4))
-        data.append(6)
-        self.assertEquals(self.func(data), (1, 3, 5))
+    # Tests where we check for the correct result.
 
-    def testBig(self):
+    def testInclusive(self):
+        # Test the inclusive method of calculating quartiles.
+        f = self.func
+        m = 0
+        self.assertEquals(f([0, 1, 2], m), (0.5, 1, 1.5))
+        #--
+        self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
+        self.assertEquals(f([0, 1, 2, 3, 4], m), (1, 2, 3))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5], m), (1, 2.5, 4))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], m), (1.5, 3, 4.5))
+        #--
+        self.assertEquals(f(range(1, 9), m), (2.5, 4.5, 6.5))
+        self.assertEquals(f(range(1, 10), m), (3, 5, 7))
+        self.assertEquals(f(range(1, 11), m), (3, 5.5, 8))
+        self.assertEquals(f(range(1, 12), m), (3.5, 6, 8.5))
+        #--
+        self.assertEquals(f(range(1, 13), m), (3.5, 6.5, 9.5))
+        self.assertEquals(f(range(1, 14), m), (4, 7, 10))
+        self.assertEquals(f(range(1, 15), m), (4, 7.5, 11))
+        self.assertEquals(f(range(1, 16), m), (4.5, 8, 11.5))
+
+    def testExclusive(self):
+        # Test the exclusive method of calculating quartiles.
+        f = self.func
+        m = 1
+        #self.assertEquals(f([0, 1, 2], m), (0, 1, 2))
+        #--
+        self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
+        self.assertEquals(f([0, 1, 2, 3, 4], m), (0.5, 2, 3.5))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5], m), (1, 2.5, 4))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], m), (1, 3, 5))
+        #--
+        self.assertEquals(f(range(1, 9), m), (2.5, 4.5, 6.5))
+        self.assertEquals(f(range(1, 10), m), (2.5, 5, 7.5))
+        self.assertEquals(f(range(1, 11), m), (3, 5.5, 8))
+        self.assertEquals(f(range(1, 12), m), (3, 6, 9))
+        #--
+        self.assertEquals(f(range(1, 13), m), (3.5, 6.5, 9.5))
+        self.assertEquals(f(range(1, 14), m), (3.5, 7, 10.5))
+        self.assertEquals(f(range(1, 15), m), (4, 7.5, 11))
+        self.assertEquals(f(range(1, 16), m), (4, 8, 12))
+
+    def notestBig(self):
         data = list(range(1000, 2000))
         assert len(data) == 1000
         assert len(data)%4 == 0
@@ -549,6 +812,222 @@ class QuantileTest(unittest.TestCase):
         for f in (0.01, 0.1, 0.2, 0.25, 0.5, 0.55, 0.8, 0.9, 0.99):
             self.assertEquals(self.func(data, f), f)
 
+
+class DecileTest(unittest.TestCase):
+    pass
+
+
+class PercentileTest(unittest.TestCase):
+    pass
+
+
+# Test spread statistics
+# ----------------------
+
+class PVarianceTest(unittest.TestCase):
+    func = stats.pvariance
+    data = (4.0, 7.0, 13.0, 16.0)
+    expected = 22.5  # Exact population variance.
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        # Force self.func to be a function rather than a method.
+        self.func = self.__class__.func
+
+    def testEmptyFailure(self):
+        for data in ([], (), iter([])):
+            self.assertRaises(ValueError, self.func, data)
+
+    def test_small(self):
+        self.assertEquals(self.func(self.data), self.expected)
+
+    def test_big(self):
+        data = [x + 1e6 for x in self.data]
+        self.assertEquals(self.func(data), self.expected)
+
+    def test_huge(self):
+        data = [x + 1e9 for x in self.data]
+        self.assertEquals(self.func(data), self.expected)
+
+
+class VarianceTest(PVarianceTest):
+    func = stats.variance
+    expected = 30.0  # Exact sample variance.
+
+    def testSingletonFailure(self):
+        for data in ([1], iter([1])):
+            self.assertRaises(ValueError, self.func, data)
+
+
+class PStdevTest(PVarianceTest):
+    func = stats.pstdev
+    expected = math.sqrt(22.5)  # Exact population stdev.
+
+
+class StdevTest(VarianceTest):
+    func = stats.stdev
+    expected = math.sqrt(30.0)  # Exact sample stdev.
+
+
+class PVariance1Test(PVarianceTest):
+    func = stats.pvariance1
+
+
+class Variance1Test(VarianceTest):
+    func = stats.variance1
+
+
+class PStdev1Test(PStdevTest):
+    func = stats.pstdev1
+
+
+class Stdev1Test(StdevTest):
+    func = stats.stdev1
+
+
+class RangeTest(unittest.TestCase):
+    def testFailure(self):
+        self.assertRaises(ValueError, stats.range, [])
+        self.assertRaises(ValueError, stats.range, iter([]))
+
+    def testSingleton(self):
+        for x in (-3.1, 0.0, 4.2, 1.789e12):
+            self.assertEquals(stats.range([x]), 0)
+
+    def generate_data_sets(self):
+        """Yield 2-tuples of (data, expected range)."""
+        # data should be a list, tuple or builtin range object.
+        yield ([1, 5], 4)
+        yield ((7, 2), 5)
+        yield ((3.25, 7.5), 4.25)
+        yield ([1, 4, 8], 7)
+        data = list(range(500))
+        random.shuffle(data)
+        for shift in (0, 0.5, 1234.567, -1000, 1e6, 1e9):
+            d = [x + shift for x in data]
+            yield (d, 499)
+
+    def testSequence(self):
+        for data, expected in self.generate_data_sets():
+            self.assertEquals(stats.range(data), expected)
+
+    def testIterator(self):
+        for data, expected in self.generate_data_sets():
+            self.assertEquals(stats.range(iter(data)), expected)
+
+
+class IQRTest(unittest.TestCase):
+    pass
+
+
+class AverageDeviationTest(unittest.TestCase):
+    pass
+
+
+class MedianAverageDeviationTest(unittest.TestCase):
+    pass
+
+
+# Test other moments
+# ------------------
+
+class PearsonModeSkewnessTest(unittest.TestCase):
+    pass
+
+
+class SkewTest(unittest.TestCase):
+    pass
+
+
+class KurtosisTest(unittest.TestCase):
+    pass
+
+
+# Test multivariate statistics
+# ----------------------------
+
+class QCorrTest(unittest.TestCase):
+    pass
+
+
+class CorrTest(unittest.TestCase):
+    pass
+
+
+class Corr1Test(CorrTest):
+    pass
+
+
+class PCovTest(unittest.TestCase):
+    pass
+
+
+class CovTest(CovTest):
+    pass
+
+
+class ErrSumSqTest(unittest.TestCase):
+    pass
+
+
+class LinrTest(unittest.TestCase):
+    pass
+
+
+# Test sums and products
+# ----------------------
+
+class SumTest(unittest.TestCase):
+    pass
+
+
+class ProductTest(unittest.TestCase):
+    pass
+
+
+class SumSqTest(SumTest):
+    pass
+
+
+class SxxTest(unittest.TestCase):
+    pass
+
+
+class SyyTest(SxxTest):
+    pass
+
+
+class SxyTest(SxxTest):
+    pass
+
+
+class XSumsTest(unittest.TestCase):
+    pass
+
+
+class XYSumsTest(unittest.TestCase):
+    pass
+
+
+# Test partitioning and binning
+# -----------------------------
+
+
+
+# Test trimming
+# -------------
+
+
+
+# Test other statistical formulae
+# -------------------------------
+
+class StErrMeanTest(unittest.TestCase):
+    pass
+
+
+# Test statistics of circular quantities
+# --------------------------------------
 
 class CircularMeanTest(unittest.TestCase):
 
