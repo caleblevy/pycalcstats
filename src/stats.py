@@ -52,17 +52,17 @@ __all__ = [
     # Moving averages:
     'running_average', 'weighted_running_average', 'simple_moving_average',
     # Other point statistics:
-    'quartiles', 'quantile', 'decile', 'percentile', 'hinges',
+    'quartiles', 'quantile', 'decile', 'percentile',
     # Measures of spread:
-    'stdev', 'pstdev', 'variance', 'pvariance',
-    'stdev1', 'pstdev1', 'variance1', 'pvariance1',
+    'pvariance', 'variance', 'pstdev', 'stdev',
+    'pvariance1', 'variance1', 'pstdev1', 'stdev1',
     'range', 'iqr', 'average_deviation',
     # Other moments:
-    'skew', 'kurtosis',
+    'pearson_mode_skewness', 'skew', 'kurtosis',
     # Multivariate statistics:
-    'qcorr', 'corr', 'cov', 'pcov', 'errsumsq', 'linr',
+    'qcorr', 'corr', 'corr1', 'pcov', 'cov', 'errsumsq', 'linr',
     # Sums and products:
-    'sum', 'sumsq', 'product', 'xsums', 'xysums', 'Sxx', 'Syy', 'Sxy',
+    'sum', 'sumsq', 'product', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
     'sterrmean', 'StatsError', 'minmax',
     # Statistics of circular quantities:
@@ -94,6 +94,15 @@ def sorted_data(func):
     def inner(data, *args, **kwargs):
         data = sorted(data)
         return func(data, *args, **kwargs)
+    return inner
+
+
+def multivariate(func):
+    """Decorator to handle multivariate statistics."""
+    @functools.wraps(func)
+    def inner(xdata, ydata=None):
+        xydata = combine_xydata(xdata, ydata)
+        return func(xydata)
     return inner
 
 
@@ -174,6 +183,43 @@ def as_sequence(iterable):
     """Helper function to convert iterable arguments into sequences."""
     if isinstance(iterable, (list, tuple)): return iterable
     else: return list(iterable)
+
+
+def combine_xydata(xdata, ydata=None):
+    """Helper function which combines xdata, ydata to xydata."""
+    if ydata is not None:
+        # Two argument version is easy.
+        return zip(xdata, ydata)
+    # The single argument case could be either [x0, x1, x2, ...] or
+    # [(x0, y0), (x1, y1), (x2, y2), ...]. We decide which it is by looking
+    # at the first item, and treating it as canonical.
+    it = iter(xdata)
+    try:
+        first = next(it)
+    except StopIteration:
+        # If the iterable is empty, return the original.
+        return xdata
+    # If we get here, we know we have a single iterable argument with at
+    # least one item. Does it look like a sequence of (x,y) values, or like
+    # a sequence of x values?
+    try:
+        len(first)
+    except TypeError:
+        # Looks like we're dealing with the case [x0, x1, x2, ...]
+        first = (first, None)
+        tail = ((x, None) for x in it)
+        return itertools.chain([first], tail)
+    # Looks like [(x0, y0), (x1, y1), (x2, y2), ...]
+    # Notice that we DON'T care how many items are in the data points here,
+    # we postpone dealing with any mismatches to later.
+    return itertools.chain([first], it)
+
+
+def _validate_int(n):
+    # This will raise TypeError, OverflowError (for infinities) or
+    # ValueError (for NANs or non-integer numbers).
+    if n != int(n):
+        raise ValueError('requires integer value')
 
 
 # === Basic univariate statistics ===
@@ -278,7 +324,7 @@ def quadratic_mean(data):
 
 
 @sorted_data
-def median(data):
+def median(data, sign=0):
     """Returns the median (middle) value of a sequence of numbers.
 
     >>> median([3.0, 5.0, 2.0])
@@ -291,18 +337,41 @@ def median(data):
     The median is commonly used as an average. It is more robust than the
     mean for data that contains outliers. The median is equivalent to the
     second quartile or the 50th percentile.
+
+    Optional numeric argument sign specifies the behaviour of median in the
+    case where there is an even number of elements:
+
+    sign  value returned as median
+    ----  ------------------------------------------------------
+    0     The mean of the elements on either side of the middle
+    < 0   The element just below the middle
+    > 0   The element just above the middle
+
+    The default is 0. Except for certain specialist applications, this is
+    normally what is expected for the median.
     """
     n = len(data)
     if n == 0:
         raise StatsError('no median for empty iterable')
-    n2 = n//2
+    m = n//2
     if n%2 == 1:
-        # For an odd number of items, we take the middle one.
-        return data[n2]
+        # For an odd number of items, there is only one middle element, so
+        # we always take that.
+        return data[m]
     else:
-        # If there are an even number of items, we take the average
-        # of the two middle ones.
-        return (data[n2-1] + data[n2])/2
+        # If there are an even number of items, we decide what to do
+        # according to sign:
+        if sign == 0:
+            # Take the mean of the two middle elements.
+            return (data[m-1] + data[m])/2
+        elif sign < 0:
+            # Take the lower middle element.
+            return data[m-1]
+        elif sign > 0:
+            # Take the higher middle element.
+            return data[m]
+        else:
+            raise TypeError('sign is not ordered with respect to zero')
 
 
 def mode(data):
@@ -319,7 +388,7 @@ def mode(data):
         [(count, value) for (value, count) in count_elems(data).items()],
         reverse=True)
     if len(L) == 0:
-        raise StatsError('no mode for empty iterable')
+        raise StatsError('no mode is defined for empty iterables')
     # Test if there are more than one modes.
     if len(L) > 1 and L[0][0] == L[1][0]:
         raise StatsError('no distinct mode')
@@ -338,15 +407,20 @@ def midrange(data):
     try:
         a, b = minmax(data)
     except ValueError as e:
-        e.args = ('no midrange for empty iterable',)
+        e.args = ('no midrange defined for empty iterables',)
         raise
     return (a + b)/2
 
 
 @sorted_data
 def trimean(data):
-    H1, H2 = hinges(data)
-    M = median(data)
+    """Return Tukey's trimean = (H1 + 2*M + H2)/4 of data
+
+    >>> trimean([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    4.0
+
+    """
+    H1, M, H2 = quartiles(data, 'hinges')
     return (H1 + 2*M + H2)/4
 
 
@@ -420,100 +494,118 @@ def simple_moving_average(data, window=3):
 # Quantiles (fractiles) and hinges
 # --------------------------------
 
-
 # Grrr arggh!!! Nobody can agree on how to calculate quantiles.
 # Langford (2006) finds no fewer than FIFTEEN methods for calculating
-# quartiles (although some are equivalent to others):
+# quartiles (although some are mathematically equivalent to others):
 #   http://www.amstat.org/publications/jse/v14n3/langford.html
 # Mathword and Dr Math suggest five:
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
 
-# Additionally, the statistics language R offers nine different methods for
-# calculating general quantiles.
-
-
-
 
 @sorted_data
 def quartiles(data, method=0):
-    """Return the sample quartiles (Q1, Q2, Q3) for data.
+    """quartiles(data [, method]) -> (Q1, Q2, Q3)
 
-    Returns a 3-tuple of the first, second and third quartiles (Q1, Q2, Q3)
-    as calculated by the optional method. Q2 is not necessarily the median.
+    Return the sample quartiles (Q1, Q2, Q3) for data.
 
     >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
     (2.0, 3.5, 5.0)
 
+    data must be an iterator of numeric values, with at least three items.
+    method is an optional value specifying the calculation method used, and
+    hence the results. Returns a 3-tuple of the first, second and third
+    quartiles (Q1, Q2, Q3). Q2 is not necessarily the median.
+
     The values returned are such that (approximately) one quarter of the data
-    is below Q1, one half below Q2, and three-quarters below Q3. The exact
-    proportions, and the exact values of the cut-offs, depend on the method
-    of calculation. Valid methods and their case-insensitive aliases are:
+    is below Q1, one half below Q2, and three-quarters below Q3. Q1 is
+    approximately the median of the first half of the data, and Q3 the median
+    of the second half. The exact proportions, and the exact values of the
+    cut-offs, depend on the method of calculation. To specify the method of
+    calculation, pass a value as the method argument:
 
-    Method  Aliases          Description
-    ======  ===============  ============================================
-    0       't'              method recommended by Tukey
-    1       'm&m', 'ti-85'   method recommended by Moore and McCabe
-    2       'm&s'            method recommended by Mendenhall and Sincich
-    3       'mt', 'minitab'  method used by Minitab software
-    4       'fp', 'excel'    method recommended by Freund and Perles
+    Method  Description
+    ======  ================================================================
+    0       Tukey's hinges; median is included in the two halves
+    1       Moore and McCabe's method; median is excluded in the two halves
+    2       Method recommended by Mendenhall and Sincich
+    3       Method used by Minitab software
+    4       Method recommended by Freund and Perles and used by Excel
 
-    The default is method 0, Tukey's method. Tukey's method has the property
-    that Q2 will equal the median. The quartiles will either be data points,
-    or halfway between data points.
+    The default is method 0, in which case the quartiles returned are
+    equivalent to hinges (H1, M, H2).
 
-    Method 1 is used by the Texas Instruments calculator model TI-85. It also
-    results in Q2 equal to the median, and the quartiles will also be either
-    data points, or half-way between data points.
+    Method 1 is used by Texas Instruments calculators, model TI-85 and up.
+    Method 2 ensures that the values returned are always data points. Methods
+    3 and 4 use linear iterpolation between items.
 
-    Method 2 never interpolates between values, it will only return values
-    in the data set. If Q2 falls between two data points, it returns the
-    lower of the two.
-
-    Method 3 is used by Minitab. It uses linear interpolation between points.
-
-    Method 4 is used by Excel, and also uses linear interpolation between
-    points.
+    Case-insensitive named aliases are also supported for methods: you can
+    examine quartiles.aliases for a mapping of names to method numbers.
     """
     # Select a method.
     if isinstance(method, str):
-        method = method.lower()
-    if method in _quantiles.MAP:
-        func = _quantiles.MAP[method]
+        key = quartiles.aliases.get(method.lower())
     else:
-        raise StatsError(
-            'unrecognised method selector `%s` for quartiles' % method
-            )
+        key = method
+    func = _quantiles.QUARTILE_MAP.get(key)
+    if func is None:
+        raise StatsError('unrecognised method selector `%s`' % method)
+    # Return the quartiles using that method.
     n = len(data)
     if n < 3:
         raise StatsError('need at least 3 items to split data into quartiles')
     return func(data)
 
+quartiles.aliases = _quantiles.QUARTILE_ALIASES
+
+
+
+# Quantiles (fractiles) are just as confused as quartiles. The statistics
+# language R offers nine different methods for calculating quantiles. We
+# support ???? of them.
 
 @sorted_data
-def quantile(data, f):
-    """Return the fractile f of the way through the data.
+def quantile(data, p, method=0):
+    """quantile(data, p [, method]) -> value
 
-    f is the fraction of the data to be included. f must be a number between
-    0 and 1 inclusive. The fractile (also known as quantile)
-     
-     f=0 gives the minimum data point, f=1 gives the
-    maximum, otherwise any fractional value gives the data point such that the fraction f of the data is less than that value.
-
-    If p does not fall exactly
-    on a data point, the result returned is the linear interpolation between
-    the data point just before p and the data point just after p.
+    Return the p-quantile which is some fraction p of the way into data.
 
     >>> quantile([2.0, 2.0, 3.0, 4.0, 5.0, 6.0], 0.75)
     4.75
 
+    data must be an iterator of numeric values, with at least two items.
+    p must be a number between 0 and 1 inclusive. method is an optional value
+    specifying the calculation method used, and hence the result.
+
+    The result returned by quantile is the data point, or the interpolated
+    data point, such that a fraction p of the data is less than that value.
+
+    Recognised values for method are:
+
+    Method  Description
+    ======  ================================================================
+    0       ...
+
+    The default is method 0.
+
+    Case-insensitive named aliases are also supported for methods: you can
+    examine quantiles.aliases for a mapping of names to method numbers.
     """
-    if not 0.0 <= f <= 1.0:
+    # Select a method.
+    if isinstance(method, str):
+        key = quantile.aliases.get(method.lower())
+    else:
+        key = method
+    func = _quantiles.QUANTILE_MAP.get(key)
+    if func is None:
+        raise StatsError('unrecognised method selector `%s`' % method)
+
+    if not 0.0 <= p <= 1.0:
         raise StatsError('quantile argument must be between 0.0 and 1.0')
     n = len(data)
     if n < 2:
         raise StatsError('need at least 2 items to split data into quantiles')
-    x = f*(n-1)
+    x = p*(n-1)
     m = int(x)
     p = x - m
     if p:
@@ -523,53 +615,98 @@ def quantile(data, f):
     else:
         return data[m]
 
-
-def decile(data, d):
-    """Return the dth decile of data."""
-    return quantile(data, d/10)
+quantile.aliases = _quantiles.QUANTILE_ALIASES
 
 
-def percentile(data, p):
-    """Return the pth decile of data."""
-    return quantile(data, p/100)
+def decile(data, d, method=0):
+    """Return the dth decile of data, for integer d between 0 and 10.
 
-
-@sorted_data
-def hinges(data):
-    """Return hinges (H1, H2) from data.
-
-    Hinges are exactly equivalent to quartiles Q1 and Q3 for data sets of
-    length 4N + 5, for integer N. Where the length is not exactly of that
-    form, we use Tukey's method.
+    See function quantile for details about the optional argument method.
     """
-    h1, _, h2 = _quartiles_tukey(data)
-    return (h1, h2)
+    _validate_int(d)
+    if not 0 <= d <= 10:
+        raise ValueError('decile argument d must be between 0 and 10')
+    return quantile(data, d/10, method)
+
+
+def percentile(data, p, method=0):
+    """Return the pth percentile of data, for integer p between 0 and 100.
+
+    See function quantile for details about the optional argument method.
+    """
+    _validate_int(p)
+    if not 0 <= p <= 100:
+        raise ValueError('percentile argument p must be between 0 and 100')
+    return quantile(data, p/100, method)
 
 
 # Measures of spread (dispersion or variability)
 # ----------------------------------------------
 
+def pvariance(data, m=None):
+    """pvariance(data [, m]) -> population variance of data.
 
-def stdev(data, m=None):
-    """stdev(data [, m]) -> sample standard deviation of data.
-
-    >>> stdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
-    1.08108741552...
+    >>> pvariance([0.25, 0.5, 1.25, 1.25,
+    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
+    1.17602040816...
 
     If you know the population mean, or an estimate of it, then you can pass
-    the mean as the optional argument m:
+    the mean as the optional argument m. See also pstdev.
 
-    >>> stdev([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
-    0.921954445729...
+    If data represents a statistical sample rather than the entire
+    population, you should use variance instead.
+    """
+    n, s = _var(data, m)
+    if n < 1:
+        raise StatsError('population variance or standard deviation'
+        ' requires at least one data point')
+    return s/n
 
-    The reliablity of the result as an estimate for the true standard
-    deviation depends on the estimate for the mean given. If m is not given,
-    or is None, the sample mean of the data will be used.
+
+def variance(data, m=None):
+    """variance(data [, m]) -> sample variance of data.
+
+    >>> variance([0.25, 0.5, 1.25, 1.25,
+    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
+    1.37202380952...
+
+    If you know the population mean, or an estimate of it, then you can pass
+    the mean as the optional argument m. See also stdev.
 
     If data represents the entire population, and not just a sample, then
-    you should use pstdev instead.
+    you should use pvariance instead.
     """
-    return math.sqrt(variance(data, m))
+    n, s = _var(data, m)
+    if n < 2:
+        raise StatsError('sample variance or standard deviation'
+        ' requires at least two data points')
+    return s/(n-1)
+
+
+def _var(data, m):
+    """Helper function for calculating variance directly."""
+    if m is None:
+        # Two pass algorithm.
+        data = as_sequence(data)
+        m = mean(data)
+    # Fast path for sequences.
+    try:
+        n = len(data)
+    except TypeError:
+        # Slow path for iterables without a len.
+        ap = add_partial
+        partials = []
+        for n, x in enumerate(data, 1):
+            ap((x-m)**2, partials)
+        total = sum(partials)
+    else:
+        total = sum((x-m)**2 for x in data)
+    return (n, total)
+    # FIXME this may not be accurate enough, a more accurate algorithm
+    # is the compensated version:
+    # sum2 = sum(x-m)**2) as above
+    # sumc = sum(x-m)
+    # return (sum2 - sumc**2/n), n
 
 
 def pstdev(data, m=None):
@@ -594,106 +731,55 @@ def pstdev(data, m=None):
     return math.sqrt(pvariance(data, m))
 
 
-def variance(data, m=None):
-    """variance(data [, m]) -> sample variance of data.
+def stdev(data, m=None):
+    """stdev(data [, m]) -> sample standard deviation of data.
 
-    >>> variance([0.25, 0.5, 1.25, 1.25,
-    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
-    1.37202380952...
+    >>> stdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    1.08108741552...
 
     If you know the population mean, or an estimate of it, then you can pass
-    the mean as the optional argument m. See also stdev.
+    the mean as the optional argument m:
+
+    >>> stdev([1.5, 2.5, 2.75, 2.75, 3.25, 4.25], 3)  #doctest: +ELLIPSIS
+    0.921954445729...
+
+    The reliablity of the result as an estimate for the true standard
+    deviation depends on the estimate for the mean given. If m is not given,
+    or is None, the sample mean of the data will be used.
 
     If data represents the entire population, and not just a sample, then
-    you should use pvariance instead.
+    you should use pstdev instead.
     """
-    s, n = _var(data, m)
-    if n < 2:
-        raise StatsError('sample variance or standard deviation'
-        ' requires at least two data points')
-    return s/(n-1)
+    return math.sqrt(variance(data, m))
 
 
-def pvariance(data, m=None):
-    """pvariance(data [, m]) -> population variance of data.
+def pvariance1(data):
+    """pvariance1(data) -> population variance.
 
-    >>> pvariance([0.25, 0.5, 1.25, 1.25,
+    Return an estimate of the population variance for data using one pass
+    through the data. Use this when you can only afford a single path over
+    the data -- if you can afford multiple passes, pvariance is likely to be
+    more accurate.
+
+    >>> pvariance1([0.25, 0.5, 1.25, 1.25,
     ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
     1.17602040816...
 
-    If you know the population mean, or an estimate of it, then you can pass
-    the mean as the optional argument m. See also pstdev.
-
     If data represents a statistical sample rather than the entire
-    population, you should use variance instead.
+    population, then you should use variance1 instead.
     """
-    s, n = _var(data, m)
+    n, s = _welford(data)
     if n < 1:
-        raise StatsError('population variance or standard deviation'
-        ' requires at least one data point')
+        raise StatsError('pvariance requires at least one data point')
     return s/n
-
-
-def _var(data, m):
-    """Helper function for calculating variance directly."""
-    if m is None:
-        # Two pass algorithm.
-        data = as_sequence(data)
-        m = mean(data)
-    # Fast path for sequences.
-    try:
-        n = len(data)
-    except TypeError:
-        # Slow path for iterables without a len.
-        ap = add_partial
-        partials = []
-        for n, x in enumerate(data, 1):
-            ap((x-m)**2, partials)
-        total = sum(partials)
-    else:
-        total = sum((x-m)**2 for x in data)
-    return (total, n)
-    # FIXME this may not be accurate enough, a more accurate algorithm
-    # is the compensated version:
-    # sum2 = sum(x-m)**2) as above
-    # sumc = sum(x-m)
-    # return (sum2 - sumc**2/n), n
-
-
-def stdev1(data):
-    """stdev1(data) -> sample standard deviation.
-
-    Return an estimate of the sample standard deviation for data using
-    a single pass.
-
-    >>> stdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
-    1.08108741552...
-
-    If data represents the entire population rather than a statistical
-    sample, then use pstdev1 instead.
-    """
-    return math.sqrt(variance1(data))
-
-
-def pstdev1(data):
-    """pstdev1(data) -> population standard deviation.
-
-    Return an estimate of the population standard deviation for data using
-    a single pass.
-
-    >>> pstdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
-    0.986893273527...
-
-    If data is a statistical sample rather than the entire population, you
-    should use stdev1 instead.
-    """
-    return math.sqrt(pvariance1(data))
 
 
 def variance1(data):
     """variance1(data) -> sample variance.
 
     Return an estimate of the sample variance for data using a single pass.
+    Use this when you can only afford a single path over the data -- if you
+    can afford multiple passes, variance is likely to be more accurate.
 
     >>> variance1([0.25, 0.5, 1.25, 1.25,
     ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
@@ -709,33 +795,15 @@ def variance1(data):
     return s/(n-1)
 
 
-def pvariance1(data):
-    """pvariance1(data) -> population variance.
-
-    Return an estimate of the population variance for data using one pass
-    through the data.
-
-    >>> pvariance1([0.25, 0.5, 1.25, 1.25,
-    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
-    1.17602040816...
-
-    If data represents a statistical sample rather than the entire
-    population, then you should use variance1 instead.
-    """
-    n, s = _welford(data)
-    if n < 1:
-        raise StatsError('pvariance requires at least one data point')
-    return s/n
-
-
 def _welford(data):
     """Welford's method of calculating the running variance.
 
     This calculates the second moment M2 = sum( (x-m)**2 ) where m=mean of x.
     Returns (n, M2) where n = number of items.
     """
-    # FIXME for better results, use this on the residues (x - m) instead of x.
-    # Except that would require two passes...
+    # Note: for better results, use this on the residues (x - m) instead of x,
+    # where m equals the mean of the data... except that would require two
+    # passes.
     data = iter(data)
     n = 0
     M2 = 0.0  # Current sum of powers of differences from the mean.
@@ -753,6 +821,40 @@ def _welford(data):
     return (n, M2)
 
 
+def pstdev1(data):
+    """pstdev1(data) -> population standard deviation.
+
+    Return an estimate of the population standard deviation for data using
+    a single pass. Use this when you can only afford a single path over the
+    data -- if you can afford multiple passes, pstdev is likely to be more
+    accurate.
+
+    >>> pstdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    0.986893273527...
+
+    If data is a statistical sample rather than the entire population, you
+    should use stdev1 instead.
+    """
+    return math.sqrt(pvariance1(data))
+
+
+def stdev1(data):
+    """stdev1(data) -> sample standard deviation.
+
+    Return an estimate of the sample standard deviation for data using
+    a single pass. Use this when you can only afford a single path over the
+    data -- if you can afford multiple passes, stdev is likely to be more
+    accurate.
+
+    >>> stdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
+    1.08108741552...
+
+    If data represents the entire population rather than a statistical
+    sample, then use pstdev1 instead.
+    """
+    return math.sqrt(variance1(data))
+
+
 def range(data):
     """Return the statistical range of data.
 
@@ -762,19 +864,28 @@ def range(data):
     The range is the difference between the smallest and largest element. It
     is a weak measure of statistical variability.
     """
-    a, b = minmax(data)
+    try:
+        a, b = minmax(data)
+    except ValueError as e:
+        e.args = ('no range defined for empty iterables',)
+        raise
     return b - a
 
 
-def iqr(data):
+def iqr(data, method=0):
     """Returns the Inter-Quartile Range of a sequence of numbers.
 
     >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])
     3.25
 
-    The IQR is the difference between the first and third quartile.
+    The IQR is the difference between the first and third quartile. The
+    optional argument method (defaulting to 0) is used to select the
+    algorithm for calculating the quartiles. See the quartile function for
+    further details.
+
+    The default IQR (method 0) is equivalent to Tukey's H-spread.
     """
-    q1, q2, q3 = quartiles(data)
+    q1, _, q3 = quartiles(data, method)
     return q3 - q1
 
 
@@ -800,7 +911,7 @@ def average_deviation(data, m=None):
         n = 0
         for x in xdata:
             n += 1
-            ap(abs(x - Mx), partials)
+            ap(abs(x - m), partials)
         total = sum(partials)
     else:
         total = sum(abs(x-m))
@@ -809,8 +920,80 @@ def average_deviation(data, m=None):
     return total/n
 
 
+def median_average_deviation(data, m=None, sign=0, scale=1):
+    """Compute the median absolute deviation (MAD) of data.
+
+    The MAD is the median of the absolute deviations from the median, and
+    is approximately equivalent to half the IQR.
+
+    >>> median_average_deviation([1, 1, 2, 2, 4, 6, 9])
+    1
+
+    Arguments are:
+
+    data    Iterable of data values.
+    m       Optional centre location, nominally the median. If m is not
+            given, or is None, the median is calculated from data.
+    sign    If sign = 0 (the default), the ordinary median is used, otherwise
+            either the low-median or high-median are used. See the median()
+            function for further details.
+    scale   Optional scale factor, by default no scale factor is applied.
+
+    The MAD can be used as a robust estimate for the standard deviation by
+    multipying it by a scale factor. The scale factor can be passed directly
+    as a numeric value, which is assumed to be positive but no check is
+    applied. Other values accepted are:
+
+    'normal'    Apply a scale factor of 1.4826, applicable to data from a
+                normally distributed population.
+    'uniform'   Apply a scale factor of 1.1547, applicable to data from a
+                uniform distribution.
+
+    The MAD is a more robust measurement of spread than either the IQR or
+    standard deviation, and is less affected by outliers. The MAD is also
+    defined for distributions such as the Cauchy distribution which don't
+    have a mean or standard deviation.
+    """
+    # Check for an appropriate scale factor.
+    if isinstance(scale, str):
+        f = median_average_deviation.scaling.get(scale.lower())
+        if f is None:
+            raise StatsError('unrecognised scale factor `%s`' % scale)
+        scale = f
+    if m is None:
+        data = as_sequence(data)
+        m = median(data, sign)
+    med = median((abs(x - m) for x in data), sign)
+    return scale*med
+
+median_average_deviation.scaling = {
+    # R defaults to the normal scale factor:
+    # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/mad.html
+    'normal': 1.4826,
+    # Wikpedia has a derivation of that constant:
+    # http://en.wikipedia.org/wiki/Median_absolute_deviation
+    'uniform': math.sqrt(4/3),
+    }
+
+
 # Other moments of the data
 # -------------------------
+
+def pearson_mode_skewness(mean, mode, stdev):
+    """Return the Pearson Mode Skewness from the mean, mode and standard
+    deviation of a data set.
+
+    >>> pearson_mode_skewness(2.5, 2.25, 2.5)
+    0.1
+
+    """
+    if stdev > 0:
+        return (mean-mode)/stdev
+    elif stdev == 0:
+        return float('nan') if mode == mean else float('inf')
+    else:
+        raise StatsError("standard deviation cannot be negative")
+
 
 def skew(data, m=None, s=None):
     """skew(data [,m [,s]]) -> sample skew of data.
@@ -823,8 +1006,8 @@ def skew(data, m=None, s=None):
     1.12521290135...
 
     The reliablity of the result as an estimate for the true skew depends on
-    the estimated mean and standard deviation given. If m or s are not given,
-    or are None, they are estimated from the data.
+    the estimated mean and standard deviation. If m or s are not given, or
+    are None, they are estimated from the data.
     """
     if m is None or s is None:
         data = as_sequence(data)
@@ -1033,6 +1216,19 @@ def corr1(xdata, ydata):
     return r
 
 
+def pcov(xdata, ydata=None):
+    """Return the population covariance between (x, y) data.
+
+    >>> print(pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
+    0.934
+    >>> print(pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)]))
+    0.15125
+
+    """
+    t = xysums(xdata, ydata)
+    return t.Sxy/(t.n**2)
+
+
 def cov(xdata, ydata=None):
     """Return the sample covariance between (x, y) data.
 
@@ -1057,19 +1253,6 @@ def cov(xdata, ydata=None):
     """
     t = xysums(xdata, ydata)
     return t.Sxy/(t.n*(t.n-1))
-
-
-def pcov(xdata, ydata=None):
-    """Return the population covariance between (x, y) data.
-
-    >>> print(pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
-    0.934
-    >>> print(pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)]))
-    0.15125
-
-    """
-    t = xysums(xdata, ydata)
-    return t.Sxy/(t.n**2)
 
 
 def errsumsq(xdata, ydata=None):
@@ -1133,80 +1316,101 @@ def sumsq(data):
     return sum(x*x for x in data)
 
 
-def Sxx(xdata):
-    """Return Sxx from (x,y) data or x data alone.
+@multivariate
+def Sxx(xydata):
+    """Return Sxx = n*sum(x**2) - sum(x)**2 from (x,y) data or x data alone.
 
-    Sxx(xdata) -> n*sum(x**2) - sum(x)**2
+    Returns Sxx from either a single iterable or a pair of iterables.
 
-    xdata can be either a sequence of x values alone, or a sequence of (x,y)
-    values. In the later case, the y values will be ignored.
+    If given a single iterable argument, it must be either the (x,y) values,
+    in which case the y values are ignored, or the x values alone:
 
-    If you need all three of Sxx, Syy and Sxy, it is more efficient to use
-    xysums() instead.
+    >>> Sxx([(1, 2), (3, 4), (5, 8)])
+    24.0
+    >>> Sxx([1, 3, 5])
+    24.0
+
+    In the two argument form, Sxx(xdata, ydata), the second argument ydata
+    is ignored except that the data is truncated at the shorter of the
+    two arguments:
+
+    >>> Sxx([1, 3, 5, 7, 9], [2, 4, 8])
+    24.0
+
     """
-    data = iter(xdata)
-    first = next(data)
-    if isinstance(first, tuple):
-        if len(first) != 2:
-            raise ValueError(
-            'expected 2-tuple (x,y) but got %d items instead' % len(first))
-        data = itertools.chain([first[0]], (x[0] for x in data))
-    else:
-        data = itertools.chain([first], data)
-    return Sxy(*itertools.tee(data))
+    n, s = _var((x for (x, y) in xydata), None)
+    return s*n
 
 
-def Syy(ydata):
-    """Return Syy from (x,y) data or y data alone.
+@multivariate
+def Syy(xydata):
+    """Return Syy = n*sum(y**2) - sum(y)**2 from (x,y) data or y data alone.
 
-    Syy(ydata) -> n*sum(y**2) - sum(y)**2
+    Returns Syy from either a single iterable or a pair of iterables.
 
-    ydata can be either a sequence of y values alone, or a sequence of (x,y)
-    values. In the later case, the x values will be ignored.
+    If given a single iterable argument, it must be either the (x,y) values,
+    in which case the x values are ignored, or the y values alone:
 
-    If you need all three of Sxx, Syy and Sxy, it is more efficient to use
-    xysums() instead.
+    >>> Syy([(1, 2), (3, 4), (5, 8)])
+    56.0
+    >>> Syy([2, 4, 8])
+    56.0
+
+    In the two argument form, Syy(xdata, ydata), the first argument xdata
+    is ignored except that the data is truncated at the shorter of the
+    two arguments:
+
+    >>> Syy([1, 3, 5], [2, 4, 8, 16, 32])
+    56.0
+
     """
-    data = iter(ydata)
-    first = next(data)
-    if isinstance(first, tuple):
-        if len(first) != 2:
-            raise ValueError(
-            'expected 2-tuple (x,y) but got %d items instead' % len(first))
-        data = itertools.chain([first[1]], (x[1] for x in data))
+    # We expect (x,y) points, but if the caller passed a single iterable
+    # ydata as argument, it gets mistaken as xdata with the y values all
+    # set to None. (See the combine_xydata function.) We have to detect
+    # that and swap the values around.
+    try:
+        first = next(xydata)
+    except StopIteration:
+        pass  # Postpone dealing with this.
     else:
-        data = itertools.chain([first], data)
-    return Sxy(*itertools.tee(data))
+        if len(first) == 2 and first[1] is None:
+            # Swap the elements around.
+            first = (first[1], first[0])
+            xydata = ((x, y) for (y, x) in xydata)
+        # Re-insert the first element back into the data stream.
+        xydata = itertools.chain([first], xydata)
+    n, s = _var((y for (x, y) in xydata), None)
+    return s*n
 
 
-def Sxy(xdata, ydata=None):
-    """Return Sxy from (x,y) data.
+@multivariate
+def Sxy(xydata):
+    """Return Sxy = n*sum(x*y) - sum(x)*sum(y) from (x,y) data.
 
-    Sxy(xdata, ydata) -> n*sum(x*y) - sum(x)*sum(y)
+    Returns Sxy from either a single iterable or a pair of iterables.
 
-    If ydata is given, both it and xdata must be sequences of numeric values.
-    They will be truncated to the shorter of the two. If ydata is not given,
-    xdata must be a sequence of (x,y) pairs.
+    If given a single iterable argument, it must be the (x,y) values:
 
-    If you need all three of Sxx, Syy and Sxy, it is more efficient to use
-    xysums() instead.
+    >>> Sxy([(1, 2), (3, 4), (5, 8)])
+    36.0
+
+    In the two argument form, Sxx(xdata, ydata), data is truncated at the
+    shorter of the two arguments:
+
+    >>> Sxy([1, 3, 5, 7, 9], [2, 4, 8])
+    36.0
+
     """
-    if ydata is None:
-        data = xdata
-    else:
-        data = zip(xdata, ydata)
     n = 0
     sumx, sumy, sumxy = [], [], []
     ap = add_partial
-    for x, y in data:
+    fsum = math.fsum
+    for x, y in xydata:
         n += 1
         ap(x, sumx)
         ap(y, sumy)
         ap(x*y, sumxy)
-    sumx = math.fsum(sumx)
-    sumy = math.fsum(sumy)
-    sumxy = math.fsum(sumxy)
-    return n*sumxy - sumx*sumy
+    return n*fsum(sumxy) - fsum(sumx)*fsum(sumy)
 
 
 def xsums(xdata):
