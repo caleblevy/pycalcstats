@@ -3,18 +3,33 @@
 =====================================================================
 
 
-Version 0.1.1a  2010-10-??????
+Version 0.1.1a  2010-11-14
+    Many changes since the initial release:
+    * The project has a home page outside of PyPI:
+      http://code.google.com/p/pycalcstats/
     * stats is now aimed at Python 3.1 or better. Support functions for
       older versions have been removed.
-    * stats now aims to guarantee a single pass through the data for most
-      routines.
+    * Many more statistics functions.
+    * Tests are now worthy of the name.
     * Serious numerical instability in variance and standard deviation
-      functions due to use of a naive algorithm. (Thanks to Kurt Smith for
-      spotting this). Changed to Welford's method for calculating variance.
-    * Similar changes to correlation, covariance and linear regression.
-    * More tests. Thanks to geremy condra.
-    * stats is now a package.
+      due to use of a naive algorithm has been corrected. (Thanks to Kurt
+      Smith for spotting this).
+    * I now know more about quartiles than I ever hoped to learn :(
 
+    Known issues:
+    * This is still alpha software. The API is not yet locked down: function
+      signatures or even names may still change.
+    * Many more tests are required. Test coverage is good, but incomplete.
+    * Multivariate functions including cov, corr and linr are still painfully
+      naive and need work.
+    * Better documentation, including executable examples.
+    * Quantile-related functions are split off into a private module, but
+      without the full package structure. I'm not sure this is the right way
+      to do it.
+    * Not all quartile/quantile modes are supported yet, or fully debugged.
+    * Windows binary installer appears to be broken.
+
+    Thanks also to Geremy Condra for his efforts.
 
 Version 0.1a    2010-10-18
     Initial release, for Python 2.5.
