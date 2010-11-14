@@ -1,6 +1,6 @@
 include LICENCE.txt
 include CHANGES.txt
 include tests/main_test.py
-include make_test_data.py
-include test_data.zip
+include tests/make_test_data.py
+include tests/test_data.zip
 

@@ -4,16 +4,11 @@ from distutils.core import setup
 
 # Futz with the path so we can import metadata.
 import sys
-save_path = sys.path[:]
-try:
-    sys.path.insert(0, './src')
-    from stats import __version__, __author__, __author_email__
-finally:
-    sys.path = save_path
+sys.path.insert(0, './src')
+from stats import __version__, __author__, __author_email__
 
 setup(
     name = "stats",
-    package_dir = {'': 'src'},
     py_modules = ['stats', '_stats_quantiles',],
     version = __version__,
     author = __author__,
