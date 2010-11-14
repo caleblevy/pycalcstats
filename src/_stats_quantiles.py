@@ -18,13 +18,15 @@
 # We currently support the five methods described by Mathword and Dr Math:
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
+# plus Langford's Method #4 (CDF method).
 
 
 def inclusive(data):
     """Return sample quartiles using Tukey's method.
 
     Q1 and Q3 are calculated as the medians of the two halves of the data,
-    where the median Q2 is included in both halves.
+    where the median Q2 is included in both halves. This is equivalent to
+    Tukey's hinges H1, M, H2.
     """
     n = len(data)
     i = (n+1)//4
@@ -106,6 +108,16 @@ def excel(data):
     interpolate(data, U-1))
 
 
+def langford(data):
+    """Langford's recommended method for calculating quartiles based on the
+    cumulative distribution function (CDF).
+    """
+    # FIXME can we implement this without calling cdf? Should we?
+    q1 = cdf(data, 0.25)
+    q2 = cdf(data, 0.5)
+    q3 = cdf(data, 0.75)
+    return (q1, q2, q3)
+
 
 # Numeric method selectors for quartiles:
 QUARTILE_MAP = {
@@ -114,6 +126,7 @@ QUARTILE_MAP = {
     2: ms,
     3: minitab,
     4: excel,
+    5: langford,
     }
     # Note: if you modify this, you must also update the docstring for
     # the quartiles function in stats.py.
@@ -131,24 +144,45 @@ QUARTILE_ALIASES = {
     'minitab': 3,
     'f&p': 4,
     'excel': 4,
+    'langford': 5,
+    'cdf': 5,
     }
-
 
 
 # === Quantiles (fractiles) ===
 
+
+def cdf(data, p):
+    """Langford's Method #4 for calculating general quantiles using the
+    cumulative distribution function (CDF); this is also R's method 2 and
+    SAS' method 5.
+    """
+    # Calculations are based on 1-based indexing.
+    n = len(data)
+    x = n*p
+    i, f = int(x), x%1
+    # Since x is non-negative x, i = floor(x). We actually want ceil(x)
+    # instead, so we should add 1; however we would later subtract 1 to
+    # account for 0-based indexing, so we do nothing.
+    if f == 0:
+        return (data[i] + data[i+1])/2
+    else:
+        # We're off by one here.
+        return data[i-1]
+
+
 def placeholder(data, p):
     pass
 
-r1 = r2 = r3 = r4 = r5 = r6 = r7 = r8 = r9 = placeholder
+r1 = r3 = r4 = r5 = r6 = r7 = r8 = r9 = placeholder
 
 
 # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
 # calculation methods with the same number.
 QUANTILE_MAP = {
-    0: placeholder,
+    0: cdf,
     1: r1,
-    2: r2,
+    2: cdf,
     3: r3,
     4: r4,
     5: r5,

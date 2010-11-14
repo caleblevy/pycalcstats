@@ -681,12 +681,11 @@ class QuartileAliases(unittest.TestCase):
 class QuartileTest(unittest.TestCase):
     func = stats.quartiles
     # Methods to be tested.
-    methods = [0, 1]
+    methods = [0, 1, 2, 3, 4]
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
-        # Black magic to force self.func to be a function rather
-        # than a method.
+        # Force self.func to be a function rather than a method.
         self.func = self.__class__.func
 
     # Helper methods:
@@ -732,13 +731,13 @@ class QuartileTest(unittest.TestCase):
 
     def testSorted(self):
         # Test that sorted and unsorted data give the same results.
-        for n in (8, 9, 10, 11):  # n%4 -> 0...4
+        for n in (8, 9, 10, 11):  # n%4 -> 0...3
             for method in self.methods:
                 self.compare_sorted_with_unsorted(n, method)
 
     def testIter(self):
         # Test that iterators and sequences give the same result.
-        for n in (8, 9, 10, 11):  # n%4 -> 0...4
+        for n in (8, 9, 10, 11):  # n%4 -> 0...3
             for method in self.methods:
                 self.compare_types(n, method)
 
@@ -803,13 +802,16 @@ class QuartileTest(unittest.TestCase):
         self.assertEquals(self.func(data), (1250, 1501, 1752))
 
 
+class HingesTest(unittest.TestCase):
+    pass
+
+
 class QuantileTest(unittest.TestCase):
     func = stats.quantile
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
-        # Black magic to force self.func to be a function rather
-        # than a method.
+        # Force self.func to be a function rather than a method.
         self.func = self.__class__.func
 
     def testSorting(self):
