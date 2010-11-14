@@ -416,6 +416,9 @@ def midrange(data):
 def trimean(data):
     """Return Tukey's trimean = (H1 + 2*M + H2)/4 of data
 
+
+    >>> trimean([1, 1, 3, 5, 7, 9, 10, 14, 18])
+    6.75
     >>> trimean([0, 1, 2, 3, 4, 5, 6, 7, 8])
     4.0
 
@@ -536,8 +539,9 @@ def quartiles(data, method=0):
     equivalent to hinges (H1, M, H2).
 
     Method 1 is used by Texas Instruments calculators, model TI-85 and up.
-    Method 2 ensures that the values returned are always data points. Methods
-    3 and 4 use linear iterpolation between items.
+    Method 2 ensures that the values returned are always data points, which
+    makes it suitable for ordinal data.
+    Methods 3 and 4 use linear iterpolation between items.
 
     Case-insensitive named aliases are also supported for methods: you can
     examine quartiles.aliases for a mapping of names to method numbers.
