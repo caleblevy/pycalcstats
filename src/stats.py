@@ -38,7 +38,7 @@
 
 # Module metadata.
 __version__ = "0.1.1a"
-__date__ = "2010-11-02"
+__date__ = "2010-11-14"
 __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
@@ -56,7 +56,7 @@ __all__ = [
     # Measures of spread:
     'pvariance', 'variance', 'pstdev', 'stdev',
     'pvariance1', 'variance1', 'pstdev1', 'stdev1',
-    'range', 'iqr', 'average_deviation',
+    'range', 'iqr', 'average_deviation', 'median_average_deviation',
     # Other moments:
     'pearson_mode_skewness', 'skew', 'kurtosis',
     # Multivariate statistics:
@@ -64,7 +64,7 @@ __all__ = [
     # Sums and products:
     'sum', 'sumsq', 'product', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
-    'sterrmean', 'StatsError', 'minmax',
+    'StatsError', 'sterrmean', 'minmax',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -925,7 +925,7 @@ def average_deviation(data, m=None):
     else:
         total = sum(abs(x-m))
     if n < 1:
-        raise StatsError('absolute deviation requires at least 1 data point')
+        raise StatsError('average deviation requires at least 1 data point')
     return total/n
 
 
