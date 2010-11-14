@@ -71,6 +71,7 @@ __all__ = [
 
 
 import _stats_quantiles as _quantiles
+from _stats_quantiles import _Quartiles
 
 import math
 import operator
@@ -550,7 +551,7 @@ def quartiles(data, method=0):
         key = quartiles.aliases.get(method.lower())
     else:
         key = method
-    func = _quantiles.QUARTILE_MAP.get(key)
+    func = _Quartiles.QUARTILE_MAP.get(key)
     if func is None:
         raise StatsError('unrecognised method selector `%s`' % method)
     # Return the quartiles using that method.
@@ -559,7 +560,7 @@ def quartiles(data, method=0):
         raise StatsError('need at least 3 items to split data into quartiles')
     return func(data)
 
-quartiles.aliases = _quantiles.QUARTILE_ALIASES
+quartiles.aliases = _Quartiles.QUARTILE_ALIASES
 
 
 def hinges(data):
@@ -647,6 +648,41 @@ def percentile(data, p, method=0):
     if not 0 <= p <= 100:
         raise ValueError('percentile argument p must be between 0 and 100')
     return quantile(data, p/100, method)
+
+
+def boxwhiskerplot(q0, q1, q2, q3, q4, *, width=60):
+    """Create an ASCII art box and whisker plot.
+
+    Returns a two-line ASCII art string suitable for printing.
+
+    >>> print(boxwhiskerplot(5, 10, 15, 25, 50, width=40))
+    ... # doctest: +NORMALIZE_WHITESPACE
+         _____________
+    ----|____|________|---------------------
+
+    The five numeric arguments required are:
+        q0  minimum value
+        q1  first quartile
+        q2  median or second quartile
+        q3  third quartile
+        q4  maximum value
+
+    The width of the plot is scaled to the optional keyword-only argument
+    width, which takes the value 60 by default.
+    """
+    if not q0 <= q1 <= q2 <= q3 <= q4:
+        raise StatsError('five stats are out of order')
+    w = q4-q0
+    assert w >= 0
+    scale = (width-3)/w
+    lwhisker = round((q1 - q0)*scale) * '-'
+    lbox = round((q2 - q1)*scale) * '_'
+    rbox = round((q3 - q2)*scale) * '_'
+    rwhisker = round((q4 - q3)*scale) * '-'
+    line0 = '%s %s_%s %s\n' % (lwhisker, lbox, rbox, rwhisker)
+    line0 = line0.replace('-', ' ')
+    line1 = '%s|%s|%s|%s\n' % (lwhisker, lbox, rbox, rwhisker)
+    return line0 + line1
 
 
 # Measures of spread (dispersion or variability)
@@ -1011,7 +1047,8 @@ def skew(data, m=None, s=None):
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
 
-    >>> skew([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])  #doctest: +ELLIPSIS
+    >>> skew([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    ... #doctest: +ELLIPSIS
     1.12521290135...
 
     The reliablity of the result as an estimate for the true skew depends on
@@ -1046,7 +1083,8 @@ def kurtosis(data, m=None, s=None):
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
 
-    >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])  #doctest: +ELLIPSIS
+    >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    ... #doctest: +ELLIPSIS
     -0.1063790369...
 
     The reliablity of the result as an estimate for the true kurtosis depends
@@ -1247,7 +1285,8 @@ def cov(xdata, ydata=None):
 
     >>> print(cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
     1.1675
-    >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])  #doctest: +ELLIPSIS
+    >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
+    ... #doctest: +ELLIPSIS
     0.201666666666...
 
     Covariance reduces down to standard variance when applied to the same data

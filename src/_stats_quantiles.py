@@ -11,142 +11,142 @@
 
 # === Quartiles ===
 
-# Langford (2006) describes 15 methods for calculating quartiles, although
-# some are mathematically equivalent to others:
-#   http://www.amstat.org/publications/jse/v14n3/langford.html
-#
-# We currently support the five methods described by Mathword and Dr Math:
-#   http://mathforum.org/library/drmath/view/60969.html
-#   http://mathworld.wolfram.com/Quartile.html
-# plus Langford's Method #4 (CDF method).
 
+class _Quartiles:
+    """Private namespace for quartile calculation methods.
 
-def inclusive(data):
-    """Return sample quartiles using Tukey's method.
+    Langford (2006) describes 15 methods for calculating quartiles, although
+    some are mathematically equivalent to others:
+        http://www.amstat.org/publications/jse/v14n3/langford.html
 
-    Q1 and Q3 are calculated as the medians of the two halves of the data,
-    where the median Q2 is included in both halves. This is equivalent to
-    Tukey's hinges H1, M, H2.
+    We currently support the five methods described by Mathword and Dr Math:
+        http://mathworld.wolfram.com/Quartile.html
+        http://mathforum.org/library/drmath/view/60969.html
+    plus Langford's Method #4 (CDF method).
+
     """
-    n = len(data)
-    i = (n+1)//4
-    m = n//2
-    if n%4 in (0, 3):
-        q1 = (data[i] + data[i-1])/2
-        q3 = (data[-i-1] + data[-i])/2
-    else:
-        q1 = data[i]
-        q3 = data[-i-1]
-    if n%2 == 0:
-        q2 = (data[m-1] + data[m])/2
-    else:
-        q2 = data[m]
-    return (q1, q2, q3)
+    def __new__(cls):
+        raise RuntimeError('abstract namespace class')
 
+    def inclusive(data):
+        """Return sample quartiles using Tukey's method.
 
-def exclusive(data):
-    """Return sample quartiles using Moore and McCabe's method.
+        Q1 and Q3 are calculated as the medians of the two halves of the data,
+        where the median Q2 is included in both halves. This is equivalent to
+        Tukey's hinges H1, M, H2.
+        """
+        n = len(data)
+        i = (n+1)//4
+        m = n//2
+        if n%4 in (0, 3):
+            q1 = (data[i] + data[i-1])/2
+            q3 = (data[-i-1] + data[-i])/2
+        else:
+            q1 = data[i]
+            q3 = data[-i-1]
+        if n%2 == 0:
+            q2 = (data[m-1] + data[m])/2
+        else:
+            q2 = data[m]
+        return (q1, q2, q3)
 
-    Q1 and Q3 are calculated as the medians of the two halves of the data,
-    where the median Q2 is excluded from both halves.
+    def exclusive(data):
+        """Return sample quartiles using Moore and McCabe's method.
 
-    This is the method used by Texas Instruments model TI-85 calculator.
-    """
-    n = len(data)
-    i = n//4
-    m = n//2
-    if n%4 in (0, 1):
-        q1 = (data[i] + data[i-1])/2
-        q3 = (data[-i-1] + data[-i])/2
-    else:
-        q1 = data[i]
-        q3 = data[-i-1]
-    if n%2 == 0:
-        q2 = (data[m-1] + data[m])/2
-    else:
-        q2 = data[m]
-    return (q1, q2, q3)
+        Q1 and Q3 are calculated as the medians of the two halves of the data,
+        where the median Q2 is excluded from both halves.
 
+        This is the method used by Texas Instruments model TI-85 calculator.
+        """
+        n = len(data)
+        i = n//4
+        m = n//2
+        if n%4 in (0, 1):
+            q1 = (data[i] + data[i-1])/2
+            q3 = (data[-i-1] + data[-i])/2
+        else:
+            q1 = data[i]
+            q3 = data[-i-1]
+        if n%2 == 0:
+            q2 = (data[m-1] + data[m])/2
+        else:
+            q2 = data[m]
+        return (q1, q2, q3)
 
-def ms(data):
-    """Return sample quartiles using Mendenhall and Sincich's method."""
-    # Perform index calculations using 1-based counting, and adjust for
-    # 0-based at the very end.
-    n = len(data)
-    M = round((n+1)/2, EVEN)
-    L = round((n+1)/4, UP)
-    U = n+1-L
-    assert U == round(3*(n+1)/4, DOWN)
-    return (data[L-1], data[M-1], data[U-1])
+    def ms(data):
+        """Return sample quartiles using Mendenhall and Sincich's method."""
+        # Perform index calculations using 1-based counting, and adjust for
+        # 0-based at the very end.
+        n = len(data)
+        M = round((n+1)/2, EVEN)
+        L = round((n+1)/4, UP)
+        U = n+1-L
+        assert U == round(3*(n+1)/4, DOWN)
+        return (data[L-1], data[M-1], data[U-1])
 
+    def minitab(data):
+        """Return sample quartiles using the method used by Minitab."""
+        # Perform index calculations using 1-based counting, and adjust for
+        # 0-based at the very end.
+        n = len(data)
+        M = (n+1)/2
+        L = (n+1)/4
+        U = n+1-L
+        assert U == 3*(n+1)/4
+        return (interpolate(data, L-1), interpolate(data, M-1),
+        interpolate(data, U-1))
 
-def minitab(data):
-    """Return sample quartiles using the method used by Minitab."""
-    # Perform index calculations using 1-based counting, and adjust for
-    # 0-based at the very end.
-    n = len(data)
-    M = (n+1)/2
-    L = (n+1)/4
-    U = n+1-L
-    assert U == 3*(n+1)/4
-    return (interpolate(data, L-1), interpolate(data, M-1),
-    interpolate(data, U-1))
+    def excel(data):
+        """Return sample quartiles using Freund and Perles' method.
 
+        This is also the method used by Excel.
+        """
+        # Perform index calculations using 1-based counting, and adjust for
+        # 0-based at the very end.
+        n = len(data)
+        M = (n+1)/2
+        L = (n+3)/4
+        U = (3*n+1)/4
+        return (interpolate(data, L-1), interpolate(data, M-1),
+        interpolate(data, U-1))
 
-def excel(data):
-    """Return sample quartiles using Freund and Perles' method.
+    def langford(data):
+        """Langford's recommended method for calculating quartiles based on
+        the cumulative distribution function (CDF).
+        """
+        # FIXME can we implement this without calling cdf? Should we?
+        q1 = cdf(data, 0.25)
+        q2 = cdf(data, 0.5)
+        q3 = cdf(data, 0.75)
+        return (q1, q2, q3)
 
-    This is also the method used by Excel.
-    """
-    # Perform index calculations using 1-based counting, and adjust for
-    # 0-based at the very end.
-    n = len(data)
-    M = (n+1)/2
-    L = (n+3)/4
-    U = (3*n+1)/4
-    return (interpolate(data, L-1), interpolate(data, M-1),
-    interpolate(data, U-1))
+    # Numeric method selectors for quartiles:
+    QUARTILE_MAP = {
+        0: inclusive,
+        1: exclusive,
+        2: ms,
+        3: minitab,
+        4: excel,
+        5: langford,
+        }
+        # Note: if you modify this, you must also update the docstring for
+        # the quartiles function in stats.py.
 
-
-def langford(data):
-    """Langford's recommended method for calculating quartiles based on the
-    cumulative distribution function (CDF).
-    """
-    # FIXME can we implement this without calling cdf? Should we?
-    q1 = cdf(data, 0.25)
-    q2 = cdf(data, 0.5)
-    q3 = cdf(data, 0.75)
-    return (q1, q2, q3)
-
-
-# Numeric method selectors for quartiles:
-QUARTILE_MAP = {
-    0: inclusive,
-    1: exclusive,
-    2: ms,
-    3: minitab,
-    4: excel,
-    5: langford,
-    }
-    # Note: if you modify this, you must also update the docstring for
-    # the quartiles function in stats.py.
-
-
-# Lowercase aliases for the numeric method selectors for quartiles:
-QUARTILE_ALIASES = {
-    'inclusive': 0,
-    'tukey': 0,
-    'hinges': 0,
-    'exclusive': 1,
-    'm&m': 1,
-    'ti-85': 1,
-    'm&s': 2,
-    'minitab': 3,
-    'f&p': 4,
-    'excel': 4,
-    'langford': 5,
-    'cdf': 5,
-    }
+    # Lowercase aliases for the numeric method selectors for quartiles:
+    QUARTILE_ALIASES = {
+        'inclusive': 0,
+        'tukey': 0,
+        'hinges': 0,
+        'exclusive': 1,
+        'm&m': 1,
+        'ti-85': 1,
+        'm&s': 2,
+        'minitab': 3,
+        'f&p': 4,
+        'excel': 4,
+        'langford': 5,
+        'cdf': 5,
+        }
 
 
 # === Quantiles (fractiles) ===
