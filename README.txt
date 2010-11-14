@@ -10,6 +10,7 @@ to those found on scientific calculators. It has over 40 statistics functions,
 including:
 
 Univariate statistics:
+
 * arithmetic, harmonic, geometric and quadratic means
 * median, mode, midrange, trimean
 * mean of angular quantities
@@ -21,6 +22,7 @@ Univariate statistics:
 * standard error of the mean
 
 Multivariate statistics:
+
 * Pearson's correlation coefficient
 * Q-correlation coefficient
 * covariance (sample and population)
