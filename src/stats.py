@@ -423,7 +423,7 @@ def trimean(data):
     4.0
 
     """
-    H1, M, H2 = quartiles(data, 'hinges')
+    H1, M, H2 = hinges(data)
     return (H1 + 2*M + H2)/4
 
 
@@ -534,14 +534,13 @@ def quartiles(data, method=0):
     2       Method recommended by Mendenhall and Sincich
     3       Method used by Minitab software
     4       Method recommended by Freund and Perles and used by Excel
+    5       Langford's CDF method
 
-    The default is method 0, in which case the quartiles returned are
-    equivalent to hinges (H1, M, H2).
-
-    Method 1 is used by Texas Instruments calculators, model TI-85 and up.
-    Method 2 ensures that the values returned are always data points, which
-    makes it suitable for ordinal data.
-    Methods 3 and 4 use linear iterpolation between items.
+    * Method 0 (the default) is equivalent to Tukey's hinges (H1, M, H2).
+    * Method 1 is used by Texas Instruments calculators, model TI-85 and up.
+    * Method 2 ensures that the values returned are always data points,
+      which makes it suitable for ordinal data.
+    * Methods 3 and 4 use linear iterpolation between items.
 
     Case-insensitive named aliases are also supported for methods: you can
     examine quartiles.aliases for a mapping of names to method numbers.
@@ -562,6 +561,11 @@ def quartiles(data, method=0):
 
 quartiles.aliases = _quantiles.QUARTILE_ALIASES
 
+
+def hinges(data):
+    """Return Tukey's hinges H1, M, H2 from data.
+    """
+    return quartiles(data, 'hinges')
 
 
 # Quantiles (fractiles) are just as confused as quartiles. The statistics
@@ -584,13 +588,14 @@ def quantile(data, p, method=0):
     The result returned by quantile is the data point, or the interpolated
     data point, such that a fraction p of the data is less than that value.
 
-    Recognised values for method are:
-
     Method  Description
     ======  ================================================================
-    0       ...
+    0       Langford's method #4 based on cumulative distribution function
+    1-9     Types 1-9 from R (#2 is equivalent to 0)
+    10      ...
 
-    The default is method 0.
+    See the R manual for further details:
+    http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
 
     Case-insensitive named aliases are also supported for methods: you can
     examine quantiles.aliases for a mapping of names to method numbers.
