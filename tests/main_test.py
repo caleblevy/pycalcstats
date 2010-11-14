@@ -41,13 +41,40 @@ import stats
 import _stats_quantiles
 
 
-# === Helper functions ===
+# Test internal functions in _stats_quantiles
+# -------------------------------------------
 
+class RoundTest(unittest.TestCase):
+    UP = _stats_quantiles.UP
+    DOWN = _stats_quantiles.DOWN
+    EVEN = _stats_quantiles.EVEN
 
-# === Data sets for testing ===
+    def testRoundDown(self):
+        f = _stats_quantiles.round
+        self.assertEquals(f(1.4, self.DOWN), 1)
+        self.assertEquals(f(1.5, self.DOWN), 1)
+        self.assertEquals(f(1.6, self.DOWN), 2)
+        self.assertEquals(f(2.4, self.DOWN), 2)
+        self.assertEquals(f(2.5, self.DOWN), 2)
+        self.assertEquals(f(2.6, self.DOWN), 3)
 
+    def testRoundUp(self):
+        f = _stats_quantiles.round
+        self.assertEquals(f(1.4, self.UP), 1)
+        self.assertEquals(f(1.5, self.UP), 2)
+        self.assertEquals(f(1.6, self.UP), 2)
+        self.assertEquals(f(2.4, self.UP), 2)
+        self.assertEquals(f(2.5, self.UP), 3)
+        self.assertEquals(f(2.6, self.UP), 3)
 
-# === Test suites ===
+    def testRoundEven(self):
+        f = _stats_quantiles.round
+        self.assertEquals(f(1.4, self.EVEN), 1)
+        self.assertEquals(f(1.5, self.EVEN), 2)
+        self.assertEquals(f(1.6, self.EVEN), 2)
+        self.assertEquals(f(2.4, self.EVEN), 2)
+        self.assertEquals(f(2.5, self.EVEN), 2)
+        self.assertEquals(f(2.6, self.EVEN), 3)
 
 
 # Miscellaneous tests
@@ -61,6 +88,11 @@ class GlobalsTest(unittest.TestCase):
                  " __author_email__ __all__").split()
         for meta in attrs:
             self.failUnless(hasattr(stats, meta), "missing %s" % meta)
+
+    def testCheckAll(self):
+        # Check everything in __all__ exists.
+        for name in stats.__all__:
+            self.failUnless(hasattr(stats, name))
 
 
 class CompareAgainstExternalResultsTest(unittest.TestCase):
@@ -585,7 +617,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 9.0)
 
-    def notestms_quartile(self):
+    def testMS(self):
         f = _stats_quantiles.ms
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2)
@@ -600,7 +632,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3)
         self.assertEquals(q3, 9)
 
-    def notestMinitab(self):
+    def testMinitab(self):
         f = _stats_quantiles.minitab
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.25)
@@ -615,7 +647,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q1, 3.0)
         self.assertEquals(q3, 9.0)
 
-    def notestExcel(self):
+    def testExcel(self):
         f = _stats_quantiles.excel
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.75)
@@ -962,7 +994,7 @@ class PCovTest(unittest.TestCase):
     pass
 
 
-class CovTest(CovTest):
+class CovTest(PCovTest):
     pass
 
 

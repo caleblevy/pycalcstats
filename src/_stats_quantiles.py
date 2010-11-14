@@ -3,7 +3,7 @@
 # ==============================================
 
 
-# This module contains private functions for calculating quantiles.
+# This module contains private functions for calculating fractiles.
 # Do NOT use anything in this module directly. Everything here is subject
 # to change WITHOUT NOTICE.
 
@@ -68,28 +68,42 @@ def exclusive(data):
 
 def ms(data):
     """Return sample quartiles using Mendenhall and Sincich's method."""
+    # Perform index calculations using 1-based counting, and adjust for
+    # 0-based at the very end.
     n = len(data)
     M = round((n+1)/2, EVEN)
     L = round((n+1)/4, UP)
-    assert (n-i) == round(3*(n+1)/4, DOWN)
-    # Subtract 1 to adjust for zero-based indexes.
-    return (data[L-1], data[M-1], data[-L-1])
+    U = n+1-L
+    assert U == round(3*(n+1)/4, DOWN)
+    return (data[L-1], data[M-1], data[U-1])
 
 
 def minitab(data):
     """Return sample quartiles using the method used by Minitab."""
+    # Perform index calculations using 1-based counting, and adjust for
+    # 0-based at the very end.
     n = len(data)
-    # Subtract 1 to adjust for zero-based indexes.
-    M = (n+1)/2 - 1
-    L = (n+1)/4 - 1
-    U = 3*(n+1)/4 - 1
-    return (interpolate(data, L), interpolate(data, M), interpolate(data, U))
+    M = (n+1)/2
+    L = (n+1)/4
+    U = n+1-L
+    assert U == 3*(n+1)/4
+    return (interpolate(data, L-1), interpolate(data, M-1),
+    interpolate(data, U-1))
 
 
 def excel(data):
-    """Return sample quartiles using the method used by Excel."""
-    # Method recommended by Freund and Perles.
-    raise NotImplementedError
+    """Return sample quartiles using Freund and Perles' method.
+
+    This is also the method used by Excel.
+    """
+    # Perform index calculations using 1-based counting, and adjust for
+    # 0-based at the very end.
+    n = len(data)
+    M = (n+1)/2
+    L = (n+3)/4
+    U = (3*n+1)/4
+    return (interpolate(data, L-1), interpolate(data, M-1),
+    interpolate(data, U-1))
 
 
 
@@ -108,16 +122,14 @@ QUARTILE_MAP = {
 # Lowercase aliases for the numeric method selectors for quartiles:
 QUARTILE_ALIASES = {
     'inclusive': 0,
-    'incl': 0,
     'tukey': 0,
     'hinges': 0,
     'exclusive': 1,
-    'excl': 1,
     'm&m': 1,
     'ti-85': 1,
     'm&s': 2,
     'minitab': 3,
-    'fp': 4,
+    'f&p': 4,
     'excel': 4,
     }
 
@@ -157,6 +169,7 @@ QUANTILE_ALIASES = {
     'sas-4': 6,
     'sas-5': 2,
     'excel': 7,
+    'cdf': 2,
     }
 
 
@@ -197,10 +210,10 @@ def round(x, rounding_mode):
                 return n
 
 
-def interpolate(data, i):
-    if i%1:
-        i, f = int(i), i%1
-        a, b = data[i:i+2]
+def interpolate(data, x):
+    i, f = int(x), x%1
+    if f:
+        a, b = data[i], data[i+1]
         return a + f*(b-a)
     else:
         return data[i]
