@@ -5,18 +5,27 @@ stats -- calculator statistics
 Introduction
 ------------
 
-stats is a pure-Python module providing basic statistics functions
-similar to those found on scientific calculators. It currently includes:
+stats is a pure-Python module providing basic statistics functions similar
+to those found on scientific calculators. It has over 40 statistics functions,
+including:
 
-Univariate statistics including:
+Univariate statistics:
 * arithmetic, harmonic, geometric and quadratic means
-* median, mode
-* standard deviation and variance (sample and population)
+* median, mode, midrange, trimean
+* mean of angular quantities
+* running and weighted averages
+* quartiles, hinges and quantiles
+* variance and standard deviation (sample and population)
+* average deviation and median average deviation (MAD)
+* skew and kurtosis
+* standard error of the mean
 
-Multivariate statistics including:
+Multivariate statistics:
 * Pearson's correlation coefficient
+* Q-correlation coefficient
 * covariance (sample and population)
 * linear regression
+* sums Sxx, Syy and Sxy
 
 and others.
 
