@@ -9,6 +9,7 @@ from stats import __version__, __author__, __author_email__
 
 setup(
     name = "stats",
+    package_dir={'': 'src'},
     py_modules = ['stats', '_stats_quantiles',],
     version = __version__,
     author = __author__,
@@ -25,22 +26,22 @@ to those found on scientific calculators. It has over 40 statistics functions,
 including:
 
 Univariate statistics:
-* arithmetic, harmonic, geometric and quadratic means
-* median, mode, midrange, trimean
-* mean of angular quantities
-* running and weighted averages
-* quartiles, hinges and quantiles
-* variance and standard deviation (sample and population)
-* average deviation and median average deviation (MAD)
-* skew and kurtosis
-* standard error of the mean
+  * arithmetic, harmonic, geometric and quadratic means
+  * median, mode, midrange, trimean
+  * mean of angular quantities
+  * running and weighted averages
+  * quartiles, hinges and quantiles
+  * variance and standard deviation (sample and population)
+  * average deviation and median average deviation (MAD)
+  * skew and kurtosis
+  * standard error of the mean
 
 Multivariate statistics:
-* Pearson's correlation coefficient
-* Q-correlation coefficient
-* covariance (sample and population)
-* linear regression
-* sums Sxx, Syy and Sxy
+  * Pearson's correlation coefficient
+  * Q-correlation coefficient
+  * covariance (sample and population)
+  * linear regression
+  * sums Sxx, Syy and Sxy
 
 and others.
 
