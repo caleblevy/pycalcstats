@@ -588,7 +588,7 @@ class DrMathTests(unittest.TestCase):
     D = range(1, 12)
 
     def testInclusive(self):
-        f = _stats_quantiles.inclusive
+        f = _stats_quantiles._Quartiles.inclusive
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
@@ -603,7 +603,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 8.5)
 
     def testExclusive(self):
-        f = _stats_quantiles.exclusive
+        f = _stats_quantiles._Quartiles.exclusive
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
@@ -618,7 +618,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 9.0)
 
     def testMS(self):
-        f = _stats_quantiles.ms
+        f = _stats_quantiles._Quartiles.ms
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2)
         self.assertEquals(q3, 7)
@@ -633,7 +633,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 9)
 
     def testMinitab(self):
-        f = _stats_quantiles.minitab
+        f = _stats_quantiles._Quartiles.minitab
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.25)
         self.assertEquals(q3, 6.75)
@@ -648,7 +648,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 9.0)
 
     def testExcel(self):
-        f = _stats_quantiles.excel
+        f = _stats_quantiles._Quartiles.excel
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.75)
         self.assertEquals(q3, 6.25)
@@ -664,7 +664,7 @@ class DrMathTests(unittest.TestCase):
 
 
 class QuartileAliases(unittest.TestCase):
-    allowed_methods = set(_stats_quantiles.QUARTILE_MAP.keys())
+    allowed_methods = set(_stats_quantiles._Quartiles.QUARTILE_MAP.keys())
 
     def testAliasesMapping(self):
         # Test that the quartile function exposes a mapping of aliases.
@@ -852,6 +852,10 @@ class DecileTest(unittest.TestCase):
 
 
 class PercentileTest(unittest.TestCase):
+    pass
+
+
+class BoxWhiskerPlotTest(unittest.TestCase):
     pass
 
 
