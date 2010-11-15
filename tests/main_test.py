@@ -483,6 +483,10 @@ class MidrangeTest(MeanTest):
         self.assertEquals(stats.midrange([2.0, 4.0, 1.0]), 2.5)
 
 
+#class MidhingeTest(MeanTest):
+    #pass
+
+
 class TrimeanTest(unittest.TestCase):
     data = [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7, 8.8, 9.9]
     expected = 5.5

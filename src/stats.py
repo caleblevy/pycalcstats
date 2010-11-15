@@ -52,7 +52,7 @@ __all__ = [
     # Moving averages:
     'running_average', 'weighted_running_average', 'simple_moving_average',
     # Other point statistics:
-    'quartiles', 'quantile', 'decile', 'percentile',
+    'quartiles', 'quantile', 'decile', 'percentile', 'boxwhiskerplot',
     # Measures of spread:
     'pvariance', 'variance', 'pstdev', 'stdev',
     'pvariance1', 'variance1', 'pstdev1', 'stdev1',
@@ -406,11 +406,25 @@ def midrange(data):
     a weak measure of central tendency.
     """
     try:
-        a, b = minmax(data)
+        L, H = minmax(data)
     except ValueError as e:
         e.args = ('no midrange defined for empty iterables',)
         raise
-    return (a + b)/2
+    return (L + H)/2
+
+
+def midhinge(data):
+    """Return the midhinge of a sequence of numbers.
+
+    >>> midhinge([1, 1, 2, 3, 4, 5, 6, 7, 8, 8])
+    4.5
+
+    The midhinge is halfway between the first and second hinges. It is a
+    better measure of central tendency than the midrange, and more robust
+    than the sample mean (more resistant to outliers).
+    """
+    H1, _, H2 = hinges(data)
+    return (H1 + H2)/2
 
 
 @sorted_data
@@ -423,6 +437,8 @@ def trimean(data):
     >>> trimean([0, 1, 2, 3, 4, 5, 6, 7, 8])
     4.0
 
+    The trimean is equivalent to the average of the median and the midhinge,
+    and is considered a better measure of central tendancy than either alone.
     """
     H1, M, H2 = hinges(data)
     return (H1 + 2*M + H2)/4
@@ -650,39 +666,8 @@ def percentile(data, p, method=0):
     return quantile(data, p/100, method)
 
 
-def boxwhiskerplot(q0, q1, q2, q3, q4, *, width=60):
-    """Create an ASCII art box and whisker plot.
-
-    Returns a two-line ASCII art string suitable for printing.
-
-    >>> print(boxwhiskerplot(5, 10, 15, 25, 50, width=40))
-    ... # doctest: +NORMALIZE_WHITESPACE
-         _____________
-    ----|____|________|---------------------
-
-    The five numeric arguments required are:
-        q0  minimum value
-        q1  first quartile
-        q2  median or second quartile
-        q3  third quartile
-        q4  maximum value
-
-    The width of the plot is scaled to the optional keyword-only argument
-    width, which takes the value 60 by default.
-    """
-    if not q0 <= q1 <= q2 <= q3 <= q4:
-        raise StatsError('five stats are out of order')
-    w = q4-q0
-    assert w >= 0
-    scale = (width-3)/w
-    lwhisker = round((q1 - q0)*scale) * '-'
-    lbox = round((q2 - q1)*scale) * '_'
-    rbox = round((q3 - q2)*scale) * '_'
-    rwhisker = round((q4 - q3)*scale) * '-'
-    line0 = '%s %s_%s %s\n' % (lwhisker, lbox, rbox, rwhisker)
-    line0 = line0.replace('-', ' ')
-    line1 = '%s|%s|%s|%s\n' % (lwhisker, lbox, rbox, rwhisker)
-    return line0 + line1
+def boxwhiskerplot(*args, **kwargs):
+    pass  # placeholder
 
 
 # Measures of spread (dispersion or variability)
