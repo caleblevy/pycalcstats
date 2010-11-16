@@ -913,6 +913,15 @@ class VarianceTest(PVarianceTest):
         for data in ([1], iter([1])):
             self.assertRaises(ValueError, self.func, data)
 
+    def testCompareR(self):
+        # Compare against result calculated with R code:
+        #   > x <- c(seq(1, 10), seq(1000, 1200))
+        #   > var(x)
+        #   [1] 57563.55
+        data = list(range(1, 11)) + list(range(1000, 1201))
+        expected = 57563.55
+        self.assertEquals(round(self.func(data), 2), expected)
+
 
 class PStdevTest(PVarianceTest):
     func = stats.pstdev
@@ -924,6 +933,11 @@ class StdevTest(VarianceTest):
     func = stats.stdev
     expected = math.sqrt(30.0)  # Exact sample stdev.
     uniform_expected = math.sqrt(VarianceTest.uniform_expected)
+
+    def testCompareR(self):
+        data = list(range(1, 11)) + list(range(1000, 1201))
+        expected = 239.9241
+        self.assertEquals(round(self.func(data), 4), expected)
 
 
 class PVariance1Test(PVarianceTest):
@@ -974,7 +988,23 @@ class RangeTest(unittest.TestCase):
 
 
 class IQRTest(unittest.TestCase):
-    pass
+
+    def testBadSelector(self):
+        for method in (-1, None, "spam"):
+            self.assertRaises(ValueError, stats.iqr, [1, 2, 3, 4], method)
+
+    def testBadData(self):
+        for data in ([], [1], [2, 3]):
+            self.assertRaises(ValueError, stats.iqr, data)
+
+    def testCaseInsensitive(self):
+        data = [1, 2, 3, 6, 9, 12, 18, 22]
+        for name, num in stats.quartiles.aliases.items():
+            a = stats.iqr(data, name.lower())
+            b = stats.iqr(data, name.upper())
+            c = stats.iqr(data, num)
+            self.assertEqual(a, b)
+            self.assertEqual(a, c)
 
 
 class AverageDeviationTest(unittest.TestCase):
@@ -996,12 +1026,51 @@ class PearsonModeSkewnessTest(unittest.TestCase):
     pass
 
 
-class SkewTest(unittest.TestCase):
-    pass
+class SkewnessTest(unittest.TestCase):
+    def test_uniform(self):
+        # Compare the calculated skewness against an exact result
+        # calculated from a uniform distribution.
+        data = range(10000)
+        self.assertEquals(stats.skewness(data), 0.0)
+        data = [x + 1e9 for x in data]
+        self.assertEquals(stats.skewness(data), 0.0)
+
+    def test_shift(self):
+        data = [(2*i+1)/4 for i in range(1000)]
+        random.shuffle(data)
+        k1 = stats.skewness(data)
+        k2 = stats.skewness(x+1e9 for x in data)
+        self.assertEquals(k1, k2)
 
 
 class KurtosisTest(unittest.TestCase):
-    pass
+
+    def corrected_uniform_kurtosis(self, n):
+        """Return the exact kurtosis for a discrete uniform distribution."""
+        # Calculate the exact population kurtosis:
+        expected = -6*(n**2 + 1)/(5*(n - 1)*(n + 1))
+        # Give a correction factor to adjust it for sample kurtosis:
+        expected *= (n/(n-1))**3
+        # XXX why 3? I can't justify this, but it seems to give the closest
+        # results.
+        return expected
+
+    def test_uniform(self):
+        # Compare the calculated kurtosis against an exact result
+        # calculated from a uniform distribution.
+        n = 10000
+        data = range(n)
+        expected = self.corrected_uniform_kurtosis(n)
+        self.assertAlmostEquals(stats.kurtosis(data), expected, places=6)
+        data = [x + 1e9 for x in data]
+        self.assertAlmostEquals(stats.kurtosis(data), expected, places=6)
+
+    def test_shift(self):
+        data = [(2*i+1)/4 for i in range(1000)]
+        random.shuffle(data)
+        k1 = stats.kurtosis(data)
+        k2 = stats.kurtosis(x+1e9 for x in data)
+        self.assertEquals(k1, k2)
 
 
 # Test multivariate statistics

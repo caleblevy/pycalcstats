@@ -1092,6 +1092,10 @@ def kurtosis(data, m=None, s=None):
     to the kurtosis of the normal distribution. To convert to kurtosis proper,
     add 3 to the result.
 
+        WARNING: As the kurtosis depends on the fourth power of the
+        data points, it can suffer from significant round-off error
+        and should be used with caution.
+
     If you know one or both of the population mean and standard deviation,
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
