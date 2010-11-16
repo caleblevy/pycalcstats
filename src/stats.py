@@ -58,7 +58,7 @@ __all__ = [
     'pvariance1', 'variance1', 'pstdev1', 'stdev1',
     'range', 'iqr', 'average_deviation', 'median_average_deviation',
     # Other moments:
-    'pearson_mode_skewness', 'skew', 'kurtosis',
+    'quartile_skewness', 'pearson_mode_skewness', 'skewness', 'kurtosis',
     # Multivariate statistics:
     'qcorr', 'corr', 'corr1', 'pcov', 'cov', 'errsumsq', 'linr',
     # Sums and products:
@@ -1009,6 +1009,19 @@ median_average_deviation.scaling = {
 # Other moments of the data
 # -------------------------
 
+def quartile_skewness(q1, q2, q3):
+    """Return the quartile skewness coefficient, or Bowley skewness, from
+    the three quartiles q1, q2 (median), q3.
+
+    >>> quartile_skewness(1, 2, 5)
+    0.5
+    >>> quartile_skewness(1, 4, 5)
+    -0.5
+
+    """
+    return (q3 + q1 - 2*q2)/(q3 - q1)
+
+
 def pearson_mode_skewness(mean, mode, stdev):
     """Return the Pearson Mode Skewness from the mean, mode and standard
     deviation of a data set.
@@ -1025,20 +1038,31 @@ def pearson_mode_skewness(mean, mode, stdev):
         raise StatsError("standard deviation cannot be negative")
 
 
-def skew(data, m=None, s=None):
-    """skew(data [,m [,s]]) -> sample skew of data.
+def skewness(data, m=None, s=None):
+    """skewness(data [,m [,s]]) -> sample skewness of data.
+
+    Returns the degree to which the data is skewed to the left or the right
+    of the mean.
 
     If you know one or both of the population mean and standard deviation,
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
 
-    >>> skew([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
     ... #doctest: +ELLIPSIS
     1.12521290135...
 
-    The reliablity of the result as an estimate for the true skew depends on
-    the estimated mean and standard deviation. If m or s are not given, or
+    The reliablity of the result as an estimate for the true skewness depends
+    on the estimated mean and standard deviation. If m or s are not given, or
     are None, they are estimated from the data.
+
+    A negative skewness indicates that the distribution's left-hand tail is
+    longer than the tail on the right-hand side, and that the majority of
+    the values (including the median) are to the right of the mean. A
+    positive skew indicates that the right-hand tail is longer, and that the
+    majority of values are to the left of the mean. A zero skew indicates
+    that the values are evenly distributed around the mean, often but not
+    necessarily implying the distribution is symmetric.
     """
     if m is None or s is None:
         data = as_sequence(data)
@@ -1064,6 +1088,10 @@ def skew(data, m=None, s=None):
 def kurtosis(data, m=None, s=None):
     """kurtosis(data [,m [,s]]) -> sample kurtosis of data.
 
+    Returns the excess kurtosis (degree of peakedness) of the data, relative
+    to the kurtosis of the normal distribution. To convert to kurtosis proper,
+    add 3 to the result.
+
     If you know one or both of the population mean and standard deviation,
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
@@ -1072,9 +1100,13 @@ def kurtosis(data, m=None, s=None):
     ... #doctest: +ELLIPSIS
     -0.1063790369...
 
-    The reliablity of the result as an estimate for the true kurtosis depends
-    on the estimated mean and standard deviation given. If m or s are not
-    given, or are None, they are estimated from the data.
+    The reliablity of the result as an estimate for the kurtosis depends on
+    the estimated mean and standard deviation given. If m or s are not given,
+    or are None, they are estimated from the data.
+
+    The higher the kurtosis, the sharper the peak. Higher kurtosis means more
+    of the variance is the result of infrequent extreme deviations, as opposed
+    to frequent modestly sized deviations.
     """
     if m is None or s is None:
         data = as_sequence(data)
