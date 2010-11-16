@@ -483,8 +483,12 @@ class MidrangeTest(MeanTest):
         self.assertEquals(stats.midrange([2.0, 4.0, 1.0]), 2.5)
 
 
-#class MidhingeTest(MeanTest):
-    #pass
+class MidhingeTest(MedianTest):
+    func = stats.midhinge
+
+    def testSingleton(self):
+        self.assertRaises(ValueError, self.func, [1])
+        self.assertRaises(ValueError, self.func, [1, 2])
 
 
 class TrimeanTest(unittest.TestCase):
@@ -867,9 +871,13 @@ class BoxWhiskerPlotTest(unittest.TestCase):
 # ----------------------
 
 class PVarianceTest(unittest.TestCase):
+    # General test data:
     func = stats.pvariance
     data = (4.0, 7.0, 13.0, 16.0)
     expected = 22.5  # Exact population variance.
+    # Test data for exact (uniform distribution) test:
+    uniform_data = range(10000)
+    uniform_expected = (10000**2 - 1)/12
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -891,10 +899,15 @@ class PVarianceTest(unittest.TestCase):
         data = [x + 1e9 for x in self.data]
         self.assertEquals(self.func(data), self.expected)
 
+    def test_uniform(self):
+        # Compare the calculated variance against an exact result.
+        self.assertEquals(self.func(self.uniform_data), self.uniform_expected)
+
 
 class VarianceTest(PVarianceTest):
     func = stats.variance
     expected = 30.0  # Exact sample variance.
+    uniform_expected = PVarianceTest.uniform_expected * 10000/(10000-1)
 
     def testSingletonFailure(self):
         for data in ([1], iter([1])):
@@ -904,11 +917,13 @@ class VarianceTest(PVarianceTest):
 class PStdevTest(PVarianceTest):
     func = stats.pstdev
     expected = math.sqrt(22.5)  # Exact population stdev.
+    uniform_expected = math.sqrt(PVarianceTest.uniform_expected)
 
 
 class StdevTest(VarianceTest):
     func = stats.stdev
     expected = math.sqrt(30.0)  # Exact sample stdev.
+    uniform_expected = math.sqrt(VarianceTest.uniform_expected)
 
 
 class PVariance1Test(PVarianceTest):
@@ -972,6 +987,10 @@ class MedianAverageDeviationTest(unittest.TestCase):
 
 # Test other moments
 # ------------------
+
+class QuartileSkewnessTest(unittest.TestCase):
+    pass
+
 
 class PearsonModeSkewnessTest(unittest.TestCase):
     pass
