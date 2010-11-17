@@ -94,6 +94,8 @@ class GlobalsTest(unittest.TestCase):
         for name in stats.__all__:
             self.failUnless(hasattr(stats, name))
 
+    # FIXME test to make sure that things that should be in __all__ are?
+
 
 class CompareAgainstExternalResultsTest(unittest.TestCase):
     # Test the results we generate against some numpy equivalents.
@@ -489,6 +491,21 @@ class MidhingeTest(MedianTest):
     def testSingleton(self):
         self.assertRaises(ValueError, self.func, [1])
         self.assertRaises(ValueError, self.func, [1, 2])
+
+    def testMidhinge(self):
+        # True hinges occur for n = 4N+5 items, which is 1 modulo 4.
+        # We test midhinge on four test data sets, for 1, 2, 3, 0 modulo 4.
+        a = [0.1, 0.4, 1.1, 1.4, 2.1, 2.4, 3.1, 3.4, 4.1, 4.4, 5.1, 5.4, 6.1]
+        assert len(a) == 4*2 + 5
+        b = a + [6.4]
+        c = b + [7.1]
+        d = c + [7.4]
+        for L in (a, b, c, d):
+            random.shuffle(L)
+        self.assertEquals(round(stats.midhinge(a), 10), 2.9)
+        self.assertEquals(stats.midhinge(b), 3.25)
+        self.assertEquals(stats.midhinge(c), 3.5)
+        self.assertEquals(stats.midhinge(d), 3.75)
 
 
 class TrimeanTest(unittest.TestCase):
