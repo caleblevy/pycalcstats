@@ -898,7 +898,51 @@ class QuartileTest(unittest.TestCase):
 
 
 class HingesTest(unittest.TestCase):
-    pass
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.hinges
+
+    def testNoSorting(self):
+        # hinges() does not sort in place.
+        data = [2, 4, 1, 3, 0, 5]
+        save = data[:]
+        assert save is not data
+        assert data != sorted(data)
+        _ = self.func(data)
+        self.assertEquals(data, save)
+
+    def testTooFewItems(self):
+        for data in ([], [1], [1, 2]):
+            self.assertRaises(ValueError, self.func, data)
+
+    def testSorted(self):
+        # Test that sorted and unsorted data give the same results.
+        for n in (40, 41, 42, 43):  # n%4 -> 0...3
+            data = list(range(n))
+            result1 = self.func(data)
+            random.shuffle(data)
+            result2 = self.func(data)
+            self.assertEquals(result1, result2)
+
+    def testTypes(self):
+        # Test that iterators and sequences give the same result.
+        for n in (40, 41, 42, 43):
+            data = range(n)
+            result1 = self.func(data)
+            data = list(data)
+            result2 = self.func(data)
+            result3 = self.func(tuple(data))
+            result4 = self.func(iter(data))
+            self.assertEquals(result1, result2)
+            self.assertEquals(result1, result3)
+            self.assertEquals(result1, result4)
+
+    def testHinges(self):
+        f = self.func
+        g = stats.quartiles
+        for n in range(3, 25):
+            data = range(n)
+            self.assertEquals(f(data), g(data, 0))
 
 
 class QuantileTest(unittest.TestCase):
