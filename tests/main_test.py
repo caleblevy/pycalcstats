@@ -606,7 +606,7 @@ class SimpleMovingAverageTest(RunningAverageTest):
 class DrMathTests(unittest.TestCase):
     # Sample data for testing quartiles taken from Dr Math page:
     # http://mathforum.org/library/drmath/view/60969.html
-    # Q2 values are not cheked in this test.
+    # Q2 values are not checked in this test.
     A = range(1, 9)
     B = range(1, 10)
     C = range(1, 11)
@@ -706,7 +706,7 @@ class QuartileAliases(unittest.TestCase):
 class QuartileTest(unittest.TestCase):
     func = stats.quartiles
     # Methods to be tested.
-    methods = [0, 1, 2, 3, 4]
+    methods = [0, 1, 2, 3, 4, 5]
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -766,6 +766,18 @@ class QuartileTest(unittest.TestCase):
             for method in self.methods:
                 self.compare_types(n, method)
 
+    def testBadMethod(self):
+        data = range(20)
+        for method in (None, '', 'spam', -1.5):
+            self.assertRaises(ValueError, self.func, data, method)
+
+    def testCaseInsensitive(self):
+        data = range(20)
+        for method in self.func.aliases:
+            a = self.func(data, method.lower())
+            b = self.func(data, method.upper())
+            self.assertEquals(a, b)
+
     # Tests where we check for the correct result.
 
     def testInclusive(self):
@@ -773,17 +785,14 @@ class QuartileTest(unittest.TestCase):
         f = self.func
         m = 0
         self.assertEquals(f([0, 1, 2], m), (0.5, 1, 1.5))
-        #--
         self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
         self.assertEquals(f([0, 1, 2, 3, 4], m), (1, 2, 3))
         self.assertEquals(f([0, 1, 2, 3, 4, 5], m), (1, 2.5, 4))
         self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], m), (1.5, 3, 4.5))
-        #--
         self.assertEquals(f(range(1, 9), m), (2.5, 4.5, 6.5))
         self.assertEquals(f(range(1, 10), m), (3, 5, 7))
         self.assertEquals(f(range(1, 11), m), (3, 5.5, 8))
         self.assertEquals(f(range(1, 12), m), (3.5, 6, 8.5))
-        #--
         self.assertEquals(f(range(1, 13), m), (3.5, 6.5, 9.5))
         self.assertEquals(f(range(1, 14), m), (4, 7, 10))
         self.assertEquals(f(range(1, 15), m), (4, 7.5, 11))
@@ -793,38 +802,99 @@ class QuartileTest(unittest.TestCase):
         # Test the exclusive method of calculating quartiles.
         f = self.func
         m = 1
-        #self.assertEquals(f([0, 1, 2], m), (0, 1, 2))
-        #--
+        self.assertEquals(f([0, 1, 2], m), (0, 1, 2))
         self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
         self.assertEquals(f([0, 1, 2, 3, 4], m), (0.5, 2, 3.5))
         self.assertEquals(f([0, 1, 2, 3, 4, 5], m), (1, 2.5, 4))
         self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], m), (1, 3, 5))
-        #--
         self.assertEquals(f(range(1, 9), m), (2.5, 4.5, 6.5))
         self.assertEquals(f(range(1, 10), m), (2.5, 5, 7.5))
         self.assertEquals(f(range(1, 11), m), (3, 5.5, 8))
         self.assertEquals(f(range(1, 12), m), (3, 6, 9))
-        #--
         self.assertEquals(f(range(1, 13), m), (3.5, 6.5, 9.5))
         self.assertEquals(f(range(1, 14), m), (3.5, 7, 10.5))
         self.assertEquals(f(range(1, 15), m), (4, 7.5, 11))
         self.assertEquals(f(range(1, 16), m), (4, 8, 12))
 
-    def notestBig(self):
-        data = list(range(1000, 2000))
+    def testMS(self):
+        f = self.func
+        m = 2
+        self.assertEquals(f(range(3), m), (0, 1, 2))
+        self.assertEquals(f(range(4), m), (0, 1, 3))
+        self.assertEquals(f(range(5), m), (1, 2, 3))
+        self.assertEquals(f(range(6), m), (1, 3, 4))
+        self.assertEquals(f(range(7), m), (1, 3, 5))
+        self.assertEquals(f(range(8), m), (1, 3, 6))
+        self.assertEquals(f(range(9), m), (2, 4, 6))
+        self.assertEquals(f(range(10), m), (2, 5, 7))
+        self.assertEquals(f(range(11), m), (2, 5, 8))
+        self.assertEquals(f(range(12), m), (2, 5, 9))
+
+    def testMinitab(self):
+        f = self.func
+        m = 3
+        self.assertEquals(f(range(3), m), (0, 1, 2))
+        self.assertEquals(f(range(4), m), (0.25, 1.5, 2.75))
+        self.assertEquals(f(range(5), m), (0.5, 2, 3.5))
+        self.assertEquals(f(range(6), m), (0.75, 2.5, 4.25))
+        self.assertEquals(f(range(7), m), (1, 3, 5))
+        self.assertEquals(f(range(8), m), (1.25, 3.5, 5.75))
+        self.assertEquals(f(range(9), m), (1.5, 4, 6.5))
+        self.assertEquals(f(range(10), m), (1.75, 4.5, 7.25))
+        self.assertEquals(f(range(11), m), (2, 5, 8))
+        self.assertEquals(f(range(12), m), (2.25, 5.5, 8.75))
+
+    def testExcel(self):
+        f = self.func
+        m = 4
+        # Results generated with OpenOffice.
+        self.assertEquals((0.5, 1, 1.5), f(range(3), m))
+        self.assertEquals((0.75, 1.5, 2.25), f(range(4), m))
+        self.assertEquals((1, 2, 3), f(range(5), m))
+        self.assertEquals((1.25, 2.5, 3.75), f(range(6), m))
+        self.assertEquals((1.5, 3, 4.5), f(range(7), m))
+        self.assertEquals((1.75, 3.5, 5.25), f(range(8), m))
+        self.assertEquals((2, 4, 6), f(range(9), m))
+        self.assertEquals((2.25, 4.5, 6.75), f(range(10), m))
+        self.assertEquals((2.5, 5, 7.5), f(range(11), m))
+        self.assertEquals((2.75, 5.5, 8.25), f(range(12), m))
+        self.assertEquals((3, 6, 9), f(range(13), m))
+        self.assertEquals((3.25, 6.5, 9.75), f(range(14), m))
+        self.assertEquals((3.5, 7, 10.5), f(range(15), m))
+
+    def testLangford(self):
+        f = self.func
+        m = 5
+        self.assertEquals(f(range(3), m), (0, 1, 2))
+        self.assertEquals(f(range(4), m), (0.5, 1.5, 2.5))
+        self.assertEquals(f(range(5), m), (1, 2, 3))
+        self.assertEquals(f(range(6), m), (1, 2.5, 4))
+        self.assertEquals(f(range(7), m), (1, 3, 5))
+        self.assertEquals(f(range(8), m), (1.5, 3.5, 5.5))
+        self.assertEquals(f(range(9), m), (2, 4, 6))
+        self.assertEquals(f(range(10), m), (2, 4.5, 7))
+        self.assertEquals(f(range(11), m), (2, 5, 8))
+        self.assertEquals(f(range(12), m), (2.5, 5.5, 8.5))
+
+    def testBig(self):
+        data = list(range(1001, 2001))
         assert len(data) == 1000
         assert len(data)%4 == 0
         random.shuffle(data)
-        self.assertEquals(self.func(data), (1249.5, 1499.5, 1749.5))
-        data.append(2000)
-        random.shuffle(data)
-        self.assertEquals(self.func(data), (1249.5, 1500, 1750.5))
+        self.assertEquals(self.func(data, 0), (1250.5, 1500.5, 1750.5))
+        self.assertEquals(self.func(data, 1), (1250.5, 1500.5, 1750.5))
         data.append(2001)
         random.shuffle(data)
-        self.assertEquals(self.func(data), (1250, 1500.5, 1751))
+        self.assertEquals(self.func(data, 0), (1251, 1501, 1751))
+        self.assertEquals(self.func(data, 1), (1250.5, 1501, 1751.5))
         data.append(2002)
         random.shuffle(data)
-        self.assertEquals(self.func(data), (1250, 1501, 1752))
+        self.assertEquals(self.func(data, 0), (1251, 1501.5, 1752))
+        self.assertEquals(self.func(data, 1), (1251, 1501.5, 1752))
+        data.append(2003)
+        random.shuffle(data)
+        self.assertEquals(self.func(data, 0), (1251.5, 1502, 1752.5))
+        self.assertEquals(self.func(data, 1), (1251, 1502, 1753))
 
 
 class HingesTest(unittest.TestCase):
