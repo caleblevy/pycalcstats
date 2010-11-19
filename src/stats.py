@@ -582,8 +582,13 @@ quartiles.aliases = _Quartiles.QUARTILE_ALIASES
 
 def hinges(data):
     """Return Tukey's hinges H1, M, H2 from data.
+
+    >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
+    (6, 10, 14)
+
+    This is equivalent to quartiles() called with method 0.
     """
-    return quartiles(data, 'hinges')
+    return quartiles(data, 0)
 
 
 # Quantiles (fractiles) are just as confused as quartiles. The statistics
