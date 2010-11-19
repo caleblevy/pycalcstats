@@ -99,7 +99,7 @@ class _Quartiles:
     def excel(data):
         """Return sample quartiles using Freund and Perles' method.
 
-        This is also the method used by Excel.
+        This is also the method used by Excel and OpenOffice.
         """
         # Perform index calculations using 1-based counting, and adjust for
         # 0-based at the very end.
@@ -114,10 +114,21 @@ class _Quartiles:
         """Langford's recommended method for calculating quartiles based on
         the cumulative distribution function (CDF).
         """
-        # FIXME can we implement this without calling cdf? Should we?
-        q1 = cdf(data, 0.25)
-        q2 = cdf(data, 0.5)
-        q3 = cdf(data, 0.75)
+        n = len(data)
+        m = n//2
+        i, r = divmod(n, 4)
+        if r == 0:
+            q1 = (data[i] + data[i-1])/2
+            q2 = (data[m-1] + data[m])/2
+            q3 = (data[-i-1] + data[-i])/2
+        elif r in (1, 3):
+            q1 = data[i]
+            q2 = data[m]
+            q3 = data[-i-1]
+        else:  # r == 2
+            q1 = data[i]
+            q2 = (data[m-1] + data[m])/2
+            q3 = data[-i-1]
         return (q1, q2, q3)
 
     # Numeric method selectors for quartiles:

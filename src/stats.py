@@ -550,7 +550,7 @@ def quartiles(data, method=0):
     1       Moore and McCabe's method; median is excluded in the two halves
     2       Method recommended by Mendenhall and Sincich
     3       Method used by Minitab software
-    4       Method recommended by Freund and Perles and used by Excel
+    4       Method recommended by Freund and Perles
     5       Langford's CDF method
 
     * Method 0 (the default) is equivalent to Tukey's hinges (H1, M, H2).
@@ -558,6 +558,7 @@ def quartiles(data, method=0):
     * Method 2 ensures that the values returned are always data points,
       which makes it suitable for ordinal data.
     * Methods 3 and 4 use linear iterpolation between items.
+    * Method 4 is used by Microsoft Excel and OpenOffice.
 
     Case-insensitive named aliases are also supported for methods: you can
     examine quartiles.aliases for a mapping of names to method numbers.
