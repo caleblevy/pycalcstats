@@ -1139,11 +1139,18 @@ class IQRTest(unittest.TestCase):
 
 
 class AverageDeviationTest(unittest.TestCase):
-    pass
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.average_deviation
+
+    def testTooFewItems(self):
+        self.assertRaises(ValueError, self.func, [])
 
 
-class MedianAverageDeviationTest(unittest.TestCase):
-    pass
+class MedianAverageDeviationTest(AverageDeviationTest):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.median_average_deviation
 
 
 # Test other moments
