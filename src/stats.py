@@ -605,11 +605,12 @@ def quantile(data, p, method=0):
     4.75
 
     data must be an iterator of numeric values, with at least two items.
-    p must be a number between 0 and 1 inclusive. method is an optional value
-    specifying the calculation method used, and hence the result.
+    p must be a number between 0 and 1 inclusive. The result returned by
+    quantile is the data point, or the interpolated data point, such that a
+    fraction p of the data is less than that value.
 
-    The result returned by quantile is the data point, or the interpolated
-    data point, such that a fraction p of the data is less than that value.
+    Optional argument method specifies the calculation method used, and
+    hence the result.
 
     Method  Description
     ======  ================================================================
@@ -653,7 +654,7 @@ quantile.aliases = _quantiles.QUANTILE_ALIASES
 def decile(data, d, method=0):
     """Return the dth decile of data, for integer d between 0 and 10.
 
-    See function quantile for details about the optional argument method.
+    See function quantile for details about the optional argument `method`.
     """
     _validate_int(d)
     if not 0 <= d <= 10:
@@ -664,7 +665,7 @@ def decile(data, d, method=0):
 def percentile(data, p, method=0):
     """Return the pth percentile of data, for integer p between 0 and 100.
 
-    See function quantile for details about the optional argument method.
+    See function quantile for details about the optional argument `method`.
     """
     _validate_int(p)
     if not 0 <= p <= 100:
@@ -839,7 +840,7 @@ def _welford(data):
     """
     # Note: for better results, use this on the residues (x - m) instead of x,
     # where m equals the mean of the data... except that would require two
-    # passes.
+    # passes, which we're trying to avoid.
     data = iter(data)
     n = 0
     M2 = 0.0  # Current sum of powers of differences from the mean.
@@ -931,8 +932,16 @@ def average_deviation(data, m=None):
     data = iterable of data values
     m (optional) = measure of central tendency for data.
 
-    m is usually chosen to be the mean or median. If m is not given, or
-    is None, the mean is calculated from data and that value is used.
+    m is usually chosen to be the mean or median, which you are expected to
+    know independently. If m is not given, or is None, the sample mean is
+    calculated from the data and used instead.
+
+    >>> data = [2.0, 2.25, 2.5, 2.5, 3.25]
+    >>> average_deviation(data)  # Use the sample mean.
+    0.3
+    >>> average_deviation(data, 2.75)  # Use the true mean known somehow.
+    0.45
+
     """
     if m is None:
         data = as_sequence(data)
@@ -945,19 +954,19 @@ def average_deviation(data, m=None):
         ap = add_partial
         partials = []
         n = 0
-        for x in xdata:
+        for x in data:
             n += 1
             ap(abs(x - m), partials)
         total = sum(partials)
     else:
-        total = sum(abs(x-m))
+        total = sum(abs(x-m) for x in data)
     if n < 1:
         raise StatsError('average deviation requires at least 1 data point')
     return total/n
 
 
 def median_average_deviation(data, m=None, sign=0, scale=1):
-    """Compute the median absolute deviation (MAD) of data.
+    """Return the median absolute deviation (MAD) of data.
 
     The MAD is the median of the absolute deviations from the median, and
     is approximately equivalent to half the IQR.
@@ -984,6 +993,8 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
                 normally distributed population.
     'uniform'   Apply a scale factor of 1.1547, applicable to data from a
                 uniform distribution.
+    None, 'none' or missing:
+                No scale factor is applied.
 
     The MAD is a more robust measurement of spread than either the IQR or
     standard deviation, and is less affected by outliers. The MAD is also
@@ -996,6 +1007,8 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
         if f is None:
             raise StatsError('unrecognised scale factor `%s`' % scale)
         scale = f
+    elif scale is None:
+        scale = 1
     if m is None:
         data = as_sequence(data)
         m = median(data, sign)
@@ -1009,6 +1022,7 @@ median_average_deviation.scaling = {
     # Wikpedia has a derivation of that constant:
     # http://en.wikipedia.org/wiki/Median_absolute_deviation
     'uniform': math.sqrt(4/3),
+    'none': 1,
     }
 
 
