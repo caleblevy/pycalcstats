@@ -776,7 +776,9 @@ class QuartileTest(unittest.TestCase):
         for method in self.func.aliases:
             a = self.func(data, method.lower())
             b = self.func(data, method.upper())
+            c = self.func(data, method.title())
             self.assertEquals(a, b)
+            self.assertEquals(a, c)
 
     # Tests where we check for the correct result.
 
@@ -1146,11 +1148,117 @@ class AverageDeviationTest(unittest.TestCase):
     def testTooFewItems(self):
         self.assertRaises(ValueError, self.func, [])
 
+    def testCompareSorting(self):
+        # Ensure results don't depend whether input is sorted or not.
+        for data in (range(23), range(42, 84, 7), range(-10, 10, 3)):
+            data = sorted(data)
+            result1 = self.func(data)
+            random.shuffle(data)
+            result2 = self.func(data)
+            self.assertEquals(result1, result2)
+
+    def testCompareTypes(self):
+        # Ensure results don't depend on the type of the input.
+        for data in (range(20), range(30, 70, 7), range(-10, 10, 3)):
+            result1 = self.func(data)
+            data = list(data)
+            result2 = self.func(data)
+            data = tuple(data)
+            result3 = self.func(data)
+            data = iter(data)
+            result4 = self.func(data)
+            self.assertEquals(result1, result2)
+            self.assertEquals(result1, result3)
+            self.assertEquals(result1, result4)
+
+    def testSuppliedMean(self):
+        # Test that pre-calculating the mean gives the same result.
+        for data in (range(35), range(-17, 53, 7), range(11, 79, 3)):
+            data = list(data)
+            random.shuffle(data)
+            m = stats.mean(data)
+            result1 = self.func(data)
+            result2 = self.func(data, m)
+            self.assertEquals(result1, result2)
+
+    def testSingleton(self):
+        self.assertEquals(self.func([42]), 0)
+        self.assertEquals(self.func([42], 40), 2)
+
+    def testMain(self):
+        data = [-1.25, 0.5, 0.5, 1.75, 3.25, 4.5, 4.5, 6.25, 6.75, 9.75]
+        expected = 2.7
+        for delta in (0, 100, 1e6, 1e9):
+            self.assertEquals(self.func(x+delta for x in data), expected)
+
 
 class MedianAverageDeviationTest(AverageDeviationTest):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.median_average_deviation
+
+    def testSuppliedMedian(self):
+        # Test that pre-calculating the median gives the same result.
+        for data in (range(35), range(-17, 53, 7), range(11, 79, 3)):
+            result1 = self.func(data)
+            m = stats.median(data)
+            data = list(data)
+            random.shuffle(data)
+            result2 = self.func(data, m)
+            self.assertEquals(result1, result2)
+
+    def testMain(self):
+        data = [-1.25, 0.5, 0.5, 1.75, 3.25, 4.5, 4.5, 6.25, 6.75, 9.75]
+        expected = 2.625
+        for delta in (0, 100, 1e6, 1e9):
+            self.assertEquals(self.func(x+delta for x in data), expected)
+
+    def testNoScaling(self):
+        # Test alternative ways of spelling no scaling factor.
+        data = [random.random()+23 for _ in range(100)]
+        expected = self.func(data)
+        for scale in (1, None, 'none'):
+            self.assertEquals(self.func(data, scale=scale), expected)
+
+    def testScales(self):
+        data = [100*random.random()+42 for _ in range(100)]
+        expected = self.func(data)
+        self.assertEquals(self.func(data, scale='normal'), expected*1.4826)
+        self.assertAlmostEquals(self.func(data, scale='uniform'),
+            expected*1.1547, places=4) # Documented value in docstring.
+        self.assertEquals(self.func(data, scale='uniform'),
+            expected*math.sqrt(4/3))  # Exact value.
+        for x in (-1.25, 0.0, 1.25, 4.5, 9.75):
+            self.assertEquals(self.func(data, scale=x), expected*x)
+
+    def testCaseInsensitive(self):
+        for scale in ('normal', 'uniform', 'none'):
+            data = [67*random.random()+19 for _ in range(100)]
+            a = self.func(data, scale=scale.lower())
+            b = self.func(data, scale=scale.upper())
+            c = self.func(data, scale=scale.title())
+            self.assertEquals(a, b)
+            self.assertEquals(a, c)
+
+    def testHasScaling(self):
+        self.assert_(hasattr(self.func, 'scaling'))
+
+    def testSignOdd(self):
+        data = [23*random.random()+42 for _ in range(55)]
+        assert len(data)%2 == 1
+        a = self.func(data, sign=-1)
+        b = self.func(data, sign=0)
+        c = self.func(data, sign=1)
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+
+    def testSignEven(self):
+        data = [0.5, 1.5, 3.25, 4.25, 6.25, 6.75]
+        assert len(data)%2 == 0
+        self.assertEquals(self.func(data, sign=-1), 1.75)
+        self.assertEquals(self.func(data, sign=0), 2.375)
+        self.assertEquals(self.func(data), 2.375)
+        self.assertEquals(self.func(data, sign=1), 2.5)
 
 
 # Test other moments
