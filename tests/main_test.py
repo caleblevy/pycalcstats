@@ -1265,7 +1265,17 @@ class MedianAverageDeviationTest(AverageDeviationTest):
 # ------------------
 
 class QuartileSkewnessTest(unittest.TestCase):
-    pass
+    def testFailure(self):
+        self.assertRaises(ValueError, stats.quartile_skewness, 2, 3, 1)
+
+    def testNan(self):
+        x = stats.quartile_skewness(1, 1, 1)
+        self.assert_(math.isnan(x))
+
+    def testSkew(self):
+        self.assertEquals(stats.quartile_skewness(3, 5, 7), 0.0)
+        self.assertEquals(stats.quartile_skewness(0, 1, 10), 0.8)
+        self.assertEquals(stats.quartile_skewness(0, 9, 10), -0.8)
 
 
 class PearsonModeSkewnessTest(unittest.TestCase):
