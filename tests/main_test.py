@@ -706,7 +706,7 @@ class QuartileAliases(unittest.TestCase):
 class QuartileTest(unittest.TestCase):
     func = stats.quartiles
     # Methods to be tested.
-    methods = [0, 1, 2, 3, 4, 5]
+    methods = [1, 2, 3, 4, 5, 6]
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -785,7 +785,7 @@ class QuartileTest(unittest.TestCase):
     def testInclusive(self):
         # Test the inclusive method of calculating quartiles.
         f = self.func
-        m = 0
+        m = 1
         self.assertEquals(f([0, 1, 2], m), (0.5, 1, 1.5))
         self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
         self.assertEquals(f([0, 1, 2, 3, 4], m), (1, 2, 3))
@@ -803,7 +803,7 @@ class QuartileTest(unittest.TestCase):
     def testExclusive(self):
         # Test the exclusive method of calculating quartiles.
         f = self.func
-        m = 1
+        m = 2
         self.assertEquals(f([0, 1, 2], m), (0, 1, 2))
         self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
         self.assertEquals(f([0, 1, 2, 3, 4], m), (0.5, 2, 3.5))
@@ -820,7 +820,7 @@ class QuartileTest(unittest.TestCase):
 
     def testMS(self):
         f = self.func
-        m = 2
+        m = 3
         self.assertEquals(f(range(3), m), (0, 1, 2))
         self.assertEquals(f(range(4), m), (0, 1, 3))
         self.assertEquals(f(range(5), m), (1, 2, 3))
@@ -834,7 +834,7 @@ class QuartileTest(unittest.TestCase):
 
     def testMinitab(self):
         f = self.func
-        m = 3
+        m = 4
         self.assertEquals(f(range(3), m), (0, 1, 2))
         self.assertEquals(f(range(4), m), (0.25, 1.5, 2.75))
         self.assertEquals(f(range(5), m), (0.5, 2, 3.5))
@@ -848,7 +848,7 @@ class QuartileTest(unittest.TestCase):
 
     def testExcel(self):
         f = self.func
-        m = 4
+        m = 5
         # Results generated with OpenOffice.
         self.assertEquals((0.5, 1, 1.5), f(range(3), m))
         self.assertEquals((0.75, 1.5, 2.25), f(range(4), m))
@@ -866,7 +866,7 @@ class QuartileTest(unittest.TestCase):
 
     def testLangford(self):
         f = self.func
-        m = 5
+        m = 6
         self.assertEquals(f(range(3), m), (0, 1, 2))
         self.assertEquals(f(range(4), m), (0.5, 1.5, 2.5))
         self.assertEquals(f(range(5), m), (1, 2, 3))
@@ -883,20 +883,20 @@ class QuartileTest(unittest.TestCase):
         assert len(data) == 1000
         assert len(data)%4 == 0
         random.shuffle(data)
-        self.assertEquals(self.func(data, 0), (1250.5, 1500.5, 1750.5))
         self.assertEquals(self.func(data, 1), (1250.5, 1500.5, 1750.5))
+        self.assertEquals(self.func(data, 2), (1250.5, 1500.5, 1750.5))
         data.append(2001)
         random.shuffle(data)
-        self.assertEquals(self.func(data, 0), (1251, 1501, 1751))
-        self.assertEquals(self.func(data, 1), (1250.5, 1501, 1751.5))
+        self.assertEquals(self.func(data, 1), (1251, 1501, 1751))
+        self.assertEquals(self.func(data, 2), (1250.5, 1501, 1751.5))
         data.append(2002)
         random.shuffle(data)
-        self.assertEquals(self.func(data, 0), (1251, 1501.5, 1752))
         self.assertEquals(self.func(data, 1), (1251, 1501.5, 1752))
+        self.assertEquals(self.func(data, 2), (1251, 1501.5, 1752))
         data.append(2003)
         random.shuffle(data)
-        self.assertEquals(self.func(data, 0), (1251.5, 1502, 1752.5))
-        self.assertEquals(self.func(data, 1), (1251, 1502, 1753))
+        self.assertEquals(self.func(data, 1), (1251.5, 1502, 1752.5))
+        self.assertEquals(self.func(data, 2), (1251, 1502, 1753))
 
 
 class HingesTest(unittest.TestCase):
@@ -944,7 +944,7 @@ class HingesTest(unittest.TestCase):
         g = stats.quartiles
         for n in range(3, 25):
             data = range(n)
-            self.assertEquals(f(data), g(data, 0))
+            self.assertEquals(f(data), g(data, 1))
 
 
 class QuantileTest(unittest.TestCase):
