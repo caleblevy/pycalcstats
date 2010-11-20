@@ -1478,45 +1478,85 @@ class LinrTest(unittest.TestCase):
 # ----------------------
 
 class SumTest(unittest.TestCase):
-    def testTorture(self):
-        # Tim Peters' torture test for sum, and variants of same.
-        self.assertEquals(stats.sum([1, 1e100, 1, -1e100]*10000), 20000.0)
-        self.assertEquals(stats.sum([1e100, 1, 1, -1e100]*10000), 20000.0)
-        self.assertAlmostEquals(
-            stats.sum([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, places=15)
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.sum
 
     def testEmpty(self):
-        self.assertEquals(stats.sum([]), 0)
+        self.assertEquals(self.func([]), 0)
 
     def testSorted(self):
         # Sum shouldn't depend on the order of items.
         data = [i/7 for i in range(-35, 36)]
-        a = stats.sum(data)
+        a = self.func(data)
         random.shuffle(data)
-        b = stats.sum(data)
+        b = self.func(data)
         self.assertEquals(a, b)
 
     def testSum(self):
         data = [random.random() for _ in range(100)]
-        self.assertEquals(stats.sum(data), math.fsum(data))
+        self.assertEquals(self.func(data), math.fsum(data))
 
     def testTypes(self):
         for data in (range(23), range(-35, 36), range(-23, 42, 7)):
-            a = stats.sum(data)
-            b = stats.sum(list(data))
-            c = stats.sum(tuple(data))
-            d = stats.sum(iter(data))
+            a = self.func(data)
+            b = self.func(list(data))
+            c = self.func(tuple(data))
+            d = self.func(iter(data))
             self.assertEquals(a, b)
             self.assertEquals(a, c)
             self.assertEquals(a, d)
 
 
+class SumTortureTest(SumTest):
+    def testTorture(self):
+        # Tim Peters' torture test for sum, and variants of same.
+        self.assertEquals(self.func([1, 1e100, 1, -1e100]*10000), 20000.0)
+        self.assertEquals(self.func([1e100, 1, 1, -1e100]*10000), 20000.0)
+        self.assertAlmostEquals(
+            self.func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, places=15)
+
+
 class ProductTest(unittest.TestCase):
-    pass
+
+    def notestEmpty(self):
+        self.assertEquals(stats.product([]), 1)
+
+    def testSorted(self):
+        # Product shouldn't depend on the order of items.
+        data = [i/7 for i in range(-3500, 3600, 100)]
+        a = stats.product(data)
+        random.shuffle(data)
+        b = stats.product(data)
+        self.assertEquals(a, b)
+
+        def testZero(self):
+            # Product of anything containing zero is always zero.
+            for data in (range(23), range(-35, 36)):
+                self.assertEquals(stats.product(data), 0)
+
+    def testProduct(self):
+        self.assertEquals(stats.product(range(1, 24)), math.factorial(23))
+
+    def testTypes(self):
+        for data in (range(1, 42), range(-35, 36, 2)):
+            a = stats.product(data)
+            b = stats.product(list(data))
+            c = stats.product(tuple(data))
+            d = stats.product(iter(data))
+            self.assertEquals(a, b)
+            self.assertEquals(a, c)
+            self.assertEquals(a, d)
 
 
 class SumSqTest(SumTest):
-    pass
+    def __init__(self, *args, **kwargs):
+        SumTest.__init__(self, *args, **kwargs)
+        self.func = stats.sumsq
+
+    def testSum(self):
+        data = [random.random() for _ in range(100)]
+        self.assertEquals(self.func(data), math.fsum(x**2 for x in data))
 
 
 class SxxTest(unittest.TestCase):
