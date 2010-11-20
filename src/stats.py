@@ -991,8 +991,8 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
 
     'normal'    Apply a scale factor of 1.4826, applicable to data from a
                 normally distributed population.
-    'uniform'   Apply a scale factor of 1.1547, applicable to data from a
-                uniform distribution.
+    'uniform'   Apply a scale factor of approximately 1.1547, applicable
+                to data from a uniform distribution.
     None, 'none' or missing:
                 No scale factor is applied.
 
