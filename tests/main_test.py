@@ -1279,7 +1279,19 @@ class QuartileSkewnessTest(unittest.TestCase):
 
 
 class PearsonModeSkewnessTest(unittest.TestCase):
-    pass
+    def testFailure(self):
+        self.assertRaises(ValueError, stats.pearson_mode_skewness, 2, 3, -1)
+
+    def testNan(self):
+        x = stats.pearson_mode_skewness(5, 5, 0)
+        self.assert_(math.isnan(x))
+
+    def testInf(self):
+        x = stats.pearson_mode_skewness(3, 2, 0)
+        self.assert_(math.isinf(x))
+
+    def testSkew(self):
+        self.assertEquals(stats.pearson_mode_skewness(2.5, 2.25, 2.5), 0.1)
 
 
 class SkewnessTest(unittest.TestCase):
@@ -1291,12 +1303,63 @@ class SkewnessTest(unittest.TestCase):
         data = [x + 1e9 for x in data]
         self.assertEquals(stats.skewness(data), 0.0)
 
-    def test_shift(self):
+    def test_shift0(self):
         data = [(2*i+1)/4 for i in range(1000)]
         random.shuffle(data)
         k1 = stats.skewness(data)
+        self.assertEquals(k1, 0.0)
         k2 = stats.skewness(x+1e9 for x in data)
-        self.assertEquals(k1, k2)
+        self.assertEquals(k2, 0.0)
+
+    def test_shift(self):
+        d1 = [(2*i+1)/3 for i in range(1000)]
+        d2 = [(3*i-19)/2 for i in range(1000)]
+        data = [x*y for x,y in zip(d1, d2)]
+        random.shuffle(data)
+        k1 = stats.skewness(data)
+        k2 = stats.skewness(x+1e9 for x in data)
+        self.assertAlmostEquals(k1, k2, places=7)
+
+    def test_types(self):
+        # Results should be the same no matter what type is used.
+        d1 = [(3*i+1)/4 for i in range(1000)]
+        d2 = [(2*i+3)/5 for i in range(1000)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        a = stats.skewness(data)
+        b = stats.skewness(tuple(data))
+        c = stats.skewness(iter(data))
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+
+    def test_sorted(self):
+        # Results should not depend on whether data is sorted or not.
+        d1 = [(9*i-11)/5 for i in range(100)]
+        d2 = [(7*i+2)/7 for i in range(100)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        a = stats.skewness(data)
+        b = stats.skewness(sorted(data))
+        self.assertAlmostEquals(a, b, places=14)
+
+    def testMeanStdev(self):
+        # Giving the sample mean and/or stdev shouldn't change the result.
+        d1 = [(98-3*i)/6 for i in range(100)]
+        d2 = [(14*i-3)/2 for i in range(100)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        m = stats.mean(data)
+        s = stats.stdev(data)
+        a = stats.skewness(data)
+        b = stats.skewness(data, m)
+        c = stats.skewness(data, None, s)
+        d = stats.skewness(data, m, s)
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+        self.assertEquals(a, d)
 
 
 class KurtosisTest(unittest.TestCase):
@@ -1321,12 +1384,63 @@ class KurtosisTest(unittest.TestCase):
         data = [x + 1e9 for x in data]
         self.assertAlmostEquals(stats.kurtosis(data), expected, places=6)
 
-    def test_shift(self):
+    def test_shift0(self):
         data = [(2*i+1)/4 for i in range(1000)]
         random.shuffle(data)
         k1 = stats.kurtosis(data)
         k2 = stats.kurtosis(x+1e9 for x in data)
         self.assertEquals(k1, k2)
+
+    def test_shift(self):
+        d1 = [(2*i+1)/3 for i in range(1000)]
+        d2 = [(3*i-19)/2 for i in range(1000)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        k1 = stats.kurtosis(data)
+        k2 = stats.kurtosis(x+1e9 for x in data)
+        self.assertAlmostEquals(k1, k2, places=9)
+
+    def test_types(self):
+        # Results should be the same no matter what type is used.
+        d1 = [(3*i-19)/8 for i in range(100)]
+        d2 = [(12*i+5)/11 for i in range(100)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        a = stats.kurtosis(data)
+        b = stats.kurtosis(tuple(data))
+        c = stats.kurtosis(iter(data))
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+
+    def test_sorted(self):
+        # Results should not depend on whether data is sorted or not.
+        d1 = [(15*i+1)/3 for i in range(100)]
+        d2 = [(4*i-26)/5 for i in range(100)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        a = stats.kurtosis(data)
+        b = stats.kurtosis(sorted(data))
+        self.assertAlmostEquals(a, b, places=14)
+
+    def testMeanStdev(self):
+        # Giving the sample mean and/or stdev shouldn't change the result.
+        d1 = [(17*i-45)/16 for i in range(100)]
+        d2 = [(9*i-25)/3 for i in range(100)]
+        random.shuffle(d1)
+        random.shuffle(d2)
+        data = [x*y for x,y in zip(d1, d2)]
+        m = stats.mean(data)
+        s = stats.stdev(data)
+        a = stats.kurtosis(data)
+        b = stats.kurtosis(data, m)
+        c = stats.kurtosis(data, None, s)
+        d = stats.kurtosis(data, m, s)
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+        self.assertEquals(a, d)
 
 
 # Test multivariate statistics
@@ -1364,7 +1478,15 @@ class LinrTest(unittest.TestCase):
 # ----------------------
 
 class SumTest(unittest.TestCase):
-    pass
+    def testTorture(self):
+        # Tim Peters' torture test for sum, and variants of same.
+        self.assertEquals(stats.sum([1, 1e100, 1, -1e100]*10000), 20000.0)
+        self.assertEquals(stats.sum([1e100, 1, 1, -1e100]*10000), 20000.0)
+        self.assertAlmostEquals(
+            stats.sum([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, places=15)
+
+    def testSum(self):
+        self.assertEquals(stats.sum([]), 0)
 
 
 class ProductTest(unittest.TestCase):
