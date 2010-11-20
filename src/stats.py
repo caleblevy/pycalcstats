@@ -48,11 +48,12 @@ __all__ = [
     # Means and averages:
     'mean', 'harmonic_mean', 'geometric_mean', 'quadratic_mean',
     # Other measures of central tendancy:
-    'median', 'mode', 'midrange', 'trimean',
+    'median', 'mode', 'midrange', 'midhinge', 'trimean',
     # Moving averages:
     'running_average', 'weighted_running_average', 'simple_moving_average',
     # Other point statistics:
-    'quartiles', 'quantile', 'decile', 'percentile', 'boxwhiskerplot',
+    'quartiles', 'hinges', 'quantile', 'decile', 'percentile',
+    'boxwhiskerplot',
     # Measures of spread:
     'pvariance', 'variance', 'pstdev', 'stdev',
     'pvariance1', 'variance1', 'pstdev1', 'stdev1',
@@ -345,8 +346,8 @@ def median(data, sign=0):
     sign  value returned as median
     ----  ------------------------------------------------------
     0     The mean of the elements on either side of the middle
-    < 0   The element just below the middle
-    > 0   The element just above the middle
+    < 0   The element just below the middle ("low median")
+    > 0   The element just above the middle ("high median")
 
     The default is 0. Except for certain specialist applications, this is
     normally what is expected for the median.
@@ -524,41 +525,36 @@ def simple_moving_average(data, window=3):
 
 
 @sorted_data
-def quartiles(data, method=0):
+def quartiles(data, method=1):
     """quartiles(data [, method]) -> (Q1, Q2, Q3)
 
-    Return the sample quartiles (Q1, Q2, Q3) for data.
+    Return the sample quartiles (Q1, Q2, Q3) for data, where one quarter of
+    the data is below Q1, two quarters below Q2, and three quarters below Q3.
+    data must be an iterator of numeric values, with at least three items.
 
     >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
     (2.0, 3.5, 5.0)
 
-    data must be an iterator of numeric values, with at least three items.
-    method is an optional value specifying the calculation method used, and
-    hence the results. Returns a 3-tuple of the first, second and third
-    quartiles (Q1, Q2, Q3). Q2 is not necessarily the median.
-
-    The values returned are such that (approximately) one quarter of the data
-    is below Q1, one half below Q2, and three-quarters below Q3. Q1 is
-    approximately the median of the first half of the data, and Q3 the median
-    of the second half. The exact proportions, and the exact values of the
-    cut-offs, depend on the method of calculation. To specify the method of
-    calculation, pass a value as the method argument:
+    In general, data sets don't divide evenly into four equal sets, and so
+    calculating quartiles requires a method for splitting data points. The
+    optional argument method specifies the calculation method used. The
+    exact values returned as Q1, Q2 and Q3 will depend on the method.
 
     Method  Description
-    ======  ================================================================
-    0       Tukey's hinges; median is included in the two halves
-    1       Moore and McCabe's method; median is excluded in the two halves
-    2       Method recommended by Mendenhall and Sincich
-    3       Method used by Minitab software
-    4       Method recommended by Freund and Perles
-    5       Langford's CDF method
+    ======  =================================================================
+    1       Tukey's method; median is included in the two halves
+    2       Moore and McCabe's method; median is excluded from the two halves
+    3       Method recommended by Mendenhall and Sincich
+    4       Method used by Minitab software
+    5       Method recommended by Freund and Perles
+    6       Langford's CDF method
 
-    * Method 0 (the default) is equivalent to Tukey's hinges (H1, M, H2).
-    * Method 1 is used by Texas Instruments calculators, model TI-85 and up.
-    * Method 2 ensures that the values returned are always data points,
+    * Method 1 (the default) is equivalent to Tukey's hinges (H1, M, H2).
+    * Method 2 is used by Texas Instruments calculators, model TI-85 and up.
+    * Method 3 ensures that the values returned are always data points,
       which makes it suitable for ordinal data.
-    * Methods 3 and 4 use linear iterpolation between items.
-    * Method 4 is used by Microsoft Excel and OpenOffice.
+    * Methods 4 and 5 use linear interpolation between items.
+    * Method 5 is used by Microsoft Excel and OpenOffice.
 
     Case-insensitive named aliases are also supported for methods: you can
     examine quartiles.aliases for a mapping of names to method numbers.
@@ -586,17 +582,17 @@ def hinges(data):
     >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
     (6, 10, 14)
 
-    This is equivalent to quartiles() called with method 0.
+    This is equivalent to quartiles() called with method 1.
     """
-    return quartiles(data, 0)
+    return quartiles(data, 1)
 
 
 # Quantiles (fractiles) are just as confused as quartiles. The statistics
 # language R offers nine different methods for calculating quantiles. We
-# support ???? of them.
+# support ten. Take that R! *wink*
 
 @sorted_data
-def quantile(data, p, method=0):
+def quantile(data, p, method=1):
     """quantile(data, p [, method]) -> value
 
     Return the p-quantile which is some fraction p of the way into data.
@@ -651,7 +647,7 @@ def quantile(data, p, method=0):
 quantile.aliases = _quantiles.QUANTILE_ALIASES
 
 
-def decile(data, d, method=0):
+def decile(data, d, method=1):
     """Return the dth decile of data, for integer d between 0 and 10.
 
     See function quantile for details about the optional argument `method`.
@@ -662,7 +658,7 @@ def decile(data, d, method=0):
     return quantile(data, d/10, method)
 
 
-def percentile(data, p, method=0):
+def percentile(data, p, method=1):
     """Return the pth percentile of data, for integer p between 0 and 100.
 
     See function quantile for details about the optional argument `method`.
@@ -909,7 +905,7 @@ def range(data):
     return b - a
 
 
-def iqr(data, method=0):
+def iqr(data, method=1):
     """Returns the Inter-Quartile Range of a sequence of numbers.
 
     >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])

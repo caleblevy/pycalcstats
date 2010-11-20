@@ -133,30 +133,30 @@ class _Quartiles:
 
     # Numeric method selectors for quartiles:
     QUARTILE_MAP = {
-        0: inclusive,
-        1: exclusive,
-        2: ms,
-        3: minitab,
-        4: excel,
-        5: langford,
+        1: inclusive,
+        2: exclusive,
+        3: ms,
+        4: minitab,
+        5: excel,
+        6: langford,
         }
         # Note: if you modify this, you must also update the docstring for
         # the quartiles function in stats.py.
 
     # Lowercase aliases for the numeric method selectors for quartiles:
     QUARTILE_ALIASES = {
-        'inclusive': 0,
-        'tukey': 0,
-        'hinges': 0,
-        'exclusive': 1,
-        'm&m': 1,
-        'ti-85': 1,
-        'm&s': 2,
-        'minitab': 3,
-        'f&p': 4,
-        'excel': 4,
-        'langford': 5,
-        'cdf': 5,
+        'inclusive': 1,
+        'tukey': 1,
+        'hinges': 1,
+        'exclusive': 2,
+        'm&m': 2,
+        'ti-85': 2,
+        'm&s': 3,
+        'minitab': 4,
+        'f&p': 5,
+        'excel': 5,
+        'langford': 6,
+        'cdf': 6,
         }
 
 
@@ -191,7 +191,6 @@ r1 = r3 = r4 = r5 = r6 = r7 = r8 = r9 = placeholder
 # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
 # calculation methods with the same number.
 QUANTILE_MAP = {
-    0: cdf,
     1: r1,
     2: cdf,
     3: r3,
