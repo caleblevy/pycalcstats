@@ -993,8 +993,8 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
                 normally distributed population.
     'uniform'   Apply a scale factor of approximately 1.1547, applicable
                 to data from a uniform distribution.
-    None, 'none' or missing:
-                No scale factor is applied.
+    None, 'none' or not supplied:
+                No scale factor is applied (the default).
 
     The MAD is a more robust measurement of spread than either the IQR or
     standard deviation, and is less affected by outliers. The MAD is also
@@ -1031,7 +1031,7 @@ median_average_deviation.scaling = {
 
 def quartile_skewness(q1, q2, q3):
     """Return the quartile skewness coefficient, or Bowley skewness, from
-    the three quartiles q1, q2 (median), q3.
+    the three quartiles q1, q2, q3.
 
     >>> quartile_skewness(1, 2, 5)
     0.5
@@ -1039,7 +1039,13 @@ def quartile_skewness(q1, q2, q3):
     -0.5
 
     """
-    return (q3 + q1 - 2*q2)/(q3 - q1)
+    if not q1 <= q2 <= q3:
+        raise StatsError('quartiles must be ordered q1 <= q2 <= q3')
+    if q1 == q2 == q3:
+        return float('nan')
+    skew = (q3 + q1 - 2*q2)/(q3 - q1)
+    assert -1.0 <= skew <= 1.0
+    return skew
 
 
 def pearson_mode_skewness(mean, mode, stdev):
