@@ -1593,7 +1593,47 @@ class XYSumsTest(unittest.TestCase):
 # -------------------------------
 
 class StErrMeanTest(unittest.TestCase):
-    pass
+
+    def testFailures(self):
+        # Negative stdev or sample size is bad.
+        self.assertRaises(ValueError, stats.sterrmean, -1, 2)
+        self.assertRaises(ValueError, stats.sterrmean, -1, 2, 3)
+        self.assertRaises(ValueError, stats.sterrmean, 1, -2, 3)
+        self.assertRaises(ValueError, stats.sterrmean, 1, -2)
+
+    def testPopulationSize(self):
+        # Population size must not be less than sample size.
+        self.assertRaises(ValueError, stats.sterrmean, 1, 100, 99)
+        # But equal or greater is allowed.
+        self.assert_(stats.sterrmean(1, 100, 100) or True)
+        self.assert_(stats.sterrmean(1, 100, 101) or True)
+
+    def testZeroStdev(self):
+        for n in (5, 10, 25, 100):
+            self.assertEquals(stats.sterrmean(0.0, n), 0.0)
+            self.assertEquals(stats.sterrmean(0.0, n, n*10), 0.0)
+
+    def testZeroSizes(self):
+        for s in (0.1, 1.0, 32.1):
+            x = stats.sterrmean(s, 0)
+            self.assert_(math.isinf(x))
+            x = stats.sterrmean(s, 0, 100)
+            self.assert_(math.isinf(x))
+            x = stats.sterrmean(s, 0, 0)
+            self.assert_(math.isnan(x))
+
+    def testResult(self):
+        self.assertEquals(stats.sterrmean(0.25, 25), 0.05)
+        self.assertEquals(stats.sterrmean(1.0, 100), 0.1)
+        self.assertEquals(stats.sterrmean(2.5, 16), 0.625)
+
+    def testFPC(self):
+        self.assertAlmostEquals(
+            stats.sterrmean(0.25, 25, 100), 0.043519413989, places=11)
+        self.assertAlmostEquals(
+            stats.sterrmean(1.0, 100, 150), 5.79284446364e-2, places=11)
+        self.assertAlmostEquals(
+            stats.sterrmean(2.5, 16, 20), 0.286769667338, places=11)
 
 
 # Test statistics of circular quantities
