@@ -1485,8 +1485,30 @@ class SumTest(unittest.TestCase):
         self.assertAlmostEquals(
             stats.sum([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, places=15)
 
-    def testSum(self):
+    def testEmpty(self):
         self.assertEquals(stats.sum([]), 0)
+
+    def testSorted(self):
+        # Sum shouldn't depend on the order of items.
+        data = [i/7 for i in range(-35, 36)]
+        a = stats.sum(data)
+        random.shuffle(data)
+        b = stats.sum(data)
+        self.assertEquals(a, b)
+
+    def testSum(self):
+        data = [random.random() for _ in range(100)]
+        self.assertEquals(stats.sum(data), math.fsum(data))
+
+    def testTypes(self):
+        for data in (range(23), range(-35, 36), range(-23, 42, 7)):
+            a = stats.sum(data)
+            b = stats.sum(list(data))
+            c = stats.sum(tuple(data))
+            d = stats.sum(iter(data))
+            self.assertEquals(a, b)
+            self.assertEquals(a, c)
+            self.assertEquals(a, d)
 
 
 class ProductTest(unittest.TestCase):
