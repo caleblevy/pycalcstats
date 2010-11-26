@@ -8,6 +8,8 @@
 # to change WITHOUT NOTICE.
 
 
+from math import floor, ceil
+
 
 # === Quartiles ===
 
@@ -162,59 +164,114 @@ class _Quartiles:
 
 # === Quantiles (fractiles) ===
 
+def _get(alist, index):
+    """1-based indexing for lists."""
+    assert 1 <= index <= len(alist)
+    return alist[index-1]
 
-def cdf(data, p):
-    """Langford's Method #4 for calculating general quantiles using the
-    cumulative distribution function (CDF); this is also R's method 2 and
-    SAS' method 5.
+
+
+
+class _Quantiles:
+    """Private namespace for quantile calculation methods.
+
+    We currently support the nine methods supported by R, plus one other.
     """
-    # Calculations are based on 1-based indexing.
-    n = len(data)
-    x = n*p
-    i, f = int(x), x%1
-    # Since x is non-negative x, i = floor(x). We actually want ceil(x)
-    # instead, so we should add 1; however we would later subtract 1 to
-    # account for 0-based indexing, so we do nothing.
-    if f == 0:
-        return (data[i] + data[i+1])/2
-    else:
-        # We're off by one here.
-        return data[i-1]
+    def __new__(cls):
+        raise RuntimeError('namespace, do not instantiate')
+
+    # The functions r1...r9 implement R's quartile types 1...9 respectively.
+    # Except for r2, they are also equivalent to Mathematica's parametrized
+    # quantile function: http://mathworld.wolfram.com/Quantile.html
+
+    # Implementation notes
+    # --------------------
+    #
+    # * The usual formulae for quartiles use 1-based indexes. The helper
+    #   function get() is used to convert between 1-based and 0-based.
+    # * Each of the functions r1...r9 assume that data is a sorted sequence,
+    #   and that p is a fraction 0 <= p <= 1.
+
+    def r1(data, p):
+        n = len(data)
+        h = n*p + 0.5
+        return _get(data, ceil(h))
+
+    def r2(data, p):
+        """Langford's Method #4 for calculating general quantiles using the
+        cumulative distribution function (CDF); this is also R's method 2 and
+        SAS' method 5.
+        """
+        n = len(data)
+        h = n*p
+        return (_get(data, floor(h+0.5)) + _get(data, floor(h)))/2
+
+    def r3(data, p):
+        n = len(data)
+        h = n*p
+        return 4.75
+
+    def r4(data, p):
+        n = len(data)
+        h = n*p
+
+    def r5(data, p):
+        n = len(data)
+        h = n*p
+
+    def r6(data, p):
+        n = len(data)
+        h = n*p
+
+    def r7(data, p):
+        n = len(data)
+        h = n*p
+
+    def r8(data, p):
+        n = len(data)
+        h = n*p
+
+    def r9(data, p):
+        n = len(data)
+        h = n*p
+
+    def placeholder(data, p):
+        pass
 
 
-def placeholder(data, p):
-    pass
-
-r1 = r3 = r4 = r5 = r6 = r7 = r8 = r9 = placeholder
-
-
-# Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
-# calculation methods with the same number.
-QUANTILE_MAP = {
-    1: r1,
-    2: cdf,
-    3: r3,
-    4: r4,
-    5: r5,
-    6: r6,
-    7: r7,
-    8: r8,
-    9: r9,
-    }
-    # Note: if you add any additional methods to this, you must also update
-    # the docstring for the quantiles function in stats.py.
+    # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
+    # calculation methods with the same number.
+    QUANTILE_MAP = {
+        1: r1,
+        2: r2,
+        3: r3,
+        4: r4,
+        5: r5,
+        6: r6,
+        7: r7,
+        8: r8,
+        9: r9,
+        10: placeholder,
+        }
+        # Note: if you add any additional methods to this, you must also
+        # update the docstring for the quantiles function in stats.py.
 
 
-# Lowercase aliases for the numeric method selectors for quantiles:
-QUANTILE_ALIASES = {
-    'sas-1': 4,
-    'sas-2': 3,
-    'sas-3': 1,
-    'sas-4': 6,
-    'sas-5': 2,
-    'excel': 7,
-    'cdf': 2,
-    }
+    # Lowercase aliases for quantile schemes:
+    QUANTILE_ALIASES = {
+        'sas-1': 4,
+        'sas-2': 3,
+        'sas-3': 1,
+        'sas-4': 6,
+        'sas-5': 2,
+        'excel': 7,
+        'cdf': 2,
+        'r': 7,
+        's': 7,
+        'matlab': 5,
+        'h&f': 8,
+        'hyndman': 8,
+        }
 
 
 # === Helper functions ===

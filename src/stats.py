@@ -71,8 +71,8 @@ __all__ = [
     ]
 
 
-import _stats_quantiles as _quantiles
-from _stats_quantiles import _Quartiles
+# import _stats_quantiles as _quantiles
+from _stats_quantiles import _Quartiles, _Quantiles
 
 import math
 import operator
@@ -525,8 +525,8 @@ def simple_moving_average(data, window=3):
 
 
 @sorted_data
-def quartiles(data, method=1):
-    """quartiles(data [, method]) -> (Q1, Q2, Q3)
+def quartiles(data, scheme=1):
+    """quartiles(data [, scheme]) -> (Q1, Q2, Q3)
 
     Return the sample quartiles (Q1, Q2, Q3) for data, where one quarter of
     the data is below Q1, two quarters below Q2, and three quarters below Q3.
@@ -537,10 +537,10 @@ def quartiles(data, method=1):
 
     In general, data sets don't divide evenly into four equal sets, and so
     calculating quartiles requires a method for splitting data points. The
-    optional argument method specifies the calculation method used. The
+    optional argument scheme specifies the calculation method used. The
     exact values returned as Q1, Q2 and Q3 will depend on the method.
 
-    Method  Description
+    scheme  Description
     ======  =================================================================
     1       Tukey's method; median is included in the two halves
     2       Moore and McCabe's method; median is excluded from the two halves
@@ -549,28 +549,26 @@ def quartiles(data, method=1):
     5       Method recommended by Freund and Perles
     6       Langford's CDF method
 
-    * Method 1 (the default) is equivalent to Tukey's hinges (H1, M, H2).
-    * Method 2 is used by Texas Instruments calculators, model TI-85 and up.
-    * Method 3 ensures that the values returned are always data points,
-      which makes it suitable for ordinal data.
-    * Methods 4 and 5 use linear interpolation between items.
-    * Method 5 is used by Microsoft Excel and OpenOffice.
+    * scheme=1 (the default) is equivalent to Tukey's hinges (H1, M, H2).
+    * scheme=2 is used by Texas Instruments calculators, model TI-85 and up.
+    * scheme=3 ensures that the values returned are always data points.
+    * scheme=4 or 5 use linear interpolation between items.
+    * For compatibility with Microsoft Excel or OpenOffice, use scheme=5.
 
-    Case-insensitive named aliases are also supported for methods: you can
-    examine quartiles.aliases for a mapping of names to method numbers.
+    Case-insensitive named aliases are also supported: you can examine
+    quartiles.aliases for a mapping of names to schemes.
     """
-    # Select a method.
-    if isinstance(method, str):
-        key = quartiles.aliases.get(method.lower())
-    else:
-        key = method
-    func = _Quartiles.QUARTILE_MAP.get(key)
-    if func is None:
-        raise StatsError('unrecognised method selector `%s`' % method)
-    # Return the quartiles using that method.
     n = len(data)
     if n < 3:
         raise StatsError('need at least 3 items to split data into quartiles')
+    # Select a method.
+    if isinstance(scheme, str):
+        key = quartiles.aliases.get(scheme.lower())
+    else:
+        key = scheme
+    func = _Quartiles.QUARTILE_MAP.get(key)
+    if func is None:
+        raise StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
 quartiles.aliases = _Quartiles.QUARTILE_ALIASES
@@ -582,9 +580,9 @@ def hinges(data):
     >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
     (6, 10, 14)
 
-    This is equivalent to quartiles() called with method 1.
+    This is equivalent to quartiles() called with scheme=1.
     """
-    return quartiles(data, 1)
+    return quartiles(data, scheme=1)
 
 
 # Quantiles (fractiles) are just as confused as quartiles. The statistics
@@ -592,81 +590,153 @@ def hinges(data):
 # support ten. Take that R! *wink*
 
 @sorted_data
-def quantile(data, p, method=1):
-    """quantile(data, p [, method]) -> value
+def quantile(data, p, scheme=1):
+    """quantile(data, p [, scheme]) -> value
 
-    Return the p-quantile which is some fraction p of the way into data.
+    Return the value which is some fraction p of the way into data after
+    sorting. data must be an iterator of numeric values, with at least two
+    items. p must be a number between 0 and 1 inclusive. The result returned
+    by quantile is the data point, or the interpolated data point, such that
+    a fraction p of the data is less than that value.
 
-    >>> quantile([2.0, 2.0, 3.0, 4.0, 5.0, 6.0], 0.75)
+    >>> data = [2.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    >>> quantile(data, 0.75)
+    5.0
+
+
+    Interpolation
+    =============
+
+    In general the quantile will not fall exactly on a data point. When that
+    happens, the value returned is interpolated from the data points nearest
+    the calculated position. There are a wide variety of interpolation methods
+    available, and quantile() allows you to choose between them using the
+    optional argument scheme.
+
+    >>> quantile(data, 0.75, scheme=3)
     4.75
 
-    data must be an iterator of numeric values, with at least two items.
-    p must be a number between 0 and 1 inclusive. The result returned by
-    quantile is the data point, or the interpolated data point, such that a
-    fraction p of the data is less than that value.
+    scheme can be either an integer scheme number (see table below), a
+    tuple of four numeric parameters, or a case-insensitive string alias.
+    for either of these. You can examine quantiles.aliases for a mapping of
+    names to schemes.
 
-    Optional argument method specifies the calculation method used, and
-    hence the result.
+        WARNING: the use of arbitrary parameters is not recommended!
+        Although quantile will calculate a result using them, the result
+        is unlikely to be meaningful or statistically useful.
 
-    Method  Description
-    ======  ================================================================
-    0       Langford's method #4 based on cumulative distribution function
-    1-9     Types 1-9 from R (#2 is equivalent to 0)
-    10      ...
+    Integer schemes 1-9 are equivalent to R's quantile types with the same
+    number. These are also equivalent to Mathematica's parameterized quartile
+    function with parameters shown:
 
-    See the R manual for further details:
-    http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
+    scheme  parameters   Description
+    ======  ===========  ====================================================
+    1       0,0,1,0      inverse of the empirical CDF
+    2       n/a          inverse of empirical CDF with averaging
+    3       1/2,0,0,0    closest actual observation
+    4       0,0,0,1      linear interpolation of the empirical CDF
+    5       1/2,0,0,1    Hazen's model (like Matlab's PRCTILE function)
+    6       0,1,0,1      Weibull quantile
+    7       1,-1,0,1     interpolation over range divided into n-1 intervals
+    8       1/3,1/3,0,1  interpolation of the approximate medians
+    9       3/8,1/4,0,1  approx. unbiased estimate for a normal distribution
+    10      n/a          least expected square deviation relative to p
 
-    Case-insensitive named aliases are also supported for methods: you can
-    examine quantiles.aliases for a mapping of names to method numbers.
+
+    Which scheme should I use?
+    ==========================
+
+    If you don't know, or don't care, about the different quantile
+    interpolation methods, just stick to the default and be consistant.
+
+    If your quantiles must be actual data values, use scheme=1.
+
+    Hyndman and Fan (1996) recommend scheme=8.
+
+    For compatibility with the default used by programming languages R and S,
+    use scheme=7. The default for Mathematica is scheme=1, and if you need
+    your results to be compatible with Matlab's PRCTILE function, pass
+    scheme=5.
+
+    References:
+        http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
+        http://en.wikipedia.org/wiki/Quantile
+
     """
-    # Select a method.
-    if isinstance(method, str):
-        key = quantile.aliases.get(method.lower())
-    else:
-        key = method
-    func = _quantiles.QUANTILE_MAP.get(key)
-    if func is None:
-        raise StatsError('unrecognised method selector `%s`' % method)
-
     if not 0.0 <= p <= 1.0:
         raise StatsError('quantile argument must be between 0.0 and 1.0')
-    n = len(data)
-    if n < 2:
+    if len(data) < 2:
         raise StatsError('need at least 2 items to split data into quantiles')
-    x = p*(n-1)
-    m = int(x)
-    p = x - m
-    if p:
-        a = data[m]
-        delta = data[m+1] - a
-        return a + p*delta
+    # Select a scheme.
+    if isinstance(scheme, str):
+        key = quantile.aliases.get(scheme.lower())
     else:
-        return data[m]
+        key = scheme
+    if isinstance(key, tuple) and len(key) == 4:
+        return _parametrized_quantile(key, data, p)
+    else:
+        func = _Quantiles.QUANTILE_MAP.get(key)
+        if func is None:
+            raise StatsError('unrecognised scheme `%s`' % method)
+        return func(data, p)
 
-quantile.aliases = _quantiles.QUANTILE_ALIASES
+quantile.aliases = _Quantiles.QUANTILE_ALIASES
 
 
-def decile(data, d, method=1):
+def _parametrized_quantile(parameters, data, p):
+    """_parameterized_quantile(parameters, data, p) -> value
+
+    Private function calculating a parameterized version of quantile,
+    equivalent to the Mathematica Quantile() function. For further
+    details, see:
+        http://reference.wolfram.com/mathematica/ref/Quantile.html
+        http://mathworld.wolfram.com/Quantile.html
+
+    data is assumed to be sorted and with at least two items; p is assumed
+    to be between 0 and 1 inclusive. If either of these assumptions are
+    violated, the behaviour of this function are undefined.
+
+    >>> from builtins import range; data = range(1, 21)
+    >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
+    6.0
+    >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
+    6.5
+
+    """
+    a, b, c, d = parameters
+    def get(i):
+        assert 1 <= i <= n
+        # i = max(0, i-1)
+        return data[i-1]
+
+    n = len(data)
+    h =  a + (n+b)*p
+    f = h % 1
+    x = get(math.floor(h))
+    y = get(math.ceil(h))
+    return x + (y - x)*(c + d*f)
+
+
+def decile(data, d, scheme=1):
     """Return the dth decile of data, for integer d between 0 and 10.
 
-    See function quantile for details about the optional argument `method`.
+    See function quantile for details about the optional argument scheme.
     """
     _validate_int(d)
     if not 0 <= d <= 10:
         raise ValueError('decile argument d must be between 0 and 10')
-    return quantile(data, d/10, method)
+    return quantile(data, d/10, scheme)
 
 
-def percentile(data, p, method=1):
+def percentile(data, p, scheme=1):
     """Return the pth percentile of data, for integer p between 0 and 100.
 
-    See function quantile for details about the optional argument `method`.
+    See function quantile for details about the optional argument scheme.
     """
     _validate_int(p)
     if not 0 <= p <= 100:
         raise ValueError('percentile argument p must be between 0 and 100')
-    return quantile(data, p/100, method)
+    return quantile(data, p/100, scheme)
 
 
 def boxwhiskerplot(*args, **kwargs):
@@ -905,20 +975,20 @@ def range(data):
     return b - a
 
 
-def iqr(data, method=1):
+def iqr(data, scheme=1):
     """Returns the Inter-Quartile Range of a sequence of numbers.
 
     >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])
     3.25
 
     The IQR is the difference between the first and third quartile. The
-    optional argument method (defaulting to 0) is used to select the
+    optional argument scheme (defaulting to 1) is used to select the
     algorithm for calculating the quartiles. See the quartile function for
     further details.
 
-    The default IQR (method 0) is equivalent to Tukey's H-spread.
+    The default IQR (with scheme 1) is equivalent to Tukey's H-spread.
     """
-    q1, _, q3 = quartiles(data, method)
+    q1, _, q3 = quartiles(data, scheme)
     return q3 - q1
 
 
