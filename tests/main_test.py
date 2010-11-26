@@ -36,21 +36,20 @@ sys.path.append(os.path.join(parent, 'src'))
 del mt, loc, parent
 
 
-# Modules being tested.
+# Module being tested.
 import stats
-import _stats_quantiles
 
 
 # Test internal functions in _stats_quantiles
 # -------------------------------------------
 
 class RoundTest(unittest.TestCase):
-    UP = _stats_quantiles.UP
-    DOWN = _stats_quantiles.DOWN
-    EVEN = _stats_quantiles.EVEN
+    UP = stats._UP
+    DOWN = stats._DOWN
+    EVEN = stats._EVEN
 
     def testRoundDown(self):
-        f = _stats_quantiles.round
+        f = stats._round
         self.assertEquals(f(1.4, self.DOWN), 1)
         self.assertEquals(f(1.5, self.DOWN), 1)
         self.assertEquals(f(1.6, self.DOWN), 2)
@@ -59,7 +58,7 @@ class RoundTest(unittest.TestCase):
         self.assertEquals(f(2.6, self.DOWN), 3)
 
     def testRoundUp(self):
-        f = _stats_quantiles.round
+        f = stats._round
         self.assertEquals(f(1.4, self.UP), 1)
         self.assertEquals(f(1.5, self.UP), 2)
         self.assertEquals(f(1.6, self.UP), 2)
@@ -68,7 +67,7 @@ class RoundTest(unittest.TestCase):
         self.assertEquals(f(2.6, self.UP), 3)
 
     def testRoundEven(self):
-        f = _stats_quantiles.round
+        f = stats._round
         self.assertEquals(f(1.4, self.EVEN), 1)
         self.assertEquals(f(1.5, self.EVEN), 2)
         self.assertEquals(f(1.6, self.EVEN), 2)
@@ -613,7 +612,7 @@ class DrMathTests(unittest.TestCase):
     D = range(1, 12)
 
     def testInclusive(self):
-        f = _stats_quantiles._Quartiles.inclusive
+        f = stats._Quartiles.inclusive
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
@@ -628,7 +627,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 8.5)
 
     def testExclusive(self):
-        f = _stats_quantiles._Quartiles.exclusive
+        f = stats._Quartiles.exclusive
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.5)
         self.assertEquals(q3, 6.5)
@@ -643,7 +642,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 9.0)
 
     def testMS(self):
-        f = _stats_quantiles._Quartiles.ms
+        f = stats._Quartiles.ms
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2)
         self.assertEquals(q3, 7)
@@ -658,7 +657,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 9)
 
     def testMinitab(self):
-        f = _stats_quantiles._Quartiles.minitab
+        f = stats._Quartiles.minitab
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.25)
         self.assertEquals(q3, 6.75)
@@ -673,7 +672,7 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 9.0)
 
     def testExcel(self):
-        f = _stats_quantiles._Quartiles.excel
+        f = stats._Quartiles.excel
         q1, _, q3 = f(self.A)
         self.assertEquals(q1, 2.75)
         self.assertEquals(q3, 6.25)
@@ -688,8 +687,8 @@ class DrMathTests(unittest.TestCase):
         self.assertEquals(q3, 8.5)
 
 
-class QuartileAliases(unittest.TestCase):
-    allowed_methods = set(_stats_quantiles._Quartiles.QUARTILE_MAP.keys())
+class QuartileAliasesTest(unittest.TestCase):
+    allowed_methods = set(stats._Quartiles.QUARTILE_MAP.keys())
 
     def testAliasesMapping(self):
         # Test that the quartile function exposes a mapping of aliases.

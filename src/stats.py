@@ -71,9 +71,6 @@ __all__ = [
     ]
 
 
-# import _stats_quantiles as _quantiles
-from _stats_quantiles import _Quartiles, _Quantiles
-
 import math
 import operator
 import functools
@@ -222,6 +219,54 @@ def _validate_int(n):
     # ValueError (for NANs or non-integer numbers).
     if n != int(n):
         raise ValueError('requires integer value')
+
+
+def _get(alist, index):
+    """1-based indexing for lists."""
+    assert 1 <= index <= len(alist)
+    return alist[index-1]
+
+
+def _interpolate(data, x):
+    i, f = int(x), x%1
+    if f:
+        a, b = data[i], data[i+1]
+        return a + f*(b-a)
+    else:
+        return data[i]
+
+
+# Rounding modes.
+_UP, _DOWN, _EVEN = 0, 1, 2
+
+def _round(x, rounding_mode):
+    """Round non-negative x, with ties rounding according to rounding_mode."""
+    assert rounding_mode in (_UP, _DOWN, _EVEN)
+    assert x >= 0.0
+    n, f = int(x), x%1
+    if rounding_mode == _UP:
+        if f >= 0.5:
+            return n+1
+        else:
+            return n
+    elif rounding_mode == _DOWN:
+        if f > 0.5:
+            return n+1
+        else:
+            return n
+    else:
+        # Banker's rounding to EVEN.
+        if f > 0.5:
+            return n+1
+        elif f < 0.5:
+            return n
+        else:
+            if n%2:
+                # n is odd, so round up to even.
+                return n+1
+            else:
+                # n is even, so round down.
+                return n
 
 
 # === Basic univariate statistics ===
@@ -512,16 +557,271 @@ def simple_moving_average(data, window=3):
         yield s/window
 
 
-# Quantiles (fractiles) and hinges
-# --------------------------------
+# Order statistics: quartiles, quantiles (fractiles) and hinges
+# -------------------------------------------------------------
 
-# Grrr arggh!!! Nobody can agree on how to calculate quantiles.
+# Grrr arggh!!! Nobody can agree on how to calculate order statistics.
 # Langford (2006) finds no fewer than FIFTEEN methods for calculating
 # quartiles (although some are mathematically equivalent to others):
 #   http://www.amstat.org/publications/jse/v14n3/langford.html
 # Mathword and Dr Math suggest five:
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
+#
+# Quantiles (fractiles) and percentiles are even worse -- R (and presumably
+# S) include nine different calculation methods for quantiles. Mathematica
+# uses a parameterized quantile function capable of matching eight of those
+# nine methods. Wikipedia lists a tenth method.
+
+
+class _Quartiles:
+    """Private namespace for quartile calculation methods.
+
+    ALL methods and attributes in this namespace are private and subject
+    to change without notice.
+    """
+    def __new__(cls):
+        raise RuntimeError('namespace, do not initialise')
+
+    def inclusive(data):
+        """Return sample quartiles using Tukey's method.
+
+        Q1 and Q3 are calculated as the medians of the two halves of the data,
+        where the median Q2 is included in both halves. This is equivalent to
+        Tukey's hinges H1, M, H2.
+        """
+        n = len(data)
+        i = (n+1)//4
+        m = n//2
+        if n%4 in (0, 3):
+            q1 = (data[i] + data[i-1])/2
+            q3 = (data[-i-1] + data[-i])/2
+        else:
+            q1 = data[i]
+            q3 = data[-i-1]
+        if n%2 == 0:
+            q2 = (data[m-1] + data[m])/2
+        else:
+            q2 = data[m]
+        return (q1, q2, q3)
+
+    def exclusive(data):
+        """Return sample quartiles using Moore and McCabe's method.
+
+        Q1 and Q3 are calculated as the medians of the two halves of the data,
+        where the median Q2 is excluded from both halves.
+
+        This is the method used by Texas Instruments model TI-85 calculator.
+        """
+        n = len(data)
+        i = n//4
+        m = n//2
+        if n%4 in (0, 1):
+            q1 = (data[i] + data[i-1])/2
+            q3 = (data[-i-1] + data[-i])/2
+        else:
+            q1 = data[i]
+            q3 = data[-i-1]
+        if n%2 == 0:
+            q2 = (data[m-1] + data[m])/2
+        else:
+            q2 = data[m]
+        return (q1, q2, q3)
+
+    def ms(data):
+        """Return sample quartiles using Mendenhall and Sincich's method."""
+        # Perform index calculations using 1-based counting, and adjust for
+        # 0-based at the very end.
+        n = len(data)
+        M = _round((n+1)/2, _EVEN)
+        L = _round((n+1)/4, _UP)
+        U = n+1-L
+        assert U == _round(3*(n+1)/4, _DOWN)
+        return (data[L-1], data[M-1], data[U-1])
+
+    def minitab(data):
+        """Return sample quartiles using the method used by Minitab."""
+        # Perform index calculations using 1-based counting, and adjust for
+        # 0-based at the very end.
+        n = len(data)
+        M = (n+1)/2
+        L = (n+1)/4
+        U = n+1-L
+        assert U == 3*(n+1)/4
+        return (
+                _interpolate(data, L-1),
+                _interpolate(data, M-1),
+                _interpolate(data, U-1)
+                )
+
+    def excel(data):
+        """Return sample quartiles using Freund and Perles' method.
+
+        This is also the method used by Excel and OpenOffice.
+        """
+        # Perform index calculations using 1-based counting, and adjust for
+        # 0-based at the very end.
+        n = len(data)
+        M = (n+1)/2
+        L = (n+3)/4
+        U = (3*n+1)/4
+        return (
+                _interpolate(data, L-1),
+                _interpolate(data, M-1),
+                _interpolate(data, U-1)
+                )
+
+    def langford(data):
+        """Langford's recommended method for calculating quartiles based on
+        the cumulative distribution function (CDF).
+        """
+        n = len(data)
+        m = n//2
+        i, r = divmod(n, 4)
+        if r == 0:
+            q1 = (data[i] + data[i-1])/2
+            q2 = (data[m-1] + data[m])/2
+            q3 = (data[-i-1] + data[-i])/2
+        elif r in (1, 3):
+            q1 = data[i]
+            q2 = data[m]
+            q3 = data[-i-1]
+        else:  # r == 2
+            q1 = data[i]
+            q2 = (data[m-1] + data[m])/2
+            q3 = data[-i-1]
+        return (q1, q2, q3)
+
+    # Numeric method selectors for quartiles:
+    QUARTILE_MAP = {
+        1: inclusive,
+        2: exclusive,
+        3: ms,
+        4: minitab,
+        5: excel,
+        6: langford,
+        }
+        # Note: if you modify this, you must also update the docstring for
+        # the quartiles function.
+
+    # Lowercase aliases for the numeric method selectors for quartiles:
+    QUARTILE_ALIASES = {
+        'inclusive': 1,
+        'tukey': 1,
+        'hinges': 1,
+        'exclusive': 2,
+        'm&m': 2,
+        'ti-85': 2,
+        'm&s': 3,
+        'minitab': 4,
+        'f&p': 5,
+        'excel': 5,
+        'langford': 6,
+        'cdf': 6,
+        }
+# End of private _Quartiles namespace.
+
+
+class _Quantiles:
+    """Private namespace for quantile calculation methods.
+
+    ALL methods and attributes in this namespace are private and subject
+    to change without notice.
+    """
+    def __new__(cls):
+        raise RuntimeError('namespace, do not instantiate')
+
+    # The functions r1...r9 implement R's quartile types 1...9 respectively.
+    # Except for r2, they are also equivalent to Mathematica's parametrized
+    # quantile function: http://mathworld.wolfram.com/Quantile.html
+
+    # Implementation notes
+    # --------------------
+    #
+    # * The usual formulae for quartiles use 1-based indexes. The helper
+    #   function get() is used to convert between 1-based and 0-based.
+    # * Each of the functions r1...r9 assume that data is a sorted sequence,
+    #   and that p is a fraction 0 <= p <= 1.
+
+    def r1(data, p):
+        n = len(data)
+        h = n*p + 0.5
+        return _get(data, math.ceil(h))
+
+    def r2(data, p):
+        """Langford's Method #4 for calculating general quantiles using the
+        cumulative distribution function (CDF); this is also R's method 2 and
+        SAS' method 5.
+        """
+        n = len(data)
+        h = n*p
+        return (_get(data, math.floor(h+0.5)) + _get(data, math.floor(h)))/2
+
+    def r3(data, p):
+        n = len(data)
+        h = n*p
+        return 4.75
+
+    def r4(data, p):
+        n = len(data)
+        h = n*p
+
+    def r5(data, p):
+        n = len(data)
+        h = n*p
+
+    def r6(data, p):
+        n = len(data)
+        h = n*p
+
+    def r7(data, p):
+        n = len(data)
+        h = n*p
+
+    def r8(data, p):
+        n = len(data)
+        h = n*p
+
+    def r9(data, p):
+        n = len(data)
+        h = n*p
+
+    def placeholder(data, p):
+        pass
+
+    # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
+    # calculation methods with the same number.
+    QUANTILE_MAP = {
+        1: r1,
+        2: r2,
+        3: r3,
+        4: r4,
+        5: r5,
+        6: r6,
+        7: r7,
+        8: r8,
+        9: r9,
+        10: placeholder,
+        }
+        # Note: if you add any additional methods to this, you must also
+        # update the docstring for the quantiles function.
+
+    # Lowercase aliases for quantile schemes:
+    QUANTILE_ALIASES = {
+        'sas-1': 4,
+        'sas-2': 3,
+        'sas-3': 1,
+        'sas-4': 6,
+        'sas-5': 2,
+        'excel': 7,
+        'cdf': 2,
+        'r': 7,
+        's': 7,
+        'matlab': 5,
+        'h&f': 8,
+        'hyndman': 8,
+        }
+# End of private _Quantiles namespace.
 
 
 @sorted_data
@@ -571,7 +871,7 @@ def quartiles(data, scheme=1):
         raise StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
-quartiles.aliases = _Quartiles.QUARTILE_ALIASES
+quartiles.aliases = _Quartiles.QUARTILE_ALIASES  # TO DO make this read-only?
 
 
 def hinges(data):
@@ -584,10 +884,6 @@ def hinges(data):
     """
     return quartiles(data, scheme=1)
 
-
-# Quantiles (fractiles) are just as confused as quartiles. The statistics
-# language R offers nine different methods for calculating quantiles. We
-# support ten. Take that R! *wink*
 
 @sorted_data
 def quantile(data, p, scheme=1):
@@ -658,11 +954,10 @@ def quantile(data, p, scheme=1):
     your results to be compatible with Matlab's PRCTILE function, pass
     scheme=5.
 
-    References:
-        http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
-        http://en.wikipedia.org/wiki/Quantile
-
     """
+    # More details here:
+    # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
+    # http://en.wikipedia.org/wiki/Quantile
     if not 0.0 <= p <= 1.0:
         raise StatsError('quantile argument must be between 0.0 and 1.0')
     if len(data) < 2:
@@ -680,17 +975,14 @@ def quantile(data, p, scheme=1):
             raise StatsError('unrecognised scheme `%s`' % method)
         return func(data, p)
 
-quantile.aliases = _Quantiles.QUANTILE_ALIASES
+quantile.aliases = _Quantiles.QUANTILE_ALIASES  # TO DO make this read-only?
 
 
 def _parametrized_quantile(parameters, data, p):
     """_parameterized_quantile(parameters, data, p) -> value
 
     Private function calculating a parameterized version of quantile,
-    equivalent to the Mathematica Quantile() function. For further
-    details, see:
-        http://reference.wolfram.com/mathematica/ref/Quantile.html
-        http://mathworld.wolfram.com/Quantile.html
+    equivalent to the Mathematica Quantile() function.
 
     data is assumed to be sorted and with at least two items; p is assumed
     to be between 0 and 1 inclusive. If either of these assumptions are
@@ -703,17 +995,15 @@ def _parametrized_quantile(parameters, data, p):
     6.5
 
     """
+    # More details here:
+    # http://reference.wolfram.com/mathematica/ref/Quantile.html
+    # http://mathworld.wolfram.com/Quantile.html
     a, b, c, d = parameters
-    def get(i):
-        assert 1 <= i <= n
-        # i = max(0, i-1)
-        return data[i-1]
-
     n = len(data)
     h =  a + (n+b)*p
     f = h % 1
-    x = get(math.floor(h))
-    y = get(math.ceil(h))
+    x = _get(data, math.floor(h))
+    y = _get(data, math.ceil(h))
     return x + (y - x)*(c + d*f)
 
 
