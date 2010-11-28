@@ -3,6 +3,15 @@
 =====================================================================
 
 
+Version 0.1.2a  2010-11-30 ?????????????????????
+    This is a minor release:
+    * Mostly cleaning up the functions and adding many more tests.
+    * Emulate all nine of R's quantile types, plus one additional, plus
+      Mathematica's parameterized quantiles.
+    * The private module containing quantile code has been merged with
+      the main module. Apart from tests, all code is now in one file.
+
+
 Version 0.1.1a  2010-11-14
     Many changes since the initial release:
     * The project has a home page outside of PyPI:
