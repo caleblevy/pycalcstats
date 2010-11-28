@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-##  Package stats.py
+##  Module stats.py
 ##
 ##  Copyright (c) 2010 Steven D'Aprano.
 ##
@@ -91,6 +91,7 @@ __all__ = [
     'sum', 'sumsq', 'product', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
     'StatsError', 'sterrmean', 'minmax',
+    'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -101,6 +102,13 @@ import operator
 import functools
 import itertools
 import collections
+
+
+# === Global variables ===
+
+# Default schemes to use for order statistics:
+QUARTILE_DEFAULT = 1
+QUANTILE_DEFAULT = 1
 
 
 # === Exceptions ===
@@ -596,8 +604,7 @@ def simple_moving_average(data, window=3):
 # Quantiles (fractiles) and percentiles are even worse -- R (and presumably
 # S) include nine different calculation methods for quantiles. Mathematica
 # uses a parameterized quantile function capable of matching eight of those
-# nine methods. Wikipedia lists a tenth method.
-
+# nine methods. Wikipedia lists a tenth method. There are probably more.
 
 class _Quartiles:
     """Private namespace for quartile calculation methods.
@@ -764,8 +771,7 @@ class _Quantiles:
     # Implementation notes
     # --------------------
     #
-    # * The usual formulae for quartiles use 1-based indexes. The helper
-    #   function _get() is used to convert between 1-based and 0-based.
+    # * The usual formulae for quartiles use 1-based indexes.
     # * Each of the functions r1...r9 assume that data is a sorted sequence,
     #   and that p is a fraction 0 <= p <= 1.
 
@@ -872,7 +878,7 @@ class _Quantiles:
 
 
 @sorted_data
-def quartiles(data, scheme=1):
+def quartiles(data, scheme=None):
     """quartiles(data [, scheme]) -> (Q1, Q2, Q3)
 
     Return the sample quartiles (Q1, Q2, Q3) for data, where one quarter of
@@ -898,12 +904,14 @@ def quartiles(data, scheme=1):
 
     Notes:
 
-        (1) Scheme 1 (the default) is equivalent to Tukey's hinges (H1, M, H2).
-        (2) Scheme 2 is used by Texas Instruments calculators starting with
+        (1) If scheme is missing or None, the default is taken from the
+            global variable QUARTILE_DEFAULT (set to 1 by default).
+        (2) Scheme 1 is equivalent to Tukey's hinges (H1, M, H2).
+        (3) Scheme 2 is used by Texas Instruments calculators starting with
             model TI-85.
-        (3) Scheme 3 ensures that the values returned are always data points.
-        (4) Schemes 4 and 5 use linear interpolation between items.
-        (5) For compatibility with Microsoft Excel and OpenOffice, use
+        (4) Scheme 3 ensures that the values returned are always data points.
+        (5) Schemes 4 and 5 use linear interpolation between items.
+        (6) For compatibility with Microsoft Excel and OpenOffice, use
             scheme 5.
 
     Case-insensitive named aliases are also supported: you can examine
@@ -913,6 +921,7 @@ def quartiles(data, scheme=1):
     if n < 3:
         raise StatsError('need at least 3 items to split data into quartiles')
     # Select a method.
+    if scheme is None: scheme = QUARTILE_DEFAULT
     if isinstance(scheme, str):
         key = quartiles.aliases.get(scheme.lower())
     else:
@@ -937,7 +946,7 @@ def hinges(data):
 
 
 @sorted_data
-def quantile(data, p, scheme=1):
+def quantile(data, p, scheme=None):
     """quantile(data, p [, scheme]) -> value
 
     Return the value which is some fraction p of the way into data after
@@ -960,13 +969,15 @@ def quantile(data, p, scheme=1):
     used in the statistics literature, and quantile() allows you to choose
     between them using the optional argument scheme.
 
+    >>> quantile(data, 0.75, scheme=4)
+    4.5
     >>> quantile(data, 0.75, scheme=7)
     4.75
 
     scheme can be either an integer scheme number (see table below), a tuple
     of four numeric parameters, or a case-insensitive string alias for either
     of these. You can examine quantiles.aliases for a mapping of names to
-    scheme numbers.
+    scheme numbers or parameters.
 
         WARNING: the use of arbitrary parameters is not recommended!
         Although quantile will calculate a result using them, the result
@@ -991,28 +1002,29 @@ def quantile(data, p, scheme=1):
 
     Notes:
 
-        (1) Scheme 1 (the default) ensures that the values returned are
-            always data points.
-        (2) Mathematica's default is equivalent to scheme=1.
-        (3) The default used by programming languages R and S is scheme=7.
-        (4) For compatibility with Microsoft Excel and OpenOffice, use
+        (1) If scheme is missing or None, the default is taken from the
+            global variable QUANTILE_DEFAULT (set to 1 by default).
+        (2) Scheme 1 ensures that the values returned are always data points.
+        (3) Mathematica's default is equivalent to scheme=1.
+        (4) The default used by programming languages R and S is scheme=7.
+        (5) For compatibility with Microsoft Excel and OpenOffice, use
             scheme 7.
-        (5) For compatibility with Matlab's PRCTILE function, use scheme=5.
-        (6) For compatibility with Minitab, use scheme=6.
+        (6) For compatibility with Matlab's PRCTILE function, use scheme=5.
+        (7) For compatibility with Minitab, use scheme=6.
+        (8) Scheme 8 is recommended by Hyndman and Fan (1996).
 
-    Which scheme should I use?
-    ==========================
+    Example of using a scheme written in the parameterized form used by
+    Mathematica:
 
-    The plethora of quantiles can be over-whelming. If you don't know, or
-    don't care, about the exact calculation method used, you should just
-    stick to the default, and *be consistent*.
+    >>> data = [1, 2, 3, 3, 4, 5, 7, 9, 12, 12]
+    >>> quantile(data, 0.2, scheme=(1, -1, 0, 1))  # First quintile.
+    2.8
 
-    Scheme 8 comes with the recommendation of Hyndman and Fan (1996), a point
-    important enough for R to mention.
+    This can also be written using an alias:
 
-    Otherwise, if you have to match results calculated by some specified
-    algorithm or some other software, quantile() offers you the tools to do
-    so.
+    >>> quantile(data, 0.2, scheme='excel')
+    2.8
+
     """
     # More details here:
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
@@ -1022,6 +1034,7 @@ def quantile(data, p, scheme=1):
     if len(data) < 2:
         raise StatsError('need at least 2 items to split data into quantiles')
     # Select a scheme.
+    if scheme is None: scheme = QUANTILE_DEFAULT
     if isinstance(scheme, str):
         key = quantile.aliases.get(scheme.lower())
     else:
@@ -1031,7 +1044,7 @@ def quantile(data, p, scheme=1):
     else:
         func = _Quantiles.QUANTILE_MAP.get(key)
         if func is None:
-            raise StatsError('unrecognised scheme `%s`' % method)
+            raise StatsError('unrecognised scheme `%s`' % scheme)
         return func(data, p)
 
 quantile.aliases = _Quantiles.QUANTILE_ALIASES  # TO DO make this read-only?
@@ -1053,6 +1066,12 @@ def _parametrized_quantile(parameters, data, p):
     >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
     6.5
 
+    WARNING: While this function will accept arbitrary numberic values for
+    the parameters, not all such combinations are meaningful:
+
+    >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
+    2.9
+
     """
     # More details here:
     # http://reference.wolfram.com/mathematica/ref/Quantile.html
@@ -1071,23 +1090,33 @@ def _parametrized_quantile(parameters, data, p):
 def decile(data, d, scheme=1):
     """Return the dth decile of data, for integer d between 0 and 10.
 
+    >>> data = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+    >>> decile(data, 7, scheme=1)
+    14
+
     See function quantile for details about the optional argument scheme.
     """
     _validate_int(d)
     if not 0 <= d <= 10:
         raise ValueError('decile argument d must be between 0 and 10')
-    return quantile(data, d/10, scheme)
+    from fractions import Fraction
+    return quantile(data, Fraction(d, 10), scheme)
 
 
 def percentile(data, p, scheme=1):
     """Return the pth percentile of data, for integer p between 0 and 100.
+
+    >>> import builtins; data = builtins.range(1, 201)
+    >>> percentile(data, 7, scheme=1)
+    14
 
     See function quantile for details about the optional argument scheme.
     """
     _validate_int(p)
     if not 0 <= p <= 100:
         raise ValueError('percentile argument p must be between 0 and 100')
-    return quantile(data, p/100, scheme)
+    from fractions import Fraction
+    return quantile(data, Fraction(p, 100), scheme)
 
 
 def boxwhiskerplot(*args, **kwargs):
