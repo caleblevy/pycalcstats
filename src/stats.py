@@ -27,11 +27,36 @@
 """
 'Scientific calculator' statistics for Python 3.
 
->>> mean([-1.0, 2.5, 3.25, 5.75])
-2.625
->>> data = iter([-1.0, 2.5, 3.25, 5.75, 0.0, 3.75])
->>> mean(data)
-2.375
+Features:
+
+(1) Standard calculator statistics such as mean and standard deviation:
+
+    >>> mean([-1.0, 2.5, 3.25, 5.75])
+    2.625
+    >>> stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
+    4.38961843444...
+
+(2) Order statistics such as the median and quartiles:
+
+    >>> median([6, 1, 5, 4, 2, 3])
+    3.5
+    >>> quartiles([2, 4, 5, 3, 1, 6])
+    (2, 3.5, 5)
+
+(3) Over forty statistics, including such functions as trimean and standard
+    error of the mean:
+
+    >>> trimean([15, 18, 20, 29, 35])
+    21.75
+    >>> sterrmean(3.25, 100, 1000)  #doctest: +ELLIPSIS
+    0.30847634861...
+
+(4) Perform calculations on iterators in one pass with little or no loss
+    of precision:
+
+    >>> data = iter([2.5, 3.25, 5.5, 11.25, 11.75])
+    >>> stdev1(data)  #doctest: +ELLIPSIS
+    4.38961843444...
 
 """
 
@@ -716,6 +741,7 @@ class _Quartiles:
         'm&m': 2,
         'm&s': 3,
         'minitab': 4,
+        'openoffice': 5,
         'ti-85': 2,
         'tukey': 1,
         }
@@ -834,11 +860,8 @@ class _Quantiles:
         'excel': 7,
         'h&f': 8,
         'hyndman': 8,
-        'mathematica-default': (0, 0, 1, 0),
         'matlab': 5,
         'minitab': 6,
-        'r-default': 7,
-        's': 7,
         'sas-1': 4,
         'sas-2': 3,
         'sas-3': 1,
@@ -873,11 +896,15 @@ def quartiles(data, scheme=1):
     5       Method recommended by Freund and Perles
     6       Langford's CDF method
 
-    * scheme=1 (the default) is equivalent to Tukey's hinges (H1, M, H2).
-    * scheme=2 is used by Texas Instruments calculators, model TI-85 and up.
-    * scheme=3 ensures that the values returned are always data points.
-    * scheme=4 or 5 use linear interpolation between items.
-    * For compatibility with Microsoft Excel or OpenOffice, use scheme=5.
+    Notes:
+
+        (1) Scheme 1 (the default) is equivalent to Tukey's hinges (H1, M, H2).
+        (2) Scheme 2 is used by Texas Instruments calculators starting with
+            model TI-85.
+        (3) Scheme 3 ensures that the values returned are always data points.
+        (4) Schemes 4 and 5 use linear interpolation between items.
+        (5) For compatibility with Microsoft Excel and OpenOffice, use
+            scheme 5.
 
     Case-insensitive named aliases are also supported: you can examine
     quartiles.aliases for a mapping of names to schemes.
@@ -930,16 +957,16 @@ def quantile(data, p, scheme=1):
     In general the quantile will not fall exactly on a data point. When that
     happens, the value returned is interpolated from the data points nearest
     the calculated position. There are a wide variety of interpolation methods
-    available, and quantile() allows you to choose between them using the
-    optional argument scheme.
+    used in the statistics literature, and quantile() allows you to choose
+    between them using the optional argument scheme.
 
     >>> quantile(data, 0.75, scheme=7)
     4.75
 
-    scheme can be either an integer scheme number (see table below), a
-    tuple of four numeric parameters, or a case-insensitive string alias.
-    for either of these. You can examine quantiles.aliases for a mapping of
-    names to schemes.
+    scheme can be either an integer scheme number (see table below), a tuple
+    of four numeric parameters, or a case-insensitive string alias for either
+    of these. You can examine quantiles.aliases for a mapping of names to
+    scheme numbers.
 
         WARNING: the use of arbitrary parameters is not recommended!
         Although quantile will calculate a result using them, the result
@@ -962,22 +989,30 @@ def quantile(data, p, scheme=1):
     9       3/8,1/4,0,1  approx. unbiased estimate for a normal distribution
     10      n/a          least expected square deviation relative to p
 
+    Notes:
+
+        (1) Scheme 1 (the default) ensures that the values returned are
+            always data points.
+        (2) Mathematica's default is equivalent to scheme=1.
+        (3) The default used by programming languages R and S is scheme=7.
+        (4) For compatibility with Microsoft Excel and OpenOffice, use
+            scheme 7.
+        (5) For compatibility with Matlab's PRCTILE function, use scheme=5.
+        (6) For compatibility with Minitab, use scheme=6.
 
     Which scheme should I use?
     ==========================
 
-    If you don't know, or don't care, about the different quantile
-    interpolation methods, just stick to the default and be consistant.
+    The plethora of quantiles can be over-whelming. If you don't know, or
+    don't care, about the exact calculation method used, you should just
+    stick to the default, and *be consistent*.
 
-    If your quantiles must be actual data values, use scheme=1.
+    Scheme 8 comes with the recommendation of Hyndman and Fan (1996), a point
+    important enough for R to mention.
 
-    Hyndman and Fan (1996) recommend scheme=8.
-
-    For compatibility with the default used by programming languages R and S,
-    use scheme=7. The default for Mathematica is scheme=1, and if you need
-    your results to be compatible with Matlab's PRCTILE function, pass
-    scheme=5.
-
+    Otherwise, if you have to match results calculated by some specified
+    algorithm or some other software, quantile() offers you the tools to do
+    so.
     """
     # More details here:
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
