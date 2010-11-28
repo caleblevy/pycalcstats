@@ -599,8 +599,8 @@ class SimpleMovingAverageTest(RunningAverageTest):
         self.assertEquals(results[-1], 7.0)
 
 
-# Test quantiles and quartiles
-# ----------------------------
+# Test order statistics
+# ---------------------
 
 class DrMathTests(unittest.TestCase):
     # Sample data for testing quartiles taken from Dr Math page:
@@ -767,7 +767,7 @@ class QuartileTest(unittest.TestCase):
 
     def testBadScheme(self):
         data = range(20)
-        for scheme in (None, '', 'spam', 1.5, -1.5, -2):
+        for scheme in ('', 'spam', 1.5, -1.5, -2):
             self.assertRaises(ValueError, self.func, data, scheme)
 
     def testCaseInsensitive(self):
@@ -1059,20 +1059,21 @@ class QuantilesCompareWithR(unittest.TestCase):
 
 class CompareQuantileMethods(unittest.TestCase):
     data1 = list(range(1000, 2000, 100))
-    #data2 = list(range(1000, 2001, 100))
+    data2 = list(range(2000, 3001, 100))
     assert len(data1)%2 == 0
-    #assert len(data2)%2 == 1
+    assert len(data2)%2 == 1
 
-    fractiles = [0.1, 0.2, 0.25, 0.31, 0.5, 0.55, 0.62, 0.75, 0.9, 0.99]
+    fractions = [0.0, 0.01, 0.1, 0.2, 0.25, 0.31, 0.42, 0.5, 0.55,
+                0.62, 0.75, 0.83, 0.9, 0.95, 0.99, 1.0]
 
     def compareMethods(self, scheme, params):
-        for p in self.fractiles:
+        for p in self.fractions:
             a = stats.quantile(self.data1, p, scheme=scheme)
             b = stats.quantile(self.data1, p, scheme=params)
-            self.assertEquals(a, b)
-            #a = stats.quantile(self.data2, p, scheme=scheme)
-            #b = stats.quantile(self.data2, p, scheme=params)
-            #self.assertEquals(a, b)
+            self.assertEquals(a, b, "%s != %s; p=%f" % (a, b, p))
+            a = stats.quantile(self.data2, p, scheme=scheme)
+            b = stats.quantile(self.data2, p, scheme=params)
+            self.assertEquals(a, b, "%s != %s; p=%f" % (a, b, p))
 
     def testR1(self):
         scheme = 1; params = (0, 0, 1, 0)
@@ -1108,11 +1109,17 @@ class CompareQuantileMethods(unittest.TestCase):
 
 
 class DecileTest(unittest.TestCase):
-    pass
+    def testSimple(self):
+        data = range(1, 11)
+        for i in range(1, 11):
+            self.assertEquals(stats.decile(data, i, scheme=1), i)
 
 
 class PercentileTest(unittest.TestCase):
-    pass
+    def testSimple(self):
+        data = range(1, 101)
+        for i in range(1, 101):
+            self.assertEquals(stats.percentile(data, i, scheme=1), i)
 
 
 class BoxWhiskerPlotTest(unittest.TestCase):
@@ -1242,7 +1249,7 @@ class RangeTest(unittest.TestCase):
 class IQRTest(unittest.TestCase):
 
     def testBadSelector(self):
-        for method in (-1, None, "spam"):
+        for method in (-1, 1.5, "spam"):
             self.assertRaises(ValueError, stats.iqr, [1, 2, 3, 4], method)
 
     def testBadData(self):
