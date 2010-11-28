@@ -599,8 +599,8 @@ class SimpleMovingAverageTest(RunningAverageTest):
         self.assertEquals(results[-1], 7.0)
 
 
-# Test quantiles
-# --------------
+# Test quantiles and quartiles
+# ----------------------------
 
 class DrMathTests(unittest.TestCase):
     # Sample data for testing quartiles taken from Dr Math page:
@@ -704,8 +704,8 @@ class QuartileAliasesTest(unittest.TestCase):
 
 class QuartileTest(unittest.TestCase):
     func = stats.quartiles
-    # Methods to be tested.
-    methods = [1, 2, 3, 4, 5, 6]
+    # Schemes to be tested.
+    schemes = [1, 2, 3, 4, 5, 6]
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -714,28 +714,28 @@ class QuartileTest(unittest.TestCase):
 
     # Helper methods:
 
-    def compare_sorted_with_unsorted(self, n, method):
+    def compare_sorted_with_unsorted(self, n, scheme):
         data = list(range(n))
-        result1 = self.func(data, method)
+        result1 = self.func(data, scheme)
         random.shuffle(data)
-        result2 = self.func(data, method)
+        result2 = self.func(data, scheme)
         self.assertEquals(result1, result2)
 
-    def compare_types(self, n, method):
+    def compare_types(self, n, scheme):
         data = range(n)
-        result1 = self.func(data, method)
+        result1 = self.func(data, scheme)
         data = list(data)
-        result2 = self.func(data, method)
-        result3 = self.func(tuple(data), method)
-        result4 = self.func(iter(data), method)
+        result2 = self.func(data, scheme)
+        result3 = self.func(tuple(data), scheme)
+        result4 = self.func(iter(data), scheme)
         self.assertEquals(result1, result2)
         self.assertEquals(result1, result3)
         self.assertEquals(result1, result4)
 
     def expect_failure(self, data):
         self.assertRaises(ValueError, self.func, data)
-        for method in self.methods:
-            self.assertRaises(ValueError, self.func, data, method)
+        for scheme in self.schemes:
+            self.assertRaises(ValueError, self.func, data, scheme)
 
     # Generic tests that don't care about the specific values:
 
@@ -745,8 +745,8 @@ class QuartileTest(unittest.TestCase):
         save = data[:]
         assert save is not data
         assert data != sorted(data)
-        for method in self.methods:
-            _ = self.func(data, method)
+        for scheme in self.schemes:
+            _ = self.func(data, scheme)
             self.assertEquals(data, save)
 
     def testTooFewItems(self):
@@ -756,26 +756,26 @@ class QuartileTest(unittest.TestCase):
     def testSorted(self):
         # Test that sorted and unsorted data give the same results.
         for n in (8, 9, 10, 11):  # n%4 -> 0...3
-            for method in self.methods:
-                self.compare_sorted_with_unsorted(n, method)
+            for scheme in self.schemes:
+                self.compare_sorted_with_unsorted(n, scheme)
 
     def testIter(self):
         # Test that iterators and sequences give the same result.
         for n in (8, 9, 10, 11):  # n%4 -> 0...3
-            for method in self.methods:
-                self.compare_types(n, method)
+            for scheme in self.schemes:
+                self.compare_types(n, scheme)
 
-    def testBadMethod(self):
+    def testBadScheme(self):
         data = range(20)
-        for method in (None, '', 'spam', -1.5):
-            self.assertRaises(ValueError, self.func, data, method)
+        for scheme in (None, '', 'spam', 1.5, -1.5, -2):
+            self.assertRaises(ValueError, self.func, data, scheme)
 
     def testCaseInsensitive(self):
         data = range(20)
-        for method in self.func.aliases:
-            a = self.func(data, method.lower())
-            b = self.func(data, method.upper())
-            c = self.func(data, method.title())
+        for scheme in self.func.aliases:
+            a = self.func(data, scheme.lower())
+            b = self.func(data, scheme.upper())
+            c = self.func(data, scheme.title())
             self.assertEquals(a, b)
             self.assertEquals(a, c)
 
@@ -784,98 +784,98 @@ class QuartileTest(unittest.TestCase):
     def testInclusive(self):
         # Test the inclusive method of calculating quartiles.
         f = self.func
-        m = 1
-        self.assertEquals(f([0, 1, 2], m), (0.5, 1, 1.5))
-        self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
-        self.assertEquals(f([0, 1, 2, 3, 4], m), (1, 2, 3))
-        self.assertEquals(f([0, 1, 2, 3, 4, 5], m), (1, 2.5, 4))
-        self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], m), (1.5, 3, 4.5))
-        self.assertEquals(f(range(1, 9), m), (2.5, 4.5, 6.5))
-        self.assertEquals(f(range(1, 10), m), (3, 5, 7))
-        self.assertEquals(f(range(1, 11), m), (3, 5.5, 8))
-        self.assertEquals(f(range(1, 12), m), (3.5, 6, 8.5))
-        self.assertEquals(f(range(1, 13), m), (3.5, 6.5, 9.5))
-        self.assertEquals(f(range(1, 14), m), (4, 7, 10))
-        self.assertEquals(f(range(1, 15), m), (4, 7.5, 11))
-        self.assertEquals(f(range(1, 16), m), (4.5, 8, 11.5))
+        scheme = 1
+        self.assertEquals(f([0, 1, 2], scheme), (0.5, 1, 1.5))
+        self.assertEquals(f([0, 1, 2, 3], scheme), (0.5, 1.5, 2.5))
+        self.assertEquals(f([0, 1, 2, 3, 4], scheme), (1, 2, 3))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5], scheme), (1, 2.5, 4))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], scheme), (1.5, 3, 4.5))
+        self.assertEquals(f(range(1, 9), scheme), (2.5, 4.5, 6.5))
+        self.assertEquals(f(range(1, 10), scheme), (3, 5, 7))
+        self.assertEquals(f(range(1, 11), scheme), (3, 5.5, 8))
+        self.assertEquals(f(range(1, 12), scheme), (3.5, 6, 8.5))
+        self.assertEquals(f(range(1, 13), scheme), (3.5, 6.5, 9.5))
+        self.assertEquals(f(range(1, 14), scheme), (4, 7, 10))
+        self.assertEquals(f(range(1, 15), scheme), (4, 7.5, 11))
+        self.assertEquals(f(range(1, 16), scheme), (4.5, 8, 11.5))
 
     def testExclusive(self):
         # Test the exclusive method of calculating quartiles.
         f = self.func
-        m = 2
-        self.assertEquals(f([0, 1, 2], m), (0, 1, 2))
-        self.assertEquals(f([0, 1, 2, 3], m), (0.5, 1.5, 2.5))
-        self.assertEquals(f([0, 1, 2, 3, 4], m), (0.5, 2, 3.5))
-        self.assertEquals(f([0, 1, 2, 3, 4, 5], m), (1, 2.5, 4))
-        self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], m), (1, 3, 5))
-        self.assertEquals(f(range(1, 9), m), (2.5, 4.5, 6.5))
-        self.assertEquals(f(range(1, 10), m), (2.5, 5, 7.5))
-        self.assertEquals(f(range(1, 11), m), (3, 5.5, 8))
-        self.assertEquals(f(range(1, 12), m), (3, 6, 9))
-        self.assertEquals(f(range(1, 13), m), (3.5, 6.5, 9.5))
-        self.assertEquals(f(range(1, 14), m), (3.5, 7, 10.5))
-        self.assertEquals(f(range(1, 15), m), (4, 7.5, 11))
-        self.assertEquals(f(range(1, 16), m), (4, 8, 12))
+        scheme = 2
+        self.assertEquals(f([0, 1, 2], scheme), (0, 1, 2))
+        self.assertEquals(f([0, 1, 2, 3], scheme), (0.5, 1.5, 2.5))
+        self.assertEquals(f([0, 1, 2, 3, 4], scheme), (0.5, 2, 3.5))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5], scheme), (1, 2.5, 4))
+        self.assertEquals(f([0, 1, 2, 3, 4, 5, 6], scheme), (1, 3, 5))
+        self.assertEquals(f(range(1, 9), scheme), (2.5, 4.5, 6.5))
+        self.assertEquals(f(range(1, 10), scheme), (2.5, 5, 7.5))
+        self.assertEquals(f(range(1, 11), scheme), (3, 5.5, 8))
+        self.assertEquals(f(range(1, 12), scheme), (3, 6, 9))
+        self.assertEquals(f(range(1, 13), scheme), (3.5, 6.5, 9.5))
+        self.assertEquals(f(range(1, 14), scheme), (3.5, 7, 10.5))
+        self.assertEquals(f(range(1, 15), scheme), (4, 7.5, 11))
+        self.assertEquals(f(range(1, 16), scheme), (4, 8, 12))
 
     def testMS(self):
         f = self.func
-        m = 3
-        self.assertEquals(f(range(3), m), (0, 1, 2))
-        self.assertEquals(f(range(4), m), (0, 1, 3))
-        self.assertEquals(f(range(5), m), (1, 2, 3))
-        self.assertEquals(f(range(6), m), (1, 3, 4))
-        self.assertEquals(f(range(7), m), (1, 3, 5))
-        self.assertEquals(f(range(8), m), (1, 3, 6))
-        self.assertEquals(f(range(9), m), (2, 4, 6))
-        self.assertEquals(f(range(10), m), (2, 5, 7))
-        self.assertEquals(f(range(11), m), (2, 5, 8))
-        self.assertEquals(f(range(12), m), (2, 5, 9))
+        scheme = 3
+        self.assertEquals(f(range(3), scheme), (0, 1, 2))
+        self.assertEquals(f(range(4), scheme), (0, 1, 3))
+        self.assertEquals(f(range(5), scheme), (1, 2, 3))
+        self.assertEquals(f(range(6), scheme), (1, 3, 4))
+        self.assertEquals(f(range(7), scheme), (1, 3, 5))
+        self.assertEquals(f(range(8), scheme), (1, 3, 6))
+        self.assertEquals(f(range(9), scheme), (2, 4, 6))
+        self.assertEquals(f(range(10), scheme), (2, 5, 7))
+        self.assertEquals(f(range(11), scheme), (2, 5, 8))
+        self.assertEquals(f(range(12), scheme), (2, 5, 9))
 
     def testMinitab(self):
         f = self.func
-        m = 4
-        self.assertEquals(f(range(3), m), (0, 1, 2))
-        self.assertEquals(f(range(4), m), (0.25, 1.5, 2.75))
-        self.assertEquals(f(range(5), m), (0.5, 2, 3.5))
-        self.assertEquals(f(range(6), m), (0.75, 2.5, 4.25))
-        self.assertEquals(f(range(7), m), (1, 3, 5))
-        self.assertEquals(f(range(8), m), (1.25, 3.5, 5.75))
-        self.assertEquals(f(range(9), m), (1.5, 4, 6.5))
-        self.assertEquals(f(range(10), m), (1.75, 4.5, 7.25))
-        self.assertEquals(f(range(11), m), (2, 5, 8))
-        self.assertEquals(f(range(12), m), (2.25, 5.5, 8.75))
+        scheme = 4
+        self.assertEquals(f(range(3), scheme), (0, 1, 2))
+        self.assertEquals(f(range(4), scheme), (0.25, 1.5, 2.75))
+        self.assertEquals(f(range(5), scheme), (0.5, 2, 3.5))
+        self.assertEquals(f(range(6), scheme), (0.75, 2.5, 4.25))
+        self.assertEquals(f(range(7), scheme), (1, 3, 5))
+        self.assertEquals(f(range(8), scheme), (1.25, 3.5, 5.75))
+        self.assertEquals(f(range(9), scheme), (1.5, 4, 6.5))
+        self.assertEquals(f(range(10), scheme), (1.75, 4.5, 7.25))
+        self.assertEquals(f(range(11), scheme), (2, 5, 8))
+        self.assertEquals(f(range(12), scheme), (2.25, 5.5, 8.75))
 
     def testExcel(self):
         f = self.func
-        m = 5
+        scheme = 5
         # Results generated with OpenOffice.
-        self.assertEquals((0.5, 1, 1.5), f(range(3), m))
-        self.assertEquals((0.75, 1.5, 2.25), f(range(4), m))
-        self.assertEquals((1, 2, 3), f(range(5), m))
-        self.assertEquals((1.25, 2.5, 3.75), f(range(6), m))
-        self.assertEquals((1.5, 3, 4.5), f(range(7), m))
-        self.assertEquals((1.75, 3.5, 5.25), f(range(8), m))
-        self.assertEquals((2, 4, 6), f(range(9), m))
-        self.assertEquals((2.25, 4.5, 6.75), f(range(10), m))
-        self.assertEquals((2.5, 5, 7.5), f(range(11), m))
-        self.assertEquals((2.75, 5.5, 8.25), f(range(12), m))
-        self.assertEquals((3, 6, 9), f(range(13), m))
-        self.assertEquals((3.25, 6.5, 9.75), f(range(14), m))
-        self.assertEquals((3.5, 7, 10.5), f(range(15), m))
+        self.assertEquals((0.5, 1, 1.5), f(range(3), scheme))
+        self.assertEquals((0.75, 1.5, 2.25), f(range(4), scheme))
+        self.assertEquals((1, 2, 3), f(range(5), scheme))
+        self.assertEquals((1.25, 2.5, 3.75), f(range(6), scheme))
+        self.assertEquals((1.5, 3, 4.5), f(range(7), scheme))
+        self.assertEquals((1.75, 3.5, 5.25), f(range(8), scheme))
+        self.assertEquals((2, 4, 6), f(range(9), scheme))
+        self.assertEquals((2.25, 4.5, 6.75), f(range(10), scheme))
+        self.assertEquals((2.5, 5, 7.5), f(range(11), scheme))
+        self.assertEquals((2.75, 5.5, 8.25), f(range(12), scheme))
+        self.assertEquals((3, 6, 9), f(range(13), scheme))
+        self.assertEquals((3.25, 6.5, 9.75), f(range(14), scheme))
+        self.assertEquals((3.5, 7, 10.5), f(range(15), scheme))
 
     def testLangford(self):
         f = self.func
-        m = 6
-        self.assertEquals(f(range(3), m), (0, 1, 2))
-        self.assertEquals(f(range(4), m), (0.5, 1.5, 2.5))
-        self.assertEquals(f(range(5), m), (1, 2, 3))
-        self.assertEquals(f(range(6), m), (1, 2.5, 4))
-        self.assertEquals(f(range(7), m), (1, 3, 5))
-        self.assertEquals(f(range(8), m), (1.5, 3.5, 5.5))
-        self.assertEquals(f(range(9), m), (2, 4, 6))
-        self.assertEquals(f(range(10), m), (2, 4.5, 7))
-        self.assertEquals(f(range(11), m), (2, 5, 8))
-        self.assertEquals(f(range(12), m), (2.5, 5.5, 8.5))
+        scheme = 6
+        self.assertEquals(f(range(3), scheme), (0, 1, 2))
+        self.assertEquals(f(range(4), scheme), (0.5, 1.5, 2.5))
+        self.assertEquals(f(range(5), scheme), (1, 2, 3))
+        self.assertEquals(f(range(6), scheme), (1, 2.5, 4))
+        self.assertEquals(f(range(7), scheme), (1, 3, 5))
+        self.assertEquals(f(range(8), scheme), (1.5, 3.5, 5.5))
+        self.assertEquals(f(range(9), scheme), (2, 4, 6))
+        self.assertEquals(f(range(10), scheme), (2, 4.5, 7))
+        self.assertEquals(f(range(11), scheme), (2, 5, 8))
+        self.assertEquals(f(range(12), scheme), (2.5, 5.5, 8.5))
 
     def testBig(self):
         data = list(range(1001, 2001))
@@ -946,7 +946,10 @@ class HingesTest(unittest.TestCase):
             self.assertEquals(f(data), g(data, 1))
 
 
-class QuantileTest(unittest.TestCase):
+class QuantileBehaviourTest(unittest.TestCase):
+    # Test behaviour of quantile function without caring about
+    # the actual values returned.
+
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.quantile
@@ -969,19 +972,139 @@ class QuantileTest(unittest.TestCase):
         self.assertRaises(ValueError, self.func, [], 0.1)
         self.assertRaises(ValueError, self.func, [1], 0.1)
 
-    def notestUnsorted(self):
+
+class QuantileValueTest(unittest.TestCase):
+    # Tests of quantile function where we do care about the actual
+    # values returned.
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.quantile
+
+    def testUnsorted(self):
         data = [3, 4, 2, 1, 0, 5]
         assert data != sorted(data)
-        self.assertEquals(self.func(data, 0.1), 0.5)
-        self.assertEquals(self.func(data, 0.9), 4.5)
+        self.assertEquals(self.func(data, 0.1, scheme=1), 0)
+        self.assertEquals(self.func(data, 0.9, scheme=1), 5)
+        self.assertEquals(self.func(data, 0.1, scheme=7), 0.5)
+        self.assertEquals(self.func(data, 0.9, scheme=7), 4.5)
 
-    def notestIter(self):
-        self.assertEquals(self.func(range(12), 0.3), 3.3)
+    def testIter(self):
+        self.assertEquals(self.func(range(12), 0.3, scheme=1), 3)
+        self.assertEquals(self.func(range(12), 0.3, scheme=7), 3.3)
 
-    def notestUnitInterval(self):
+    def testUnitInterval(self):
         data = [0, 1]
         for f in (0.01, 0.1, 0.2, 0.25, 0.5, 0.55, 0.8, 0.9, 0.99):
-            self.assertEquals(self.func(data, f), f)
+            self.assertAlmostEquals(self.func(data, f, scheme=7), f, places=9)
+
+    def testLQD(self):
+        expected = [1.0, 1.7, 3.9, 6.1, 8.3, 10.5, 12.7, 14.9, 17.1, 19.3, 20.0]
+        ps = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        data = range(1, 21)
+        for i, p in enumerate(ps):
+            result = stats.quantile(data, p, scheme=10)
+            self.assertAlmostEquals(expected[i], result, places=12)
+
+
+class QuantilesCompareWithR(unittest.TestCase):
+    # Compare results of calling quantile() against results from R.
+    places = 3
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.read_data('quantiles.dat')
+
+    def read_data(self, filename):
+        # Read data from external test data file generated using R.
+        expected = {}
+        with open(filename, 'r') as data:
+            for line in data:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if '=' in line:
+                    label, items = line.split("=")
+                    label = label.strip()
+                    if label == 'seq':
+                        start, end, step = [int(s) for s in items.split()]
+                        end += 1
+                        self.data = list(range(start, end, step))
+                    elif label == 'p':
+                        self.fractiles = [float(s) for s in items.split()]
+                else:
+                    scheme, results = line.split(":")
+                    scheme = int(scheme.strip())
+                    assert 1 <= scheme <= 9
+                    results = [float(x) for x in results.split()]
+                    expected[scheme] = results
+        self.expected = expected
+
+    def compare(self, scheme):
+        a = [round(stats.quantile(self.data, p, scheme=scheme), self.places)
+             for p in self.fractiles]
+        b = [round(x, self.places) for x in self.expected[scheme]]
+        self.assertEquals(a, b)
+
+    def testR1(self):  self.compare(1)
+    def testR2(self):  self.compare(2)
+    def testR3(self):  self.compare(3)
+    def testR4(self):  self.compare(4)
+    def testR5(self):  self.compare(5)
+    def testR6(self):  self.compare(6)
+    def testR7(self):  self.compare(7)
+    def testR8(self):  self.compare(8)
+    def testR9(self):  self.compare(9)
+
+
+class CompareQuantileMethods(unittest.TestCase):
+    data1 = list(range(1000, 2000, 100))
+    #data2 = list(range(1000, 2001, 100))
+    assert len(data1)%2 == 0
+    #assert len(data2)%2 == 1
+
+    fractiles = [0.1, 0.2, 0.25, 0.31, 0.5, 0.55, 0.62, 0.75, 0.9, 0.99]
+
+    def compareMethods(self, scheme, params):
+        for p in self.fractiles:
+            a = stats.quantile(self.data1, p, scheme=scheme)
+            b = stats.quantile(self.data1, p, scheme=params)
+            self.assertEquals(a, b)
+            #a = stats.quantile(self.data2, p, scheme=scheme)
+            #b = stats.quantile(self.data2, p, scheme=params)
+            #self.assertEquals(a, b)
+
+    def testR1(self):
+        scheme = 1; params = (0, 0, 1, 0)
+        self.compareMethods(scheme, params)
+
+    def testR3(self):
+        scheme = 3; params = (0.5, 0, 0, 0)
+        self.compareMethods(scheme, params)
+
+    def testR4(self):
+        scheme = 4; params = (0, 0, 0, 1)
+        self.compareMethods(scheme, params)
+
+    def testR5(self):
+        scheme = 5; params = (0.5, 0, 0, 1)
+        self.compareMethods(scheme, params)
+
+    def testR6(self):
+        scheme = 6; params = (0, 1, 0, 1)
+        self.compareMethods(scheme, params)
+
+    def testR7(self):
+        scheme = 7; params = (1, -1, 0, 1)
+        self.compareMethods(scheme, params)
+
+    def testR8(self):
+        scheme = 8; params = (1/3, 1/3, 0, 1)
+        self.compareMethods(scheme, params)
+
+    def testR9(self):
+        scheme = 9; params = (3/8, 0.25, 0, 1)
+        self.compareMethods(scheme, params)
 
 
 class DecileTest(unittest.TestCase):

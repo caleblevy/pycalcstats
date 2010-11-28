@@ -51,7 +51,7 @@ __all__ = [
     'median', 'mode', 'midrange', 'midhinge', 'trimean',
     # Moving averages:
     'running_average', 'weighted_running_average', 'simple_moving_average',
-    # Other point statistics:
+    # Order statistics:
     'quartiles', 'hinges', 'quantile', 'decile', 'percentile',
     'boxwhiskerplot',
     # Measures of spread:
@@ -228,7 +228,7 @@ def _get(alist, index):
 
 
 def _interpolate(data, x):
-    i, f = int(x), x%1
+    i, f = math.floor(x), x%1
     if f:
         a, b = data[i], data[i+1]
         return a + f*(b-a)
@@ -577,8 +577,8 @@ def simple_moving_average(data, window=3):
 class _Quartiles:
     """Private namespace for quartile calculation methods.
 
-    ALL methods and attributes in this namespace are private and subject
-    to change without notice.
+    ALL methods and attributes in this namespace class are private and
+    subject to change without notice.
     """
     def __new__(cls):
         raise RuntimeError('namespace, do not initialise')
@@ -706,18 +706,18 @@ class _Quartiles:
 
     # Lowercase aliases for the numeric method selectors for quartiles:
     QUARTILE_ALIASES = {
-        'inclusive': 1,
-        'tukey': 1,
-        'hinges': 1,
+        'cdf': 6,
+        'excel': 5,
         'exclusive': 2,
+        'f&p': 5,
+        'hinges': 1,
+        'inclusive': 1,
+        'langford': 6,
         'm&m': 2,
-        'ti-85': 2,
         'm&s': 3,
         'minitab': 4,
-        'f&p': 5,
-        'excel': 5,
-        'langford': 6,
-        'cdf': 6,
+        'ti-85': 2,
+        'tukey': 1,
         }
 # End of private _Quartiles namespace.
 
@@ -725,8 +725,8 @@ class _Quartiles:
 class _Quantiles:
     """Private namespace for quantile calculation methods.
 
-    ALL methods and attributes in this namespace are private and subject
-    to change without notice.
+    ALL methods and attributes in this namespace class are private and
+    subject to change without notice.
     """
     def __new__(cls):
         raise RuntimeError('namespace, do not instantiate')
@@ -739,14 +739,15 @@ class _Quantiles:
     # --------------------
     #
     # * The usual formulae for quartiles use 1-based indexes. The helper
-    #   function get() is used to convert between 1-based and 0-based.
+    #   function _get() is used to convert between 1-based and 0-based.
     # * Each of the functions r1...r9 assume that data is a sorted sequence,
     #   and that p is a fraction 0 <= p <= 1.
 
     def r1(data, p):
-        n = len(data)
-        h = n*p + 0.5
-        return _get(data, math.ceil(h))
+        h = len(data)*p + 0.5
+        i = max(1, math.ceil(h - 0.5))
+        assert 1 <= i <= len(data)
+        return data[i-1]
 
     def r2(data, p):
         """Langford's Method #4 for calculating general quantiles using the
@@ -754,40 +755,61 @@ class _Quantiles:
         SAS' method 5.
         """
         n = len(data)
-        h = n*p
-        return (_get(data, math.floor(h+0.5)) + _get(data, math.floor(h)))/2
+        h = n*p + 0.5
+        i = max(1, math.ceil(h - 0.5))
+        j = min(n, math.floor(h + 0.5))
+        assert 1 <= i <= j <= n
+        return (data[i-1] + data[j-1])/2
 
     def r3(data, p):
-        n = len(data)
-        h = n*p
-        return 4.75
+        h = len(data)*p
+        i = max(1, round(h))
+        assert 1 <= i <= len(data)
+        return data[i-1]
 
     def r4(data, p):
         n = len(data)
-        h = n*p
+        if p < 1/n: return data[0]
+        elif p == 1.0: return data[-1]
+        else: return _interpolate(data, n*p - 1)
 
     def r5(data, p):
         n = len(data)
-        h = n*p
+        if p < 1/(2*n): return data[0]
+        elif p >= (n-0.5)/n: return data[-1]
+        h = n*p + 0.5
+        return _interpolate(data, h-1)
 
     def r6(data, p):
         n = len(data)
-        h = n*p
+        if p < 1/(n+1): return data[0]
+        elif p >= n/(n+1): return data[-1]
+        h = (n+1)*p
+        return _interpolate(data, h-1)
 
     def r7(data, p):
         n = len(data)
-        h = n*p
+        if p == 1: return data[-1]
+        h = (n-1)*p + 1
+        return _interpolate(data, h-1)
 
     def r8(data, p):
         n = len(data)
-        h = n*p
+        h = (n + 1/3)*p + 1/3
+        h = max(1, min(h, n))
+        return _interpolate(data, h-1)
 
     def r9(data, p):
         n = len(data)
-        h = n*p
+        h = (n + 0.25)*p + 3/8
+        h = max(1, min(h, n))
+        return _interpolate(data, h-1)
 
-    def placeholder(data, p):
-        pass
+    def lqd(data, p):
+        n = len(data)
+        h = (n + 2)*p - 0.5
+        h = max(1, min(h, n))
+        return _interpolate(data, h-1)
 
     # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
     # calculation methods with the same number.
@@ -801,25 +823,27 @@ class _Quantiles:
         7: r7,
         8: r8,
         9: r9,
-        10: placeholder,
+        10: lqd,
         }
         # Note: if you add any additional methods to this, you must also
         # update the docstring for the quantiles function.
 
     # Lowercase aliases for quantile schemes:
     QUANTILE_ALIASES = {
+        'cdf': 2,
+        'excel': 7,
+        'h&f': 8,
+        'hyndman': 8,
+        'mathematica-default': (0, 0, 1, 0),
+        'matlab': 5,
+        'minitab': 6,
+        'r-default': 7,
+        's': 7,
         'sas-1': 4,
         'sas-2': 3,
         'sas-3': 1,
         'sas-4': 6,
         'sas-5': 2,
-        'excel': 7,
-        'cdf': 2,
-        'r': 7,
-        's': 7,
-        'matlab': 5,
-        'h&f': 8,
-        'hyndman': 8,
         }
 # End of private _Quantiles namespace.
 
@@ -909,7 +933,7 @@ def quantile(data, p, scheme=1):
     available, and quantile() allows you to choose between them using the
     optional argument scheme.
 
-    >>> quantile(data, 0.75, scheme=3)
+    >>> quantile(data, 0.75, scheme=7)
     4.75
 
     scheme can be either an integer scheme number (see table below), a
@@ -1000,10 +1024,12 @@ def _parametrized_quantile(parameters, data, p):
     # http://mathworld.wolfram.com/Quantile.html
     a, b, c, d = parameters
     n = len(data)
-    h =  a + (n+b)*p
+    h = a + (n+b)*p
     f = h % 1
-    x = _get(data, math.floor(h))
-    y = _get(data, math.ceil(h))
+    i = max(1, min(math.floor(h), n))
+    j = max(1, min(math.ceil(h), n))
+    x = data[i-1]
+    y = data[j-1]
     return x + (y - x)*(c + d*f)
 
 
