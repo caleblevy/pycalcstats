@@ -1660,13 +1660,13 @@ def qcorr(xdata, ydata=None):
     1.0
 
     -1 in the case of a perfect anti-correlation (i.e. a decreasing linear
-    relationship):
+    relationship), and some value between -1 and +1 in nearly all other cases,
+    indicating the degree of linear dependence between the variables:
 
-    >>> qcorr([(1, 10), (2, 8), (3, 6), (4, 4), (5, 2)])
-    -1.0
+    >>> qcorr([(1, 1), (2, 3), (2, 1), (3, 5), (4, 2), (5, 3), (6, 4)])
+    0.5
 
-    and some value between -1 and 1 in all other cases, indicating the degree
-    of linear dependence between the variables.
+    In the case where all points are on the median lines, returns a float NAN.
     """
     if ydata is None:
         xydata = list(xdata)
@@ -1674,6 +1674,8 @@ def qcorr(xdata, ydata=None):
         xydata = list(zip(xdata, ydata))
     del xdata, ydata
     n = len(xydata)
+    if n == 0:
+        raise StatsError('Q correlation requires non-empty data')
     xmed = median(x for x,y in xydata)
     ymed = median(y for x,y in xydata)
     # Traditionally, we count the values in each quadrant, but in fact we
@@ -1689,9 +1691,10 @@ def qcorr(xdata, ydata=None):
             if y > ymed:  quad24 += 1
             elif y < ymed:  quad13 += 1
             else:  skipped += 1
-        else:
-            skipped += 1
+        else:  skipped += 1
     assert quad13 + quad24 + skipped == n
+    if skipped == n:
+        return float('nan')
     q = (quad13 - quad24)/(n - skipped)
     assert -1.0 <= q <= 1.0
     return q

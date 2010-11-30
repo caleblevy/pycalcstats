@@ -10,6 +10,18 @@ Version 0.1.2a  2010-11-30 ?????????????????????
       Mathematica's parameterized quantiles.
     * The private module containing quantile code has been merged with
       the main module. Apart from tests, all code is now in one file.
+    * qcorr now returns NAN if all the data points lie on the medians,
+      and raises an exception if there are no data points.
+
+    Known issues:
+    * This is still alpha software. The API is not yet locked down.
+    * Test coverage is still incomplete.
+    * Multivariate functions including cov, corr and linr are still painfully
+      naive and need work.
+    * Requires better documentation, including executable examples.
+    * Quantile scheme #3 doesn't match the parameterized version.
+    * Windows binary installer appears to be broken.
+    * Doubling the data should leave variance unchanged, but doesn't.
 
 
 Version 0.1.1a  2010-11-14
