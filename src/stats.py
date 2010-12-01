@@ -88,10 +88,10 @@ __all__ = [
     # Multivariate statistics:
     'qcorr', 'corr', 'corr1', 'pcov', 'cov', 'errsumsq', 'linr',
     # Sums and products:
-    'sum', 'sumsq', 'product', 'Sxx', 'Syy', 'Sxy',
+    'sum', 'sumsq', 'product', 'cumulative_sum', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
-    'StatsError', 'sterrmean', 'minmax',
-    'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
+    'StatsError', 'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
+    'sterrmean', 'minmax',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -451,6 +451,7 @@ def median(data, sign=0):
             # Take the higher middle element.
             return data[m]
         else:
+            # Possibly a NAN? Something stupid, in any case.
             raise TypeError('sign is not ordered with respect to zero')
 
 
@@ -1858,6 +1859,24 @@ def sumsq(data):
 
     """
     return sum(x*x for x in data)
+
+
+def cumulative_sum(data):
+    """Iterate over data, yielding the cumulative sums.
+
+    >>> list(cumulative_sum([40, 30, 50, 46, 39, 44]))
+    [40.0, 70.0, 120.0, 166.0, 205.0, 249.0]
+
+    Given data [a, b, c, d, ...] the cumulative sum yields the values:
+        a, a+b, a+b+c, a+b+c+d, ...
+
+    """
+    it = iter(data)
+    ap = add_partial
+    cs = []
+    for x in it:
+        ap(x, cs)
+        yield math.fsum(cs)
 
 
 @multivariate
