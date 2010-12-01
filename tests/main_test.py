@@ -1199,6 +1199,21 @@ class BoxWhiskerPlotTest(unittest.TestCase):
 # Test spread statistics
 # ----------------------
 
+class TinyVariance(unittest.TestCase):
+    # Minimal tests for variance and friends.
+   def testVariance(self):
+       data = [1, 2, 3]
+       assert stats.mean(data) == 2
+       self.assertEquals(stats.pvariance(data), 2/3)
+       self.assertEquals(stats.variance(data), 1.0)
+       self.assertEquals(stats.pvariance1(data), 2/3)
+       self.assertEquals(stats.variance1(data), 1.0)
+       self.assertEquals(stats.pstdev(data), math.sqrt(2/3))
+       self.assertEquals(stats.stdev(data), 1.0)
+       self.assertEquals(stats.pstdev1(data), math.sqrt(2/3))
+       self.assertEquals(stats.stdev1(data), 1.0)
+
+
 class PVarianceTest(unittest.TestCase):
     # General test data:
     func = stats.pvariance
@@ -1209,6 +1224,8 @@ class PVarianceTest(unittest.TestCase):
     uniform_expected = (10000**2 - 1)/12
     # Expected result calculated by HP-48GX:
     hp_expected = 88349.2408884
+    # Scaling factor when you duplicate each data point:
+    scale = 1.0
 
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
@@ -1241,12 +1258,19 @@ class PVarianceTest(unittest.TestCase):
         random.shuffle(data)
         self.assertAlmostEquals(self.func(data), self.hp_expected, places=7)
 
+    def testDuplicate(self):
+        data = [random.uniform(-100, 500) for _ in range(20)]
+        a = self.func(data)
+        b = self.func(data*2)
+        self.assertAlmostEquals(a*self.scale, b, places=9)
+
 
 class VarianceTest(PVarianceTest):
     func = stats.variance
     expected = 30.0  # Exact sample variance.
     uniform_expected = PVarianceTest.uniform_expected * 10000/(10000-1)
     hp_expected = 88752.6620797
+    scale = (2*20-2)/(2*20-1)
 
     def testSingletonFailure(self):
         for data in ([1], iter([1])):
@@ -1264,13 +1288,6 @@ class VarianceTest(PVarianceTest):
         # rounding it, or is that the exact value?
         # My HP-48GX calculator returns 57563.5502144.
 
-    @unittest.skip('is this a valid test for variance?')
-    def testDoubling(self):
-        data = [random.random() for _ in range(10)]
-        a = self.func(data)
-        b = self.func(data*2)  # variance shouldn't change.
-        self.assertEquals(a, b)
-
 
 class PStdevTest(PVarianceTest):
     func = stats.pstdev
@@ -1284,6 +1301,7 @@ class StdevTest(VarianceTest):
     expected = math.sqrt(30.0)  # Exact sample stdev.
     uniform_expected = math.sqrt(VarianceTest.uniform_expected)
     hp_expected = 297.913850097
+    scale = math.sqrt(VarianceTest.scale)
 
     def testCompareR(self):
         data = list(range(1, 11)) + list(range(1000, 1201))
@@ -1305,6 +1323,35 @@ class PStdev1Test(PStdevTest):
 
 class Stdev1Test(StdevTest):
     func = stats.stdev1
+
+
+class VarianceMeanTest(unittest.TestCase):
+
+    def compare_with_and_without_mean(self, func):
+        mu = 100*random.random()
+        sigma = 10*random.random()+1
+        for data in (
+            [-6, -2, 0, 3, 4, 5, 5, 5, 6, 7, 9, 11, 15, 25, 26, 27, 28, 42],
+            [random.random() for _ in range(10)],
+            [random.uniform(10000, 11000) for _ in range(50)],
+            [random.uniform(mu, sigma) for _ in range(50)],
+            ):
+            m = stats.mean(data)
+            a = func(data)
+            b = func(data, m)
+            self.assertEquals(a, b)
+
+    def test_pvar(self):
+        self.compare_with_and_without_mean(stats.pvariance)
+
+    def test_var(self):
+        self.compare_with_and_without_mean(stats.variance)
+
+    def test_pstdev(self):
+        self.compare_with_and_without_mean(stats.pstdev)
+
+    def test_stdev(self):
+        self.compare_with_and_without_mean(stats.stdev)
 
 
 class RangeTest(unittest.TestCase):
@@ -1867,6 +1914,34 @@ class SumSqTest(SumTest):
         data = range(1, 101)
         expected = 100*101*201/6
         self.assertEquals(self.func(data), expected)
+
+
+class CumulativeSumTest(unittest.TestCase):
+    def testGenerator(self):
+        # Test that function is a generator.
+        self.assert_(inspect.isgeneratorfunction(stats.cumulative_sum))
+
+    def testFinal(self):
+        # Test the final result has the expected value.
+        data = [3.2*i - 12.3 for i in range(0, 35, 3)]
+        random.shuffle(data)
+        expected = stats.sum(data)
+        results = list(stats.cumulative_sum(data))
+        self.assertEquals(results[-1], expected)
+
+    def testTorture(self):
+        # Based on Tim Peters' torture test for sum.
+        it = stats.cumulative_sum([1, 1e100, 1, -1e100]*10000)
+        # Expect 1, 1e100, 1e100, 2, 3, 1e100, 1e100, 4, ... 20000
+        shortsum = 0
+        for i, x in enumerate(it):
+            r = i%4
+            if r in (0, 2):
+                shortsum += 1
+            if r in (1, 2):
+                self.assertEquals(x, 1e100)
+            else:
+                self.assertEquals(x, shortsum)
 
 
 class SxxTest(unittest.TestCase):
