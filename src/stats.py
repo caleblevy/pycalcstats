@@ -1824,7 +1824,7 @@ def linr(xdata, ydata=None):
 # === Sums and products ===
 
 
-def sum(data):
+def sum(data, start=0):
     """Return a full-precision sum of a sequence of numbers.
 
     >>> sum([2.25, 4.5, -0.5, 1.0])
@@ -1837,31 +1837,41 @@ def sum(data):
     >>> sum([1, 1e100, 1, -1e100] * 10000)
     20000.0
 
+    If optional argument start is given, it is added to the sequence. If the
+    sequence is empty, start (defaults to 0) is returned.
     """
-    return math.fsum(data)
+    return math.fsum(data) + start
 
 
-def product(data):
+def product(data, start=1):
     """Return the product of a sequence of numbers.
 
     >>> product([1, 2, -3, 2, -1])
     12
 
+    If optional argument start is given, it is multiplied to the sequence.
+    If the sequence is empty, start (defaults to 1) is returned.
     """
-    return functools.reduce(operator.mul, data)
+    # FIXME this doesn't seem to be numerically stable enough.
+    return functools.reduce(operator.mul, data, start)
+        # Note: do *not* be tempted to do something clever with logarithms:
+        # return math.exp(sum([math.log(x) for x in data], start))
+        # This is FAR less accurate than the naive multiplication above.
 
 
-def sumsq(data):
+def sumsq(data, start=0):
     """Return the sum of the squares of a sequence of numbers.
 
     >>> sumsq([2.25, 4.5, -0.5, 1.0])
     26.5625
 
+    If optional argument start is given, it is added to the sequence. If the
+    sequence is empty, start (defaults to 0) is returned.
     """
-    return sum(x*x for x in data)
+    return sum((x*x for x in data), start)
 
 
-def cumulative_sum(data):
+def cumulative_sum(data, start=None):
     """Iterate over data, yielding the cumulative sums.
 
     >>> list(cumulative_sum([40, 30, 50, 46, 39, 44]))
@@ -1870,13 +1880,29 @@ def cumulative_sum(data):
     Given data [a, b, c, d, ...] the cumulative sum yields the values:
         a, a+b, a+b+c, a+b+c+d, ...
 
+    If optional argument start is given, it must be a number, and it will
+    be added to each of the running sums:
+        start+a, start+a+b, start+a+b+c, start+a+b+c+d, ...
+
     """
     it = iter(data)
     ap = add_partial
-    cs = []
-    for x in it:
+    if start is not None:
+        cs = [start]
+    else:
+        cs = []
+    try:
+        x = next(it)
+    except StopIteration:
+        # Empty data.
+        if start is not None:
+            yield start
+    else:
         ap(x, cs)
         yield math.fsum(cs)
+        for x in it:
+            ap(x, cs)
+            yield math.fsum(cs)
 
 
 @multivariate
