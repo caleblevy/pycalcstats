@@ -1817,6 +1817,7 @@ class SumTest(unittest.TestCase):
 
     def testEmpty(self):
         self.assertEquals(self.func([]), 0)
+        self.assertEquals(self.func([], 123.456), 123.456)
 
     def testSorted(self):
         # Sum shouldn't depend on the order of items.
@@ -1856,6 +1857,13 @@ class SumTest(unittest.TestCase):
         self.assertEquals(self.func(data1)**2, expected)
         self.assertEquals(self.func(data2), expected)
 
+    def testStart(self):
+        data = [random.uniform(1, 1000) for _ in range(100)]
+        t = self.func(data)
+        self.assertEquals(t+42, self.func(data, 42))
+        self.assertEquals(t-23, self.func(data, -23))
+        self.assertEquals(t+1e20, self.func(data, 1e20))
+
 
 class SumTortureTest(unittest.TestCase):
     def testTorture(self):
@@ -1869,9 +1877,10 @@ class SumTortureTest(unittest.TestCase):
 
 class ProductTest(unittest.TestCase):
 
-    @unittest.skip('not currently how to handle this')
     def testEmpty(self):
+        # Test that the empty product is 1.
         self.assertEquals(stats.product([]), 1)
+        self.assertEquals(stats.product([], 123.456), 123.456)
 
     def testSorted(self):
         # Product shouldn't depend on the order of items.
@@ -1881,13 +1890,19 @@ class ProductTest(unittest.TestCase):
         b = stats.product(data)
         self.assertEquals(a, b)
 
-        def testZero(self):
-            # Product of anything containing zero is always zero.
-            for data in (range(23), range(-35, 36)):
-                self.assertEquals(stats.product(data), 0)
+    def testZero(self):
+        # Product of anything containing zero is always zero.
+        for data in (range(23), range(-35, 36)):
+            self.assertEquals(stats.product(data), 0)
 
     def testProduct(self):
         self.assertEquals(stats.product(range(1, 24)), math.factorial(23))
+
+    def testExact(self):
+        data = [i/(i+1) for i in range(1, 1024)]
+        random.shuffle(data)
+        self.assertAlmostEquals(stats.product(data), 1/1024, places=12)
+        self.assertAlmostEquals(stats.product(data, 2.5), 5/2048, places=12)
 
     def testTypes(self):
         for data in (range(1, 42), range(-35, 36, 2)):
@@ -1898,6 +1913,16 @@ class ProductTest(unittest.TestCase):
             self.assertEquals(a, b)
             self.assertEquals(a, c)
             self.assertEquals(a, d)
+
+    def testStart(self):
+        data = [random.uniform(1, 50) for _ in range(10)]
+        t = stats.product(data)
+        # assertAlmostEquals not up to the job here.
+        for start in (42, 0.2, -23, 1e20):
+            a = t*start
+            b = stats.product(data, start)
+            err = abs(a - b)/b
+            self.assert_(err <= 1e-12)
 
 
 class SumSqTest(SumTest):
@@ -1942,6 +1967,39 @@ class CumulativeSumTest(unittest.TestCase):
                 self.assertEquals(x, 1e100)
             else:
                 self.assertEquals(x, shortsum)
+
+    def testStart(self):
+        data = list(range(1, 35))
+        expected = 34*35/2  # Exact value.
+        random.shuffle(data)
+        results = list(stats.cumulative_sum(data))
+        self.assertEquals(results[-1], expected)
+        for start in (-2.5, 0.0, 1.0, 42, 56.789):
+            results = list(stats.cumulative_sum(data, start))
+            self.assertEquals(results[-1], expected+start)
+
+    def testIteration(self):
+        it = stats.cumulative_sum([])
+        self.assertRaises(StopIteration, next, it)  #1
+        it = stats.cumulative_sum([42])
+        self.assertEquals(next(it), 42)
+        self.assertRaises(StopIteration, next, it)  #2
+        it = stats.cumulative_sum([42, 23])
+        self.assertEquals(next(it), 42)
+        self.assertEquals(next(it), 65)
+        self.assertRaises(StopIteration, next, it)  #3
+
+    def testIterationStart(self):
+        it = stats.cumulative_sum([], 3)
+        self.assertEquals(next(it), 3)
+        self.assertRaises(StopIteration, next, it)  #1
+        it = stats.cumulative_sum([42], 3)
+        self.assertEquals(next(it), 45)
+        self.assertRaises(StopIteration, next, it)  #2
+        it = stats.cumulative_sum([42, 23], 3)
+        self.assertEquals(next(it), 45)
+        self.assertEquals(next(it), 68)
+        self.assertRaises(StopIteration, next, it)  #3
 
 
 class SxxTest(unittest.TestCase):
