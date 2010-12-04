@@ -1924,6 +1924,32 @@ class CorrTest(unittest.TestCase):
         ydata = [2, 6, 2, 4, 6]
         self.assertEquals(self.func(xdata, ydata), 28/32)
 
+    def testHP(self):
+        # Compare to results calculated on HP-48GX using this function:
+        # << CL-SIGMA -5 15 FOR X X 2 X - X SQ + ->V2 SIGMA+ .1 STEP >>
+        xdata = [i/10 for i in range(-50, 151)]
+        ydata = [x**2 - x + 2 for x in xdata]
+        assert len(xdata) == len(ydata) == 201
+        self.assertAlmostEquals(sum(xdata), 1005, places=12)
+        self.assertAlmostEquals(sum(ydata), 11189, places=11)
+        expected = 0.866300845681
+        self.assertAlmostEquals(self.func(xdata, ydata), expected, places=12)
+        # For future use: COV = 304.515, PCOV = 303 LINFIT = 10.666...67 + 9x
+
+    def testDuplicate(self):
+        # corr shouldn't change if you duplicate each point.
+        # Try first with a high correlation.
+        xdata = [random.uniform(-5, 15) for _ in range(15)]
+        ydata = [x - 0.5 + random.random() for x in xdata]
+        a = self.func(xdata, ydata)
+        b = self.func(xdata*2, ydata*2)
+        self.assertAlmostEquals(a, b, places=12)
+        # And again with a (probably) low correlation.
+        ydata = [random.uniform(-5, 15) for _ in range(15)]
+        a = self.func(xdata, ydata)
+        b = self.func(xdata*2, ydata*2)
+        self.assertAlmostEquals(a, b, places=12)
+
     def testSame(self):
         data = [random.random() for x in range(5)]
         result = self.func(data, data)
@@ -1938,26 +1964,23 @@ class CorrTest(unittest.TestCase):
     def stress_test(self, xdata, ydata):
         # Stress the corr() function looking for failures of the
         # post-condition -1 <= r <= 1.
-        xfuncs = (lambda x: x, lambda x: 12345*x + 9876)
-        yfuncs = (lambda y: y, lambda y: 67890*y + 6428)
+        xfuncs = (lambda x: x, lambda x: 12345*x + 9876,
+                  lambda x: 1e9*x, lambda x: 1e-9*x)
+        yfuncs = (lambda y: y, lambda y: 67890*y + 6428,
+                  lambda y: 1e9*y, lambda y: 1e-9*y)
         for fx, fy in [(fx,fy) for fx in xfuncs for fy in yfuncs]:
             xs = [fx(x) for x in xdata]
             ys = [fy(y) for y in ydata]
             result = self.func(xs, ys)
-            if not -1.0 <= result <= 1.0:
-                self.log_failure()  # FIXME
-                self.fail()
+            self.assertTrue(-1.0 <= result <= 1.0)
 
     def testStress(self):
         # Stress test for corr() function. Try to find a set of data which
         # results in an out of range result for r.
-        for i in range(5, 51):
+        for i in range(5, 51, 3):
             xdata = [random.random() for j in range(i)]
             ydata = [random.random() for j in range(i)]
             self.stress_test(xdata, ydata)
-
-    def log_failure(self):
-        raise NotImplementedError
 
 
 #class Corr1Test(CorrTest):
