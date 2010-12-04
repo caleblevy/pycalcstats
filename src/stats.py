@@ -129,15 +129,6 @@ def sorted_data(func):
     return inner
 
 
-def multivariate(func):
-    """Decorator to handle multivariate statistics."""
-    @functools.wraps(func)
-    def inner(xdata, ydata=None):
-        xydata = combine_xydata(xdata, ydata)
-        return func(xydata)
-    return inner
-
-
 def minmax(*values, **kw):
     """minmax(iterable [, key=func]) -> (minimum, maximum)
     minmax(a, b, c, ... [key=func]) -> (minimum, maximum)
@@ -217,34 +208,106 @@ def as_sequence(iterable):
     else: return list(iterable)
 
 
-def combine_xydata(xdata, ydata=None):
-    """Helper function which combines xdata, ydata to xydata."""
-    if ydata is not None:
-        # Two argument version is easy.
-        return zip(xdata, ydata)
-    # The single argument case could be either [x0, x1, x2, ...] or
-    # [(x0, y0), (x1, y1), (x2, y2), ...]. We decide which it is by looking
-    # at the first item, and treating it as canonical.
-    it = iter(xdata)
-    try:
-        first = next(it)
-    except StopIteration:
-        # If the iterable is empty, return the original.
-        return xdata
-    # If we get here, we know we have a single iterable argument with at
-    # least one item. Does it look like a sequence of (x,y) values, or like
-    # a sequence of x values?
-    try:
-        len(first)
-    except TypeError:
-        # Looks like we're dealing with the case [x0, x1, x2, ...]
-        first = (first, None)
-        tail = ((x, None) for x in it)
-        return itertools.chain([first], tail)
-    # Looks like [(x0, y0), (x1, y1), (x2, y2), ...]
-    # Notice that we DON'T care how many items are in the data points here,
-    # we postpone dealing with any mismatches to later.
-    return itertools.chain([first], it)
+class _Multivariate:
+# Helpers for dealing with multivariate functions.
+
+    def __new__(cls):
+        raise RuntimeError('namespace, do not instantiate')
+
+    def split(xdata, ydata=None):
+        """Helper function which splits xydata into (xdata, ydata)."""
+        # The two-argument case is easy -- just pass them unchanged.
+        if ydata is not None:
+            xdata = as_sequence(xdata)
+            ydata = as_sequence(ydata)
+            if len(xdata) < len(ydata):
+                ydata = ydata[:len(xdata)]
+            elif len(xdata) > len(ydata):
+                xdata = xdata[:len(ydata)]
+            assert len(xdata) == len(ydata)
+            return (xdata, ydata)
+        # The single argument case could be either [x0, x1, x2, ...] or
+        # [(x0, y0), (x1, y1), (x2, y2), ...]. We decide which it is by
+        # looking at the first item, and treating it as canonical.
+        it = iter(xdata)
+        try:
+            first = next(it)
+        except StopIteration:
+            # If the iterable is empty, return two empty lists.
+            return ([], [])
+        # If we get here, we know we have a single iterable argument with at
+        # least one item. Does it look like a sequence of (x,y) values, or
+        # like a sequence of x values?
+        try:
+            n = len(first)
+        except TypeError:
+            # Looks like we're dealing with the case [x0, x1, x2, ...]
+            # This isn't exactly *multivariate*, but we support it anyway.
+            # We leave it up to the caller to decide what to do with the
+            # fake y values.
+            xdata = [first]
+            xdata.extend(it)
+            return (xdata, [None]*len(xdata))
+        # Looks like [(x0, y0), (x1, y1), (x2, y2), ...]
+        # Here we expect that each point has two items, and fail if not.
+        if n != 2:
+            raise TypeError('expecting 2-tuple (x, y) but got %d-tuple' % n)
+        xlist = [first[0]]
+        ylist = [first[1]]
+        for x,y in it:
+            xlist.append(x)
+            ylist.append(y)
+        assert len(xlist) == len(ylist)
+        return (xlist, ylist)
+
+    def merge(xdata, ydata=None):
+        """Helper function which merges xdata, ydata into xydata."""
+        if ydata is not None:
+            # Two argument version is easy.
+            return zip(xdata, ydata)
+        # The single argument case could be either [x0, x1, x2, ...] or
+        # [(x0, y0), (x1, y1), (x2, y2), ...]. We decide which it is by looking
+        # at the first item, and treating it as canonical.
+        it = iter(xdata)
+        try:
+            first = next(it)
+        except StopIteration:
+            # If the iterable is empty, return the original.
+            return xdata
+        # If we get here, we know we have a single iterable argument with at
+        # least one item. Does it look like a sequence of (x,y) values, or
+        # like a sequence of x values?
+        try:
+            len(first)
+        except TypeError:
+            # Looks like we're dealing with the case [x0, x1, x2, ...]
+            first = (first, None)
+            tail = ((x, None) for x in it)
+            return itertools.chain([first], tail)
+        # Looks like [(x0, y0), (x1, y1), (x2, y2), ...]
+        # Notice that we DON'T care how many items are in the data points
+        # here, we postpone dealing with any mismatches to later.
+        return itertools.chain([first], it)
+
+    def split_xydata(func):
+        """Decorator to split a single (x,y) data iterable into separate x
+        and y iterables.
+        """
+        @functools.wraps(func)
+        def inner(xdata, ydata=None):
+            xdata, ydata = _Multivariate.split(xdata, ydata)
+            return func(xdata, ydata)
+        return inner
+
+    def merge_xydata(func):
+        """Decorator to merge separate x, y data iterables into a single
+        (x,y) iterator.
+        """
+        @functools.wraps(func)
+        def inner(xdata, ydata=None):
+            xydata = _Multivariate.merge(xdata, ydata)
+            return func(xydata)
+        return inner
 
 
 def _validate_int(n):
@@ -256,6 +319,7 @@ def _validate_int(n):
 
 def _get(alist, index):
     """1-based indexing for lists."""
+    raise RuntimeError
     assert 1 <= index <= len(alist)
     return alist[index-1]
 
@@ -1634,15 +1698,13 @@ def _terriberry(data):
     # kurtosis = (n*M4) / (M2*M2) - 3
 
 
-
-
 # === Simple multivariate statistics ===
 
-
-def qcorr(xdata, ydata=None):
+@_Multivariate.split_xydata
+def qcorr(xdata, ydata):
     """Return the Q correlation coefficient of (x, y) data.
 
-    if ydata is None or not given, then xdata must be an iterable of (x, y)
+    If ydata is None or not given, then xdata must be an iterable of (x, y)
     pairs. Otherwise, both xdata and ydata must be iterables of values, which
     will be truncated to the shorter of the two.
 
@@ -1669,21 +1731,17 @@ def qcorr(xdata, ydata=None):
 
     In the case where all points are on the median lines, returns a float NAN.
     """
-    if ydata is None:
-        xydata = list(xdata)
-    else:
-        xydata = list(zip(xdata, ydata))
-    del xdata, ydata
-    n = len(xydata)
+    n = len(xdata)
+    assert n == len(ydata)
     if n == 0:
         raise StatsError('Q correlation requires non-empty data')
-    xmed = median(x for x,y in xydata)
-    ymed = median(y for x,y in xydata)
+    xmed = median(xdata)
+    ymed = median(ydata)
     # Traditionally, we count the values in each quadrant, but in fact we
     # really only need to count the diagonals: quadrants 1 and 3 together,
     # and quadrants 2 and 4 together.
     quad13 = quad24 = skipped = 0
-    for x,y in xydata:
+    for x,y in zip(xdata, ydata):
         if x > xmed:
             if y > ymed:  quad13 += 1
             elif y < ymed:  quad24 += 1
@@ -1701,8 +1759,16 @@ def qcorr(xdata, ydata=None):
     return q
 
 
-def corr(xdata, ydata=None):
-    """Return the sample Pearson's Correlation Coefficient of (x,y) data.
+@_Multivariate.split_xydata
+def corr(xdata, ydata):
+    """corr(xydata) -> float
+    corr(xdata, ydata) -> float
+
+    Return the sample Pearson's Correlation Coefficient of (x,y) data.
+
+    If ydata is None or not given, then xdata must be an iterable of (x, y)
+    pairs. Otherwise, both xdata and ydata must be iterables of values, which
+    will be truncated to the shorter of the two.
 
     >>> corr([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1),
     ...       (1.7, 2.9)])  #doctest: +ELLIPSIS
@@ -1714,36 +1780,62 @@ def corr(xdata, ydata=None):
     some value between -1 and 1 in all other cases, indicating the degree
     of linear dependence between the variables.
 
-    >>> xdata = [0.0, 0.1, 0.25, 1.2, 1.75]
-    >>> ydata = [2.5*x + 0.3 for x in xdata]  # Perfect correlation.
+    >>> xdata = [1, 2, 3, 4, 5, 6]
+    >>> ydata = [2*x for x in xdata]  # Perfect correlation.
     >>> corr(xdata, ydata)
     1.0
-    >>> corr(xdata, [10-y for y in ydata])  # Perfect anti-correlation.
+    >>> corr(xdata, [5-y for y in ydata])  # Perfect anti-correlation.
     -1.0
 
+    If there are not at least two data points, or if either all the x values
+    or all the y values are equal, StatsError is raised.
     """
-    t = xysums(xdata, ydata)
-    r = t.Sxy/math.sqrt(t.Sxx*t.Syy)
-    # FIXME sometimes r is just slightly out of range. (Rounding error?)
-    # In the absence of any better idea of how to fix it, hit it on the head.
-    if r > 1.0:
-        assert (r - 1.0) <= 1e-15, 'r out of range (> 1.0)'
-        r = 1.0
-    elif r < -1.0:
-        assert (r + 1.0) >= -1e-15, 'r out of range (< -1.0)'
-        r = -1.0
+    n = len(xdata)
+    assert n == len(ydata)
+    if n < 2:
+        raise StatsError(
+            'correlation requires at least two data points, got %d' % n)
+    # First pass is to determine the means.
+    mx = mean(xdata)
+    my = mean(ydata)
+    # Second pass to determine the standard deviations.
+    sx = stdev(xdata, mx)
+    sy = stdev(ydata, my)
+    if sx == 0:
+        raise StatsError('all x values are equal')
+    if sy == 0:
+        raise StatsError('all y values are equal')
+    # Third pass to calculate the correlation coefficient.
+    ap = add_partial
+    total = []
+    for x, y in zip(xdata, ydata):
+        term = ((x-mx)/sx) * ((y-my)/sy)
+        ap(term, total)
+    r = math.fsum(total)/(n-1)
+    assert -1 <= r <= r
     return r
 
 
-def corr1(xdata, ydata):
+@_Multivariate.merge_xydata
+def corr1(xdata, ydata=None):
     """Calculate an estimate of the Pearson's correlation coefficient with
     a single pass over the data."""
+    if ydata is None:
+        xydata = iter(xdata)
+    else:
+        xydata = zip(xdata, ydata)
+    del xdata, ydata
     sum_sq_x = 0
     sum_sq_y = 0
     sum_coproduct = 0
-    mean_x = next(xdata)
-    mean_y = next(ydata)
-    for i,x,y in zip(itertools.count(2), xdata, ydata):
+    failed = False  # Needed to avoid chained exception nonsense.
+    try:
+        mean_x, mean_y = next(xydata)
+    except StopIteration:
+        failed = True
+    if failed:
+        raise StatsError('correlation coefficient requires at least one item')
+    for i,(x,y) in zip(itertools.count(2), xydata):
         sweep = (i-1)/i
         delta_x = x - mean_x
         delta_y = y - mean_y
@@ -1752,11 +1844,58 @@ def corr1(xdata, ydata):
         sum_coproduct += sweep*(delta_x*delta_y)
         mean_x += delta_x/i
         mean_y += delta_y/i
-    pop_sd_x = sqrt(sum_sq_x)
-    pop_sd_y = sqrt(sum_sq_y)
-    cov_x_y = sum_coproduct
-    r = cov_x_y/(pop_sd_x*pop_sd_y)
-    assert -1.0 <= r <= 1.0
+    pop_sd_x = math.sqrt(sum_sq_x)
+    pop_sd_y = math.sqrt(sum_sq_y)
+    if pop_sd_x and pop_sd_y:
+        r = sum_coproduct/(pop_sd_x*pop_sd_y)
+        assert -1.0 <= r <= 1.0
+        return r
+    else:
+        return float('nan')
+
+
+# Alternate implementation.
+def _corr2(xdata, ydata=None):
+    """Return the sample Pearson's Correlation Coefficient of (x,y) data.
+
+    If ydata is None or not given, then xdata must be an iterable of (x, y)
+    pairs. Otherwise, both xdata and ydata must be iterables of values, which
+    will be truncated to the shorter of the two.
+
+    corr(xydata) -> float
+    corr(xdata, ydata) -> float
+
+    >>> _corr2([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1),
+    ...       (1.7, 2.9)])  #doctest: +ELLIPSIS
+    0.827429009335...
+
+    The Pearson correlation is +1 in the case of a perfect positive
+    correlation (i.e. an increasing linear relationship), -1 in the case of
+    a perfect anti-correlation (i.e. a decreasing linear relationship), and
+    some value between -1 and 1 in all other cases, indicating the degree
+    of linear dependence between the variables.
+
+    >>> xdata = [0.0, 0.1, 0.25, 1.2, 1.75]
+    >>> ydata = [2.5*x + 0.3 for x in xdata]  # Perfect correlation.
+    >>> _corr2(xdata, ydata)
+    1.0
+    >>> _corr2(xdata, [10-y for y in ydata])  # Perfect anti-correlation.
+    -1.0
+
+    """
+    import warnings
+    t = xysums(xdata, ydata)
+    r = t.Sxy/math.sqrt(t.Sxx*t.Syy)
+    # FIXME sometimes r is just slightly out of range. (Rounding error?)
+    # In the absence of any better idea of how to fix it, hit it on the head.
+    if r > 1.0:
+        warnings.warn('r > 1')
+        assert (r - 1.0) <= 1e-15, 'r out of range (> 1.0)'
+        r = 1.0
+    elif r < -1.0:
+        warnings.warn('r < -1')
+        assert (r + 1.0) >= -1e-15, 'r out of range (< -1.0)'
+        r = -1.0
     return r
 
 
@@ -1905,7 +2044,7 @@ def cumulative_sum(data, start=None):
             yield math.fsum(cs)
 
 
-@multivariate
+@_Multivariate.merge_xydata
 def Sxx(xydata):
     """Return Sxx = n*sum(x**2) - sum(x)**2 from (x,y) data or x data alone.
 
@@ -1931,7 +2070,7 @@ def Sxx(xydata):
     return s*n
 
 
-@multivariate
+@_Multivariate.merge_xydata
 def Syy(xydata):
     """Return Syy = n*sum(y**2) - sum(y)**2 from (x,y) data or y data alone.
 
@@ -1955,7 +2094,7 @@ def Syy(xydata):
     """
     # We expect (x,y) points, but if the caller passed a single iterable
     # ydata as argument, it gets mistaken as xdata with the y values all
-    # set to None. (See the combine_xydata function.) We have to detect
+    # set to None. (See the merge_xydata function.) We have to detect
     # that and swap the values around.
     try:
         first = next(xydata)
@@ -1972,7 +2111,7 @@ def Syy(xydata):
     return s*n
 
 
-@multivariate
+@_Multivariate.merge_xydata
 def Sxy(xydata):
     """Return Sxy = n*sum(x*y) - sum(x)*sum(y) from (x,y) data.
 
