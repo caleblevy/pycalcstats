@@ -40,42 +40,6 @@ del mt, loc, parent
 import stats
 
 
-# Test internal functions in _stats_quantiles
-# -------------------------------------------
-
-class RoundTest(unittest.TestCase):
-    UP = stats._UP
-    DOWN = stats._DOWN
-    EVEN = stats._EVEN
-
-    def testRoundDown(self):
-        f = stats._round
-        self.assertEquals(f(1.4, self.DOWN), 1)
-        self.assertEquals(f(1.5, self.DOWN), 1)
-        self.assertEquals(f(1.6, self.DOWN), 2)
-        self.assertEquals(f(2.4, self.DOWN), 2)
-        self.assertEquals(f(2.5, self.DOWN), 2)
-        self.assertEquals(f(2.6, self.DOWN), 3)
-
-    def testRoundUp(self):
-        f = stats._round
-        self.assertEquals(f(1.4, self.UP), 1)
-        self.assertEquals(f(1.5, self.UP), 2)
-        self.assertEquals(f(1.6, self.UP), 2)
-        self.assertEquals(f(2.4, self.UP), 2)
-        self.assertEquals(f(2.5, self.UP), 3)
-        self.assertEquals(f(2.6, self.UP), 3)
-
-    def testRoundEven(self):
-        f = stats._round
-        self.assertEquals(f(1.4, self.EVEN), 1)
-        self.assertEquals(f(1.5, self.EVEN), 2)
-        self.assertEquals(f(1.6, self.EVEN), 2)
-        self.assertEquals(f(2.4, self.EVEN), 2)
-        self.assertEquals(f(2.5, self.EVEN), 2)
-        self.assertEquals(f(2.6, self.EVEN), 3)
-
-
 # Miscellaneous tests
 # -------------------
 
@@ -161,35 +125,6 @@ class SortedDataDecoratorTest(unittest.TestCase):
         values = random.sample(range(1000), 100)
         result = f(values)
         self.assertEquals(result, sorted(values))
-
-
-class MultivariateDecoratorTest(unittest.TestCase):
-    """Test that the multivariate decorator works correctly."""
-    def get_decorated_result(self, *args):
-        @stats.multivariate
-        def f(data):
-            return list(data)
-        return f(*args)
-
-    def test_xy_apart(self):
-        xdata = range(8)
-        ydata = (2**i for i in xdata)
-        expected = [(i, 2**i) for i in range(8)]
-        result = self.get_decorated_result(xdata, ydata)
-        self.assertEquals(result, expected)
-
-    def test_xy_together(self):
-        xdata = range(64)
-        ydata = (2*i-3 for i in xdata)
-        expected = [(i, 2*i-3) for i in range(64)]
-        result = self.get_decorated_result(zip(xdata, ydata))
-        self.assertEquals(result, expected)
-
-    def test_x_alone(self):
-        xdata = [2, 4, 6, 8]
-        expected = [(2, None), (4, None), (6, None), (8, None)]
-        result = self.get_decorated_result(xdata)
-        self.assertEquals(result, expected)
 
 
 class MinmaxTest(unittest.TestCase):
@@ -300,30 +235,139 @@ class AsSequenceTest(unittest.TestCase):
         self.assert_(isinstance(result, list))
 
 
-class CombineXYDataTest(unittest.TestCase):
+class MultivariateSplitDecoratorTest(unittest.TestCase):
+    """Test that the multivariate split decorator works correctly."""
+    def get_split_result(self, *args):
+        @stats._Multivariate.split_xydata
+        def f(xdata, ydata):
+            return (xdata, ydata)
+        return f(*args)
+
+    def test_empty(self):
+        empty = iter([])
+        result = self.get_split_result(empty)
+        self.assertEquals(result, ([], []))
+        result = self.get_split_result(empty, empty)
+        self.assertEquals(result, ([], []))
+
+    def test_xy_apart(self):
+        xdata = range(8)
+        ydata = [2**i for i in xdata]
+        result = self.get_split_result(xdata, ydata)
+        self.assertEquals(result, (list(xdata), ydata))
+
+    def test_xy_together(self):
+        xydata = [(i, 2**i) for i in range(8)]
+        xdata = [x for x,y in xydata]
+        ydata = [y for x,y in xydata]
+        result = self.get_split_result(xydata)
+        self.assertEquals(result, (xdata, ydata))
+
+    def test_x_alone(self):
+        xdata = [2, 4, 6, 8]
+        result = self.get_split_result(xdata)
+        self.assertEquals(result, (xdata, [None]*4))
+
+
+class MultivariateMergeDecoratorTest(unittest.TestCase):
+    """Test that the multivariate merge decorator works correctly."""
+    def get_merge_result(self, *args):
+        @stats._Multivariate.merge_xydata
+        def f(xydata):
+            return list(xydata)
+        return f(*args)
+
+    def test_empty(self):
+        empty = iter([])
+        result = self.get_merge_result(empty)
+        self.assertEquals(result, [])
+        result = self.get_merge_result(empty, empty)
+        self.assertEquals(result, [])
+
+    def test_xy_apart(self):
+        expected = [(i, 2**i) for i in range(8)]
+        xdata = [x for (x,y) in expected]
+        ydata = [y for (x,y) in expected]
+        result = self.get_merge_result(xdata, ydata)
+        self.assertEquals(result, expected)
+
+    def test_xy_together(self):
+        expected = [(i, 2**i) for i in range(8)]
+        xdata = [x for x,y in expected]
+        ydata = [y for x,y in expected]
+        result = self.get_merge_result(zip(xdata, ydata))
+        self.assertEquals(result, expected)
+
+    def test_x_alone(self):
+        xdata = [2, 4, 6, 8]
+        expected = [(x, None) for x in xdata]
+        result = self.get_merge_result(xdata)
+        self.assertEquals(result, expected)
+
+
+class MergeTest(unittest.TestCase):
+    # Test _Multivariate merge function independantly of the decorator.
+    def test_empty(self):
+        result = stats._Multivariate.merge([])
+        self.assertEquals(list(result), [])
+        result = stats._Multivariate.merge([], [])
+        self.assertEquals(list(result), [])
+
     def test_xy_together(self):
         xydata = [(1, 2), (3, 4), (5, 6)]
         expected = xydata[:]
-        result = stats.combine_xydata(xydata)
+        result = stats._Multivariate.merge(xydata)
         self.assertEquals(list(result), expected)
 
     def test_xy_apart(self):
         xdata = [1, 3, 5]
         ydata = [2, 4, 6]
         expected = list(zip(xdata, ydata))
-        result = stats.combine_xydata(xdata, ydata)
+        result = stats._Multivariate.merge(xdata, ydata)
         self.assertEquals(list(result), expected)
 
     def test_x_alone(self):
         xdata = [1, 3, 5]
         expected = list(zip(xdata, [None]*len(xdata)))
-        result = stats.combine_xydata(xdata)
+        result = stats._Multivariate.merge(xdata)
         self.assertEquals(list(result), expected)
+
+
+class SplitTest(unittest.TestCase):
+    # Test _Multivariate split function independantly of the decorator.
+    def test_empty(self):
+        result = stats._Multivariate.split([])
+        self.assertEquals(result, ([], []))
+        result = stats._Multivariate.split([], [])
+        self.assertEquals(result, ([], []))
+
+    def test_xy_together(self):
+        xydata = [(1, 2), (3, 4), (5, 6)]
+        expected = ([1, 3, 5], [2, 4, 6])
+        result = stats._Multivariate.split(xydata)
+        self.assertEquals(result, expected)
+
+    def test_xy_apart(self):
+        xdata = [1, 3, 5]
+        ydata = [2, 4, 6]
+        result = stats._Multivariate.split(xdata, ydata)
+        self.assertEquals(result, (xdata, ydata))
+
+    def test_x_alone(self):
+        xdata = [1, 3, 5]
+        result = stats._Multivariate.split(xdata)
+        self.assertEquals(result, (xdata, [None]*3))
 
 
 class ValidateIntTest(unittest.TestCase):
     def testIntegers(self):
-        for n in (-100, -1, 0, 1, 23, 42, 2**80):
+        for n in (-2**100, -100, -1, 0, 1, 23, 42, 2**80, 2**100):
+            stats._validate_int(n)
+
+    def testSubclasses(self):
+        class MyInt(int):
+            pass
+        for n in (True, False, MyInt()):
             stats._validate_int(n)
 
     def testGoodFloats(self):
@@ -339,9 +383,42 @@ class ValidateIntTest(unittest.TestCase):
             self.assertRaises(OverflowError, stats._validate_int, x)
 
     def testBadTypes(self):
-        for obj in ("a", "1", None, []):
+        for obj in ("a", "1", [], {}, object(), None):
             self.assertRaises((ValueError, TypeError),
                 stats._validate_int, obj)
+
+
+class RoundTest(unittest.TestCase):
+    UP = stats._UP
+    DOWN = stats._DOWN
+    EVEN = stats._EVEN
+
+    def testRoundDown(self):
+        f = stats._round
+        self.assertEquals(f(1.4, self.DOWN), 1)
+        self.assertEquals(f(1.5, self.DOWN), 1)
+        self.assertEquals(f(1.6, self.DOWN), 2)
+        self.assertEquals(f(2.4, self.DOWN), 2)
+        self.assertEquals(f(2.5, self.DOWN), 2)
+        self.assertEquals(f(2.6, self.DOWN), 3)
+
+    def testRoundUp(self):
+        f = stats._round
+        self.assertEquals(f(1.4, self.UP), 1)
+        self.assertEquals(f(1.5, self.UP), 2)
+        self.assertEquals(f(1.6, self.UP), 2)
+        self.assertEquals(f(2.4, self.UP), 2)
+        self.assertEquals(f(2.5, self.UP), 3)
+        self.assertEquals(f(2.6, self.UP), 3)
+
+    def testRoundEven(self):
+        f = stats._round
+        self.assertEquals(f(1.4, self.EVEN), 1)
+        self.assertEquals(f(1.5, self.EVEN), 2)
+        self.assertEquals(f(1.6, self.EVEN), 2)
+        self.assertEquals(f(2.4, self.EVEN), 2)
+        self.assertEquals(f(2.5, self.EVEN), 2)
+        self.assertEquals(f(2.6, self.EVEN), 3)
 
 
 # Tests for univariate statistics: means and averages
@@ -1737,12 +1814,20 @@ class QCorrTest(unittest.TestCase):
         ydata = [875.1 - 4.2*x for x in xdata]
         self.assertEquals(stats.qcorr(xdata, ydata), -1.0)
 
+    def testPerfectZeroCorrelation(self):
+        data = []
+        for x in range(1, 10):
+            for y in range(1, 10):
+                data.append((x, y))
+        random.shuffle(data)
+        self.assertEquals(stats.qcorr(data), 0)
+
     def testCompareAlternateInput(self):
         # Compare the xydata vs. xdata, ydata input arguments.
         xdata = [random.random() for _ in range(1000)]
         ydata = [random.random() for _ in range(1000)]
         a = stats.qcorr(xdata, ydata)
-        b = stats.qcorr(zip(xdata, ydata))
+        b = stats.qcorr(list(zip(xdata, ydata)))
         self.assertEquals(a, b)
 
     def testNan(self):
@@ -1766,23 +1851,45 @@ class QCorrTest(unittest.TestCase):
         self.assertRaises(ValueError, stats.qcorr, [])
         self.assertRaises(ValueError, stats.qcorr, [], [])
 
+    def testTypes(self):
+        xdata = [random.random() for _ in range(20)]
+        ydata = [random.random() for _ in range(20)]
+        a = stats.qcorr(xdata, ydata)
+        b = stats.qcorr(tuple(xdata), tuple(ydata))
+        c = stats.qcorr(iter(xdata), iter(ydata))
+        d = stats.qcorr(zip(xdata, ydata))
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+        self.assertEquals(a, d)
+
 
 class CorrTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.corr
 
+    def testOrdered(self):
+        # Order shouldn't matter.
+        xydata = [(x, 2.7*x - 0.3) for x in range(-20, 30)]
+        a = self.func(xydata)
+        random.shuffle(xydata)
+        b = self.func(xydata)
+        self.assertEquals(a, b)
 
-class Corr1Test(CorrTest):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        self.func = stats.corr1
+    def testPerfectCorrelation(self):
+        xydata = [(x, 2.3*x - 0.8) for x in range(-17, 395, 3)]
+        self.assertEquals(self.func(xydata), 1.0)
 
+    def testPerfectAntiCorrelation(self):
+        xydata = [(x, 273.4 - 3.1*x) for x in range(-22, 654, 7)]
+        self.assertEquals(self.func(xydata), -1.0)
 
-class PCovTest(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        self.func = stats.pcov
+    def testPerfectZeroCorrelation(self):
+        data = []
+        for x in range(1, 10):
+            for y in range(1, 10):
+                data.append((x, y))
+        self.assertEquals(self.func(data), 0)
 
     def testCompareAlternateInput(self):
         # Compare the xydata vs. xdata, ydata input arguments.
@@ -1791,6 +1898,78 @@ class PCovTest(unittest.TestCase):
         a = self.func(xdata, ydata)
         b = self.func(zip(xdata, ydata))
         self.assertEquals(a, b)
+
+    def testFailures(self):
+        # One argument version:
+        self.assertRaises(ValueError, self.func, [])
+        self.assertRaises(ValueError, self.func, [(1, 3)])
+        # Two argument version:
+        self.assertRaises(ValueError, self.func, [], [])
+        self.assertRaises(ValueError, self.func, [12], [46])
+
+    def testTypes(self):
+        # The type of iterable shouldn't matter.
+        xdata = [random.random() for _ in range(20)]
+        ydata = [random.random() for _ in range(20)]
+        a = self.func(xdata, ydata)
+        b = self.func(tuple(xdata), tuple(ydata))
+        c = self.func(iter(xdata), iter(ydata))
+        d = self.func(zip(xdata, ydata))
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+        self.assertEquals(a, d)
+
+    def testExact(self):
+        xdata = [0, 10, 4, 8, 8]
+        ydata = [2, 6, 2, 4, 6]
+        self.assertEquals(self.func(xdata, ydata), 28/32)
+
+    def testSame(self):
+        data = [random.random() for x in range(5)]
+        result = self.func(data, data)
+        self.assertAlmostEquals(result, 1.0, places=14)  # small list
+        data = [random.random() for x in range(100)]
+        result = self.func(data, data)
+        self.assertAlmostEquals(result, 1.0, places=14)  # medium list
+        data = [random.random() for x in range(100000)]
+        result = self.func(data, data)
+        self.assertAlmostEquals(result, 1.0, places=14)  # large list
+
+    def stress_test(self, xdata, ydata):
+        # Stress the corr() function looking for failures of the
+        # post-condition -1 <= r <= 1.
+        xfuncs = (lambda x: x, lambda x: 12345*x + 9876)
+        yfuncs = (lambda y: y, lambda y: 67890*y + 6428)
+        for fx, fy in [(fx,fy) for fx in xfuncs for fy in yfuncs]:
+            xs = [fx(x) for x in xdata]
+            ys = [fy(y) for y in ydata]
+            result = self.func(xs, ys)
+            if not -1.0 <= result <= 1.0:
+                self.log_failure()  # FIXME
+                self.fail()
+
+    def testStress(self):
+        # Stress test for corr() function. Try to find a set of data which
+        # results in an out of range result for r.
+        for i in range(5, 51):
+            xdata = [random.random() for j in range(i)]
+            ydata = [random.random() for j in range(i)]
+            self.stress_test(xdata, ydata)
+
+    def log_failure(self):
+        raise NotImplementedError
+
+
+#class Corr1Test(CorrTest):
+    #def __init__(self, *args, **kwargs):
+        #unittest.TestCase.__init__(self, *args, **kwargs)
+        #self.func = stats.corr1
+
+
+class PCovTest(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.pcov
 
 
 class CovTest(PCovTest):
