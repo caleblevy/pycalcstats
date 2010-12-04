@@ -1204,7 +1204,7 @@ def pvariance(data, m=None):
     If data represents a statistical sample rather than the entire
     population, you should use variance instead.
     """
-    n, s = _var(data, m)
+    n, s = _SS(data, m)
     if n < 1:
         raise StatsError('population variance or standard deviation'
         ' requires at least one data point')
@@ -1224,15 +1224,17 @@ def variance(data, m=None):
     If data represents the entire population, and not just a sample, then
     you should use pvariance instead.
     """
-    n, s = _var(data, m)
+    n, s = _SS(data, m)
     if n < 2:
         raise StatsError('sample variance or standard deviation'
         ' requires at least two data points')
     return s/(n-1)
 
 
-def _var(data, m):
-    """Helper function for calculating variance directly."""
+def _SS(data, m):
+    """SS = sum of square deviations.
+    Helper function for calculating variance directly.
+    """
     if m is None:
         # Two pass algorithm.
         data = as_sequence(data)
@@ -1770,8 +1772,8 @@ def corr(xdata, ydata):
     pairs. Otherwise, both xdata and ydata must be iterables of values, which
     will be truncated to the shorter of the two.
 
-    >>> corr([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1),
-    ...       (1.7, 2.9)])  #doctest: +ELLIPSIS
+    >>> corr([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
+    ... #doctest: +ELLIPSIS
     0.827429009335...
 
     The Pearson correlation is +1 in the case of a perfect positive
@@ -1899,44 +1901,82 @@ def _corr2(xdata, ydata=None):
     return r
 
 
+@_Multivariate.split_xydata
 def pcov(xdata, ydata=None):
     """Return the population covariance between (x, y) data.
 
-    >>> print(pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
-    0.934
-    >>> print(pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)]))
+    >>> pcov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25])
+    ... #doctest: +ELLIPSIS
+    0.93399999999...
+    >>> pcov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
     0.15125
 
     """
-    t = xysums(xdata, ydata)
-    return t.Sxy/(t.n**2)
+    n, s = _SP(xdata, None, ydata, None)
+    return s/n
+    #t = xysums(xdata, ydata)
+    #return t.Sxy/(t.n**2)
 
 
-def cov(xdata, ydata=None):
+@_Multivariate.split_xydata
+def cov(xdata, ydata):
     """Return the sample covariance between (x, y) data.
 
-    >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1),
-    ...      (1.7, 2.9)])  #doctest: +ELLIPSIS
+    >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
+    ... #doctest: +ELLIPSIS
     0.201666666666...
 
-    >>> print(cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25]))
+    >>> cov([0.75, 1.5, 2.5, 2.75, 2.75], [0.25, 1.1, 2.8, 2.95, 3.25])
+    ... #doctest: +ELLIPSIS
     1.1675
     >>> cov([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1), (1.7, 2.9)])
     ... #doctest: +ELLIPSIS
     0.201666666666...
 
-    Covariance reduces down to standard variance when applied to the same data
-    as both the x and y values:
+    Covariance reduces down to standard variance when applied to the same
+    data as both the x and y values:
 
     >>> data = [1.2, 0.75, 1.5, 2.45, 1.75]
-    >>> print(cov(data, data))
-    0.40325
-    >>> print(variance(data))
-    0.40325
+    >>> cov(data, data)  #doctest: +ELLIPSIS
+    0.40325000000...
+    >>> variance(data)  #doctest: +ELLIPSIS
+    0.40325000000...
 
     """
-    t = xysums(xdata, ydata)
-    return t.Sxy/(t.n*(t.n-1))
+    n, s = _SP(xdata, None, ydata, None)
+    return s/(n-1)
+    # t = xysums(xdata, ydata)
+    # return t.Sxy/(t.n*(t.n-1))
+
+
+def _SP(xdata, mx, ydata, my):
+    """SP = sum of product of deviations.
+    Helper function for calculating covariance directly.
+    """
+    if mx is None:
+        # Two pass algorithm.
+        xdata = as_sequence(xdata)
+        mx = mean(xdata)
+    if my is None:
+        # Two pass algorithm.
+        ydata = as_sequence(ydata)
+        my = mean(ydata)
+    # Fast path for sequences.
+    try:
+        n = len(xdata)
+        assert n == len(ydata)
+    except TypeError:
+        # Slow path for iterables without a len.
+        ap = add_partial
+        partials = []
+        for n, (x,y) in enumerate(zip(xdata, ydata), 1):
+            ap((x-mx)*(y-my), partials)
+        total = sum(partials)
+        #total2 = sum(x/n for x in partials)
+    else:
+        total = sum((x-mx)*(y-my) for x,y in zip(xdata, ydata))
+        #total2 = sum((x-mx)*(y-my)/n for x,y in zip(xdata, ydata))
+    return (n, total)#, total2)
 
 
 def errsumsq(xdata, ydata=None):
@@ -2066,7 +2106,7 @@ def Sxx(xydata):
     24.0
 
     """
-    n, s = _var((x for (x, y) in xydata), None)
+    n, s = _SS((x for (x, y) in xydata), None)
     return s*n
 
 
@@ -2107,7 +2147,7 @@ def Syy(xydata):
             xydata = ((x, y) for (y, x) in xydata)
         # Re-insert the first element back into the data stream.
         xydata = itertools.chain([first], xydata)
-    n, s = _var((y for (x, y) in xydata), None)
+    n, s = _SS((y for (x, y) in xydata), None)
     return s*n
 
 
