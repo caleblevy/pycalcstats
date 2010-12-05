@@ -1871,37 +1871,15 @@ def corr1(xydata):
         if __debug__:
             global _MAX_CORR1_ERR
             _MAX_CORR1_ERR = max(_MAX_CORR1_ERR, err)
-    assert -1.0 <= r <= 1.0, "r = %r" % r
+    assert -1.0 <= r <= 1.0, "expected -1.0 <= r <= 1.0 but got r = %r" % r
     return r
 
 
 # Alternate implementation.
 def _corr2(xdata, ydata=None):
-    """In preparation of removal...
-
-    >>> _corr2([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1),
-    ...       (1.7, 2.9)])  #doctest: +ELLIPSIS
-    0.827429009335...
-
-    >>> xdata = [0.0, 0.1, 0.25, 1.2, 1.75]
-    >>> ydata = [2.5*x + 0.3 for x in xdata]  # Perfect correlation.
-    >>> _corr2(xdata, ydata)
-    1.0
-    >>> _corr2(xdata, [10-y for y in ydata])  # Perfect anti-correlation.
-    -1.0
-
-    """
-    t = xysums(xdata, ydata)
-    r = t.Sxy/math.sqrt(t.Sxx*t.Syy)
-    # FIXME sometimes r is just slightly out of range. (Rounding error?)
-    # In the absence of any better idea of how to fix it, hit it on the head.
-    if r > 1.0:
-        assert (r - 1.0) <= 1e-15, 'r out of range (> 1.0)'
-        r = 1.0
-    elif r < -1.0:
-        assert (r + 1.0) >= -1e-15, 'r out of range (< -1.0)'
-        r = -1.0
-    return r
+    raise NotImplementedError('do not use this')
+    #t = xysums(xdata, ydata)
+    #r = t.Sxy/math.sqrt(t.Sxx*t.Syy)
 
 
 @_Multivariate.split_xydata

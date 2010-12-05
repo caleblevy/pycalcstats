@@ -1997,6 +1997,14 @@ class CorrExtrasTest(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.corr
 
+    def testSimple(self):
+        # Simple test originally from a doctest in _corr2.
+        xdata = [0.0, 0.1, 0.25, 1.2, 1.75]
+        ydata = [2.5*x + 0.3 for x in xdata]  # Perfect correlation.
+        self.assertAlmostEquals(self.func(xdata, ydata), 1.0, places=14)
+        ydata = [10-y for y in ydata]
+        self.assertAlmostEquals(self.func(xdata, ydata), -1.0, places=14)
+
     def testCompareAlternateInput(self):
         # Compare the xydata vs. xdata, ydata input arguments.
         xdata = [random.random() for _ in range(1000)]
