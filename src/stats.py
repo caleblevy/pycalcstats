@@ -1894,7 +1894,10 @@ def pcov(xdata, ydata=None):
 
     """
     n, s = _SP(xdata, None, ydata, None)
-    return s/n
+    if n > 0:
+        return s/n
+    else:
+        raise StatsError('population covariance requires at least one point')
     #t = xysums(xdata, ydata)
     #return t.Sxy/(t.n**2)
 
@@ -1925,7 +1928,10 @@ def cov(xdata, ydata):
 
     """
     n, s = _SP(xdata, None, ydata, None)
-    return s/(n-1)
+    if n > 1:
+        return s/(n-1)
+    else:
+        raise StatsError('sample covariance requires at least two points')
     # t = xysums(xdata, ydata)
     # return t.Sxy/(t.n*(t.n-1))
 

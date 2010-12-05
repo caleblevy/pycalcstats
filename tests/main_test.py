@@ -1991,6 +1991,16 @@ class CorrTest(unittest.TestCase):
             result = self.func(zip(xdata, ydata))
             self.assertTrue(-1.0 <= result <= 1.0)
 
+    def testShift(self):
+        xdata = [random.random() for _ in range(50)]
+        ydata = [random.random() for _ in range(50)]
+        a = self.func(zip(xdata, ydata))
+        for x0, y0 in [(42, -99), (1.2e6, 4.5e5), (7.8e9, 3.6e9)]:
+            xdata = [x+x0 for x in xdata]
+            ydata = [y+y0 for y in ydata]
+            b = self.func(zip(xdata, ydata))
+            self.assertAlmostEquals(a, b, places=5)  # FIXME
+
 
 class CorrExtrasTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -2087,11 +2097,62 @@ class PCovTest(unittest.TestCase):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.pcov
 
+    def testEmpty(self):
+        self.assertRaises(ValueError, self.func, [])
+
+    def testSingleton(self):
+        self.assertEquals(self.func([(1, 2)]), 0.0)
+
+    def testSymmetry(self):
+        data1 = [random.random() for _ in range(10)]
+        data2 = [random.random() for _ in range(10)]
+        a = self.func(zip(data1, data2))
+        b = self.func(zip(data2, data1))
+        self.assertEquals(a, b)
+
+    def testEqualPoints(self):
+        # Equal X values.
+        data = [(23, random.random()) for _ in range(50)]
+        self.assertEquals(self.func(data), 0.0)
+        # Equal Y values.
+        data = [(random.random(), 42) for _ in range(50)]
+        self.assertEquals(self.func(data), 0.0)
+        # Both equal.
+        data = [(23, 42)]*50
+        self.assertEquals(self.func(data), 0.0)
+
+    def testReduce(self):
+        # Covariance reduces to variance if X == Y.
+        data = [random.random() for _ in range(50)]
+        a = stats.pvariance(data)
+        b = self.func(zip(data, data))
+        self.assertEquals(a, b)
+
+    def testShift(self):
+        xdata = [random.random() for _ in range(50)]
+        ydata = [random.random() for _ in range(50)]
+        a = self.func(zip(xdata, ydata))
+        for x0, y0 in [(-23, 89), (3.7e5, 2.9e6), (1.4e9, 8.1e9)]:
+            xdata = [x+x0 for x in xdata]
+            ydata = [y+y0 for y in ydata]
+            b = self.func(zip(xdata, ydata))
+            self.assertAlmostEquals(a, b, places=6)
+
 
 class CovTest(PCovTest):
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.cov
+
+    def testSingleton(self):
+        self.assertRaises(ValueError, self.func, [(1, 2)])
+
+    def testReduce(self):
+        # Covariance reduces to variance if X == Y.
+        data = [random.random() for _ in range(50)]
+        a = stats.variance(data)
+        b = self.func(zip(data, data))
+        self.assertEquals(a, b)
 
 
 class ErrSumSqTest(unittest.TestCase):
