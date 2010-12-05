@@ -110,6 +110,10 @@ import collections
 QUARTILE_DEFAULT = 1
 QUANTILE_DEFAULT = 1
 
+if __debug__:
+    # For debugging out-of-range errors in corr1 function.
+    _MAX_CORR1_ERR = 0.0
+
 
 # === Exceptions ===
 
@@ -1204,11 +1208,11 @@ def pvariance(data, m=None):
     If data represents a statistical sample rather than the entire
     population, you should use variance instead.
     """
-    n, s = _SS(data, m)
+    n, ss = _SS(data, m)
     if n < 1:
         raise StatsError('population variance or standard deviation'
         ' requires at least one data point')
-    return s/n
+    return ss/n
 
 
 def variance(data, m=None):
@@ -1224,11 +1228,11 @@ def variance(data, m=None):
     If data represents the entire population, and not just a sample, then
     you should use pvariance instead.
     """
-    n, s = _SS(data, m)
+    n, ss = _SS(data, m)
     if n < 2:
         raise StatsError('sample variance or standard deviation'
         ' requires at least two data points')
-    return s/(n-1)
+    return ss/(n-1)
 
 
 def _SS(data, m):
@@ -1818,64 +1822,66 @@ def corr(xdata, ydata):
     return r
 
 
-@_Multivariate.merge_xydata
-def corr1(xdata, ydata=None):
-    """Calculate an estimate of the Pearson's correlation coefficient with
-    a single pass over the data."""
-    if ydata is None:
-        xydata = iter(xdata)
-    else:
-        xydata = zip(xdata, ydata)
-    del xdata, ydata
+def corr1(xydata):
+    """corr1(xydata) -> float
+
+    Calculate an estimate of the Pearson's correlation coefficient with
+    a single pass over iterable xydata. See also the function corr which may
+    be more accurate but requires multiple passes over the data.
+
+    >>> data = zip([0, 5, 4, 9, 8, 4], [1, 2, 4, 8, 6, 3])
+    >>> corr1(data)  #doctest: +ELLIPSIS
+    0.903737838893...
+
+    xydata must be an iterable of (x, y) points. Raises StatsError if there
+    are fewer than two points, or if either of the estimated x and y variances
+    are zero.
+    """
+    xydata = iter(xydata)
     sum_sq_x = 0
     sum_sq_y = 0
     sum_coproduct = 0
-    failed = False  # Needed to avoid chained exception nonsense.
     try:
         mean_x, mean_y = next(xydata)
     except StopIteration:
-        failed = True
-    if failed:
-        raise StatsError('correlation coefficient requires at least one item')
-    for i,(x,y) in zip(itertools.count(2), xydata):
-        sweep = (i-1)/i
-        delta_x = x - mean_x
-        delta_y = y - mean_y
-        sum_sq_x += sweep*delta_x**2
-        sum_sq_y += sweep*(delta_y**2)
-        sum_coproduct += sweep*(delta_x*delta_y)
-        mean_x += delta_x/i
-        mean_y += delta_y/i
+        i = 0
+    else:
+        i = 1
+        for i,(x,y) in zip(itertools.count(2), xydata):
+            sweep = (i-1)/i
+            delta_x = x - mean_x
+            delta_y = y - mean_y
+            sum_sq_x += sweep*delta_x**2
+            sum_sq_y += sweep*(delta_y**2)
+            sum_coproduct += sweep*(delta_x*delta_y)
+            mean_x += delta_x/i
+            mean_y += delta_y/i
+    if i < 2:
+        raise StatsError('correlation coefficient requires two or more items')
     pop_sd_x = math.sqrt(sum_sq_x)
     pop_sd_y = math.sqrt(sum_sq_y)
-    if pop_sd_x and pop_sd_y:
-        r = sum_coproduct/(pop_sd_x*pop_sd_y)
-        assert -1.0 <= r <= 1.0
-        return r
-    else:
-        return float('nan')
+    if pop_sd_x == 0.0:
+        raise StatsError('calculated x variance is zero')
+    if pop_sd_y == 0.0:
+        raise StatsError('calculated y variance is zero')
+    r = sum_coproduct/(pop_sd_x*pop_sd_y)
+    err = max(abs(r)-1, 0)
+    if 0.0 < err <= 2**-51:
+        r = math.copysign(1, r)
+        if __debug__:
+            global _MAX_CORR1_ERR
+            _MAX_CORR1_ERR = max(_MAX_CORR1_ERR, err)
+    assert -1.0 <= r <= 1.0, "r = %r" % r
+    return r
 
 
 # Alternate implementation.
 def _corr2(xdata, ydata=None):
-    """Return the sample Pearson's Correlation Coefficient of (x,y) data.
-
-    If ydata is None or not given, then xdata must be an iterable of (x, y)
-    pairs. Otherwise, both xdata and ydata must be iterables of values, which
-    will be truncated to the shorter of the two.
-
-    corr(xydata) -> float
-    corr(xdata, ydata) -> float
+    """In preparation of removal...
 
     >>> _corr2([(0.1, 2.3), (0.5, 2.7), (1.2, 3.1),
     ...       (1.7, 2.9)])  #doctest: +ELLIPSIS
     0.827429009335...
-
-    The Pearson correlation is +1 in the case of a perfect positive
-    correlation (i.e. an increasing linear relationship), -1 in the case of
-    a perfect anti-correlation (i.e. a decreasing linear relationship), and
-    some value between -1 and 1 in all other cases, indicating the degree
-    of linear dependence between the variables.
 
     >>> xdata = [0.0, 0.1, 0.25, 1.2, 1.75]
     >>> ydata = [2.5*x + 0.3 for x in xdata]  # Perfect correlation.
@@ -1885,17 +1891,14 @@ def _corr2(xdata, ydata=None):
     -1.0
 
     """
-    import warnings
     t = xysums(xdata, ydata)
     r = t.Sxy/math.sqrt(t.Sxx*t.Syy)
     # FIXME sometimes r is just slightly out of range. (Rounding error?)
     # In the absence of any better idea of how to fix it, hit it on the head.
     if r > 1.0:
-        warnings.warn('r > 1')
         assert (r - 1.0) <= 1e-15, 'r out of range (> 1.0)'
         r = 1.0
     elif r < -1.0:
-        warnings.warn('r < -1')
         assert (r + 1.0) >= -1e-15, 'r out of range (< -1.0)'
         r = -1.0
     return r
@@ -2106,8 +2109,8 @@ def Sxx(xydata):
     24.0
 
     """
-    n, s = _SS((x for (x, y) in xydata), None)
-    return s*n
+    n, ss = _SS((x for (x, y) in xydata), None)
+    return ss*n
 
 
 @_Multivariate.merge_xydata
@@ -2147,8 +2150,8 @@ def Syy(xydata):
             xydata = ((x, y) for (y, x) in xydata)
         # Re-insert the first element back into the data stream.
         xydata = itertools.chain([first], xydata)
-    n, s = _SS((y for (x, y) in xydata), None)
-    return s*n
+    n, ss = _SS((y for (x, y) in xydata), None)
+    return ss*n
 
 
 @_Multivariate.merge_xydata

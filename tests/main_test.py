@@ -1864,6 +1864,10 @@ class QCorrTest(unittest.TestCase):
 
 
 class CorrTest(unittest.TestCase):
+    # Common tests for corr() and corr1().
+    # All calls to the test function must be the one-argument style.
+    # See CorrExtrasTest for two-argument tests.
+
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.corr
@@ -1891,6 +1895,108 @@ class CorrTest(unittest.TestCase):
                 data.append((x, y))
         self.assertEquals(self.func(data), 0)
 
+    def testFailures(self):
+        # One argument version.
+        self.assertRaises(ValueError, self.func, [])
+        self.assertRaises(ValueError, self.func, [(1, 3)])
+
+    def testTypes(self):
+        # The type of iterable shouldn't matter.
+        xdata = [random.random() for _ in range(20)]
+        ydata = [random.random() for _ in range(20)]
+        xydata = zip(xdata, ydata)
+        a = self.func(xydata)
+        xydata = list(zip(xdata, ydata))
+        b = self.func(xydata)
+        c = self.func(tuple(xydata))
+        d = self.func(iter(xydata))
+        self.assertEquals(a, b)
+        self.assertEquals(a, c)
+        self.assertEquals(a, d)
+
+    def testExact(self):
+        xdata = [0, 10, 4, 8, 8]
+        ydata = [2, 6, 2, 4, 6]
+        self.assertEquals(self.func(zip(xdata, ydata)), 28/32)
+
+    def testHP_1(self):
+        # Compare to results calculated on HP-48GX using this function:
+        # << CL-SIGMA -5 15 FOR X X 2 X - X SQ + ->V2 SIGMA+ .1 STEP >>
+        xdata = [i/10 for i in range(-50, 151)]
+        ydata = [x**2 - x + 2 for x in xdata]
+        assert len(xdata) == len(ydata) == 201
+        self.assertAlmostEquals(sum(xdata), 1005, places=12)
+        self.assertAlmostEquals(sum(ydata), 11189, places=11)
+        expected = 0.866300845681
+        result = self.func(zip(xdata, ydata))
+        self.assertAlmostEquals(result, expected, places=12)
+        # For future use: COV = 304.515, PCOV = 303 LINFIT = 10.666...67 + 9x
+
+    def testHP_2(self):
+        # Compare to results calculated on HP-48GX using this function:
+        # << CL-SIGMA -30 60 FOR I I 3 / 500 I + SQRT ->V2 SIGMA+ NEXT >>
+        xdata = [i/3 for i in range(-30, 61)]
+        ydata = [math.sqrt(500 + i) for i in range(-30, 61)]
+        assert len(xdata) == len(ydata) == 91
+        self.assertAlmostEquals(sum(xdata), 455, places=12)
+        self.assertAlmostEquals(sum(ydata), 2064.4460877, places=6)
+        expected = 0.999934761605
+        result = self.func(zip(xdata, ydata))
+        self.assertAlmostEquals(result, expected, places=12)
+        # For future use: COV = 5.1268171707, PCOV = 5.07047852047
+        # LINFIT = 22.3555373622 + 6.61366763539e-2x
+
+    def testDuplicate(self):
+        # corr shouldn't change if you duplicate each point.
+        # Try first with a high correlation.
+        xdata = [random.uniform(-5, 15) for _ in range(15)]
+        ydata = [x - 0.5 + random.random() for x in xdata]
+        a = self.func(zip(xdata, ydata))
+        b = self.func(zip(xdata*2, ydata*2))
+        self.assertAlmostEquals(a, b, places=12)
+        # And again with a (probably) low correlation.
+        ydata = [random.uniform(-5, 15) for _ in range(15)]
+        a = self.func(zip(xdata, ydata))
+        b = self.func(zip(xdata*2, ydata*2))
+        self.assertAlmostEquals(a, b, places=12)
+
+    def testSame(self):
+        data = [random.random() for x in range(5)]
+        result = self.func([(x, x) for x in data])
+        self.assertAlmostEquals(result, 1.0, places=14)  # small list
+        data = [random.random() for x in range(100)]
+        result = self.func([(x, x) for x in data])
+        self.assertAlmostEquals(result, 1.0, places=14)  # medium list
+        data = [random.random() for x in range(100000)]
+        result = self.func([(x, x) for x in data])
+        self.assertAlmostEquals(result, 1.0, places=14)  # large list
+
+    def generate_stress_data(self, start, end, step):
+        xfuncs = (lambda x: x, lambda x: 12345*x + 9876,
+                  lambda x: 1e9*x, lambda x: 1e-9*x)
+        yfuncs = (lambda y: y, lambda y: 67890*y + 6428,
+                  lambda y: 1e9*y, lambda y: 1e-9*y)
+        for i in range(start, end, step):
+            xdata = [random.random() for _ in range(i)]
+            ydata = [random.random() for _ in range(i)]
+            for fx, fy in [(fx,fy) for fx in xfuncs for fy in yfuncs]:
+                xs = [fx(x) for x in xdata]
+                ys = [fy(y) for y in ydata]
+                yield (xs, ys)
+
+    def testStress(self):
+        # Stress the corr() function looking for failures of the
+        # post-condition -1 <= r <= 1.
+        for xdata, ydata in self.generate_stress_data(5, 51, 3):
+            result = self.func(zip(xdata, ydata))
+            self.assertTrue(-1.0 <= result <= 1.0)
+
+
+class CorrExtrasTest(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.corr
+
     def testCompareAlternateInput(self):
         # Compare the xydata vs. xdata, ydata input arguments.
         xdata = [random.random() for _ in range(1000)]
@@ -1900,10 +2006,7 @@ class CorrTest(unittest.TestCase):
         self.assertEquals(a, b)
 
     def testFailures(self):
-        # One argument version:
-        self.assertRaises(ValueError, self.func, [])
-        self.assertRaises(ValueError, self.func, [(1, 3)])
-        # Two argument version:
+        # Two argument version.
         self.assertRaises(ValueError, self.func, [], [])
         self.assertRaises(ValueError, self.func, [12], [46])
 
@@ -1914,60 +2017,12 @@ class CorrTest(unittest.TestCase):
         a = self.func(xdata, ydata)
         b = self.func(tuple(xdata), tuple(ydata))
         c = self.func(iter(xdata), iter(ydata))
-        d = self.func(zip(xdata, ydata))
         self.assertEquals(a, b)
         self.assertEquals(a, c)
-        self.assertEquals(a, d)
-
-    def testExact(self):
-        xdata = [0, 10, 4, 8, 8]
-        ydata = [2, 6, 2, 4, 6]
-        self.assertEquals(self.func(xdata, ydata), 28/32)
-
-    def testHP(self):
-        # Compare to results calculated on HP-48GX using this function:
-        # << CL-SIGMA -5 15 FOR X X 2 X - X SQ + ->V2 SIGMA+ .1 STEP >>
-        xdata = [i/10 for i in range(-50, 151)]
-        ydata = [x**2 - x + 2 for x in xdata]
-        assert len(xdata) == len(ydata) == 201
-        self.assertAlmostEquals(sum(xdata), 1005, places=12)
-        self.assertAlmostEquals(sum(ydata), 11189, places=11)
-        expected = 0.866300845681
-        self.assertAlmostEquals(self.func(xdata, ydata), expected, places=12)
-        # For future use: COV = 304.515, PCOV = 303 LINFIT = 10.666...67 + 9x
-
-    def testDuplicate(self):
-        # corr shouldn't change if you duplicate each point.
-        # Try first with a high correlation.
-        xdata = [random.uniform(-5, 15) for _ in range(15)]
-        ydata = [x - 0.5 + random.random() for x in xdata]
-        a = self.func(xdata, ydata)
-        b = self.func(xdata*2, ydata*2)
-        self.assertAlmostEquals(a, b, places=12)
-        # And again with a (probably) low correlation.
-        ydata = [random.uniform(-5, 15) for _ in range(15)]
-        a = self.func(xdata, ydata)
-        b = self.func(xdata*2, ydata*2)
-        self.assertAlmostEquals(a, b, places=12)
-
-    def testSame(self):
-        data = [random.random() for x in range(5)]
-        result = self.func(data, data)
-        self.assertAlmostEquals(result, 1.0, places=14)  # small list
-        data = [random.random() for x in range(100)]
-        result = self.func(data, data)
-        self.assertAlmostEquals(result, 1.0, places=14)  # medium list
-        data = [random.random() for x in range(100000)]
-        result = self.func(data, data)
-        self.assertAlmostEquals(result, 1.0, places=14)  # large list
 
     def stress_test(self, xdata, ydata):
-        # Stress the corr() function looking for failures of the
-        # post-condition -1 <= r <= 1.
-        xfuncs = (lambda x: x, lambda x: 12345*x + 9876,
-                  lambda x: 1e9*x, lambda x: 1e-9*x)
-        yfuncs = (lambda y: y, lambda y: 67890*y + 6428,
-                  lambda y: 1e9*y, lambda y: 1e-9*y)
+        xfuncs = (lambda x: -1.2345e7*x - 23.42, lambda x: 9.42e-6*x + 2.1)
+        yfuncs = (lambda y: -2.9234e7*y + 1.97, lambda y: 7.82e8*y - 307.9)
         for fx, fy in [(fx,fy) for fx in xfuncs for fy in yfuncs]:
             xs = [fx(x) for x in xdata]
             ys = [fy(y) for y in ydata]
@@ -1975,18 +2030,48 @@ class CorrTest(unittest.TestCase):
             self.assertTrue(-1.0 <= result <= 1.0)
 
     def testStress(self):
-        # Stress test for corr() function. Try to find a set of data which
-        # results in an out of range result for r.
-        for i in range(5, 51, 3):
-            xdata = [random.random() for j in range(i)]
-            ydata = [random.random() for j in range(i)]
+        # A few extra stress tests.
+        for i in range(6, 22, 3):
+            xdata = [random.uniform(-100, 300) for _ in range(i)]
+            ydata = [random.uniform(-5000, 5000) for _ in range(i)]
             self.stress_test(xdata, ydata)
 
 
-#class Corr1Test(CorrTest):
-    #def __init__(self, *args, **kwargs):
-        #unittest.TestCase.__init__(self, *args, **kwargs)
-        #self.func = stats.corr1
+class Corr1Test(CorrTest):
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.corr1
+
+    def testPerfectCorrelation(self):
+        xydata = [(x, 2.3*x - 0.8) for x in range(-17, 395, 3)]
+        self.assertAlmostEquals(self.func(xydata), 1.0, places=14)
+
+    def testPerfectZeroCorrelation(self):
+        data = []
+        for x in range(1, 10):
+            for y in range(1, 10):
+                data.append((x, y))
+        self.assertAlmostEquals(self.func(data), 0.0, places=14)
+
+    def testOrdered(self):
+        # Order shouldn't matter.
+        xydata = [(x, 2.7*x - 0.3) for x in range(-20, 30)]
+        a = self.func(xydata)
+        random.shuffle(xydata)
+        b = self.func(xydata)
+        self.assertAlmostEquals(a, b, places=15)
+
+    def testStress(self):
+        # Stress the corr1() function looking for failures of the
+        # post-condition -1 <= r <= 1. Don't stop on the first error.
+        failed = 0
+        it = self.generate_stress_data(5, 51, 1)
+        for count, (xdata, ydata) in enumerate(it, 1):
+            result = self.func(zip(xdata, ydata))
+            failed += not -1.0 <= result <= 1.0
+        assert count == 736
+        self.assertEquals(failed, 0,
+            "%d out of %d out of range errors" % (failed, count))
 
 
 class PCovTest(unittest.TestCase):
@@ -2408,6 +2493,12 @@ if __name__ == '__main__':
         unittest.main()
     except SystemExit:
         pass
+    #
+    # Check maximum error found in corr1.
+    #
+    err = stats._MAX_CORR1_ERR
+    if err:
+        print('Warning: corr1 residue found: %r' % err)
     #
     # Check for reference leaks.
     #
