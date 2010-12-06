@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 """Test suite for stats.py
 
 Runs:
@@ -38,6 +40,41 @@ del mt, loc, parent
 
 # Module being tested.
 import stats
+
+
+# Helper functions
+# ----------------
+
+def hp_multivariate_test_data(switch):
+    """Generate test data to match results calculated on the HP-48GX."""
+    record = collections.namedtuple('record', 'DATA CORR COV PCOV LINFIT')
+    if switch == 1:
+        # Equivalent to this RPL code:
+        # « CLΣ -5 15 FOR X X 2 X - X SQ + →V2 Σ+ .1 STEP »
+        xdata = [i/10 for i in range(-50, 151)]
+        ydata = [x**2 - x + 2 for x in xdata]
+        assert len(xdata) == len(ydata) == 201
+        assert round(sum(xdata), 11) == 1005
+        assert round(sum(ydata), 11) == 11189
+        DATA = zip(xdata, ydata)
+        CORR = 0.866300845681
+        COV = 304.515
+        PCOV = 303
+        LINFIT = (10 + 2/3, 9)
+    elif switch == 2:
+        # Equivalent to this RPL code:
+        # « CLΣ -30 60 FOR I I 3 / 500 I + √ →V2 Σ+ NEXT »
+        xdata = [i/3 for i in range(-30, 61)]
+        ydata = [math.sqrt(500 + i) for i in range(-30, 61)]
+        assert len(xdata) == len(ydata) == 91
+        assert round(sum(xdata), 11) == 455
+        assert round(sum(ydata), 6) == round(2064.4460877, 6)
+        DATA = zip(xdata, ydata)
+        CORR = 0.999934761605
+        COV = 5.1268171707
+        PCOV = 5.07047852047
+        LINFIT = (22.3555373622, 6.61366763539e-2)
+    return record(DATA, CORR, COV, PCOV, LINFIT)
 
 
 # Miscellaneous tests
@@ -1919,32 +1956,12 @@ class CorrTest(unittest.TestCase):
         ydata = [2, 6, 2, 4, 6]
         self.assertEquals(self.func(zip(xdata, ydata)), 28/32)
 
-    def testHP_1(self):
-        # Compare to results calculated on HP-48GX using this function:
-        # << CL-SIGMA -5 15 FOR X X 2 X - X SQ + ->V2 SIGMA+ .1 STEP >>
-        xdata = [i/10 for i in range(-50, 151)]
-        ydata = [x**2 - x + 2 for x in xdata]
-        assert len(xdata) == len(ydata) == 201
-        self.assertAlmostEquals(sum(xdata), 1005, places=12)
-        self.assertAlmostEquals(sum(ydata), 11189, places=11)
-        expected = 0.866300845681
-        result = self.func(zip(xdata, ydata))
-        self.assertAlmostEquals(result, expected, places=12)
-        # For future use: COV = 304.515, PCOV = 303 LINFIT = 10.666...67 + 9x
-
-    def testHP_2(self):
-        # Compare to results calculated on HP-48GX using this function:
-        # << CL-SIGMA -30 60 FOR I I 3 / 500 I + SQRT ->V2 SIGMA+ NEXT >>
-        xdata = [i/3 for i in range(-30, 61)]
-        ydata = [math.sqrt(500 + i) for i in range(-30, 61)]
-        assert len(xdata) == len(ydata) == 91
-        self.assertAlmostEquals(sum(xdata), 455, places=12)
-        self.assertAlmostEquals(sum(ydata), 2064.4460877, places=6)
-        expected = 0.999934761605
-        result = self.func(zip(xdata, ydata))
-        self.assertAlmostEquals(result, expected, places=12)
-        # For future use: COV = 5.1268171707, PCOV = 5.07047852047
-        # LINFIT = 22.3555373622 + 6.61366763539e-2x
+    def testHP(self):
+        # Compare against results calculated on a HP-48GX calculator.
+        for i in range(1, 3):
+            record = hp_multivariate_test_data(i)
+            result = self.func(record.DATA)
+            self.assertAlmostEquals(result, record.CORR, places=12)
 
     def testDuplicate(self):
         # corr shouldn't change if you duplicate each point.
@@ -2138,6 +2155,13 @@ class PCovTest(unittest.TestCase):
             b = self.func(zip(xdata, ydata))
             self.assertAlmostEquals(a, b, places=6)
 
+    def testHP(self):
+        # Compare against results calculated on a HP-48GX calculator.
+        for i in range(1, 3):
+            record = hp_multivariate_test_data(i)
+            result = self.func(record.DATA)
+            self.assertAlmostEquals(result, record.PCOV, places=10)
+
 
 class CovTest(PCovTest):
     def __init__(self, *args, **kwargs):
@@ -2153,6 +2177,13 @@ class CovTest(PCovTest):
         a = stats.variance(data)
         b = self.func(zip(data, data))
         self.assertEquals(a, b)
+
+    def testHP(self):
+        # Compare against results calculated on a HP-48GX calculator.
+        for i in range(1, 3):
+            record = hp_multivariate_test_data(i)
+            result = self.func(record.DATA)
+            self.assertAlmostEquals(result, record.COV, places=10)
 
 
 class ErrSumSqTest(unittest.TestCase):
