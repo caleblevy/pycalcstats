@@ -3,4 +3,6 @@ include CHANGES.txt
 include tests/main_test.py
 include tests/make_test_data.py
 include tests/test_data.zip
+include tests/quantiles.dat
+include tests/make_quantiles_data.r
 

@@ -10,7 +10,7 @@ from stats import __version__, __author__, __author_email__
 setup(
     name = "stats",
     package_dir={'': 'src'},
-    py_modules = ['stats', '_stats_quantiles',],
+    py_modules = ['stats',],
     version = __version__,
     author = __author__,
     author_email = __author_email__,
