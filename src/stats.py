@@ -1977,7 +1977,7 @@ def linr(xdata, ydata=None):
 
     >>> xdata = [0.0, 0.25, 1.25, 1.75, 2.5, 2.75]
     >>> ydata = [1.5*x + 0.25 for x in xdata]
-    >>> linr(xdata, ydata)  #doctest: +ELLIPSIS
+    >>> linr(xdata, ydata)
     (0.25, 1.5)
 
     """

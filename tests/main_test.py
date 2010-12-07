@@ -45,10 +45,24 @@ import stats
 # Helper functions
 # ----------------
 
+NUM_HP_TESTS = 3
 def hp_multivariate_test_data(switch):
     """Generate test data to match results calculated on the HP-48GX."""
     record = collections.namedtuple('record', 'DATA CORR COV PCOV LINFIT')
-    if switch == 1:
+    if switch == 0:
+        # Equivalent to this RPL code:
+        # « CLΣ DEG 30 200 FOR X X X SIN →V2 Σ+ NEXT »
+        xdata = range(30, 201)
+        ydata = [math.sin(math.radians(x)) for x in xdata]
+        assert len(xdata) == len(ydata) == 171
+        assert sum(xdata) == 19665
+        assert round(sum(ydata), 9) == 103.536385403
+        DATA = zip(xdata, ydata)
+        CORR = -0.746144846212
+        COV = -14.3604967839
+        PCOV = -14.2765172706
+        LINFIT = (1.27926505682, -5.85903581555e-3)
+    elif switch == 1:
         # Equivalent to this RPL code:
         # « CLΣ -5 15 FOR X X 2 X - X SQ + →V2 Σ+ .1 STEP »
         xdata = [i/10 for i in range(-50, 151)]
@@ -1378,6 +1392,12 @@ class PVarianceTest(unittest.TestCase):
         b = self.func(data*2)
         self.assertAlmostEquals(a*self.scale, b, places=9)
 
+    def testDomainError(self):
+        # Domain error exception reported by Geremy Condra.
+        data = [0.123456789012345]*10000
+        # All the items are identical, so variance should be zero.
+        self.assertAlmostEquals(self.func(data), 0.0, places=16)
+
 
 class VarianceTest(PVarianceTest):
     func = stats.variance
@@ -1905,6 +1925,9 @@ class CorrTest(unittest.TestCase):
     # All calls to the test function must be the one-argument style.
     # See CorrExtrasTest for two-argument tests.
 
+    HP_TEST_NAME = 'CORR'
+    HP_TEST_PLACES = 12
+
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.corr
@@ -1958,10 +1981,11 @@ class CorrTest(unittest.TestCase):
 
     def testHP(self):
         # Compare against results calculated on a HP-48GX calculator.
-        for i in range(1, 3):
+        for i in range(NUM_HP_TESTS):
             record = hp_multivariate_test_data(i)
             result = self.func(record.DATA)
-            self.assertAlmostEquals(result, record.CORR, places=12)
+            exp = getattr(record, self.HP_TEST_NAME)
+            self.assertAlmostEquals(result, exp, places=self.HP_TEST_PLACES)
 
     def testDuplicate(self):
         # corr shouldn't change if you duplicate each point.
@@ -2110,6 +2134,9 @@ class Corr1Test(CorrTest):
 
 
 class PCovTest(unittest.TestCase):
+    HP_TEST_NAME = 'PCOV'
+    HP_TEST_PLACES = 10
+
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.pcov
@@ -2157,13 +2184,16 @@ class PCovTest(unittest.TestCase):
 
     def testHP(self):
         # Compare against results calculated on a HP-48GX calculator.
-        for i in range(1, 3):
+        for i in range(NUM_HP_TESTS):
             record = hp_multivariate_test_data(i)
             result = self.func(record.DATA)
-            self.assertAlmostEquals(result, record.PCOV, places=10)
+            exp = getattr(record, self.HP_TEST_NAME)
+            self.assertAlmostEquals(result, exp, places=self.HP_TEST_PLACES)
 
 
 class CovTest(PCovTest):
+    HP_TEST_NAME = 'COV'
+
     def __init__(self, *args, **kwargs):
         unittest.TestCase.__init__(self, *args, **kwargs)
         self.func = stats.cov
@@ -2178,20 +2208,27 @@ class CovTest(PCovTest):
         b = self.func(zip(data, data))
         self.assertEquals(a, b)
 
-    def testHP(self):
-        # Compare against results calculated on a HP-48GX calculator.
-        for i in range(1, 3):
-            record = hp_multivariate_test_data(i)
-            result = self.func(record.DATA)
-            self.assertAlmostEquals(result, record.COV, places=10)
-
 
 class ErrSumSqTest(unittest.TestCase):
     pass
 
 
 class LinrTest(unittest.TestCase):
-    pass
+    HP_TEST_NAME = 'LINFIT'
+    HP_TEST_PLACES = 11
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.func = stats.linr
+
+    def testHP(self):
+        # Compare against results calculated on a HP-48GX calculator.
+        for i in range(NUM_HP_TESTS):
+            record = hp_multivariate_test_data(i)
+            intercept, slope = self.func(record.DATA)
+            a, b = getattr(record, self.HP_TEST_NAME)
+            self.assertAlmostEquals(intercept, a, places=self.HP_TEST_PLACES)
+            self.assertAlmostEquals(slope, b, places=self.HP_TEST_PLACES)
 
 
 # Test sums and products
