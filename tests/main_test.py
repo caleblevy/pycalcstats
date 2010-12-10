@@ -111,7 +111,7 @@ class GlobalsTest(unittest.TestCase):
     # FIXME test to make sure that things that should be in __all__ are?
 
 
-class CompareAgainstExternalResultsTest(unittest.TestCase):
+class CompareAgainstNumpyResultsTest(unittest.TestCase):
     # Test the results we generate against some numpy equivalents.
     places = 8
 
@@ -161,6 +161,85 @@ class CompareAgainstExternalResultsTest(unittest.TestCase):
         result = stats.pvariance(self.data)
         expected = self.expected['pvariance']
         self.assertAlmostEqual(result, expected, places=self.places)
+
+
+class AssortedResultsTest(unittest.TestCase):
+    # Test some assorted statistical results against exact results
+    # calculated by hand, and confirmed by HP-48GX calculations.
+    places = 16
+
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.xdata = [1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 3/2, 5/2,
+                      7/2, 9/2, 11/2, 13/2, 15/2, 17/2, 19/2]
+        self.ydata = [1/4, 1/2, 3/2, 1, 1/2, 3/2, 1, 5/4, 5/2, 7/4,
+                      9/4, 11/4, 11/4, 7/4, 13/4, 17/4]
+        assert len(self.xdata) == len(self.ydata) == 16
+
+    def testSums(self):
+        Sx = stats.sum(self.xdata)
+        Sy = stats.sum(self.ydata)
+        self.assertAlmostEqual(Sx, 3295/64, places=self.places)
+        self.assertAlmostEqual(Sy, 115/4, places=self.places)
+
+    def testSumSqs(self):
+        Sx2 = stats.sumsq(self.xdata)
+        Sy2 = stats.sumsq(self.ydata)
+        self.assertAlmostEqual(Sx2, 1366357/4096, places=self.places)
+        self.assertAlmostEqual(Sy2, 1117/16, places=self.places)
+
+    def testMeans(self):
+        x = stats.mean(self.xdata)
+        y = stats.mean(self.ydata)
+        self.assertAlmostEqual(x, 3295/1024, places=self.places)
+        self.assertAlmostEqual(y, 115/64, places=self.places)
+
+    def testOtherSums(self):
+        Sxx = stats.Sxx(zip(self.xdata, self.ydata))
+        Syy = stats.Syy(zip(self.xdata, self.ydata))
+        Sxy = stats.Sxy(zip(self.xdata, self.ydata))
+        self.assertAlmostEqual(Sxx, 11004687/4096, places=self.places)
+        self.assertAlmostEqual(Syy, 4647/16, places=self.places)
+        self.assertAlmostEqual(Sxy, 197027/256, places=self.places)
+
+    def testPVar(self):
+        sx2 = stats.pvariance(self.xdata)
+        sy2 = stats.pvariance(self.ydata)
+        self.assertAlmostEqual(sx2, 11004687/1048576, places=self.places)
+        self.assertAlmostEqual(sy2, 4647/4096, places=self.places)
+
+    def testVar(self):
+        sx2 = stats.variance(self.xdata)
+        sy2 = stats.variance(self.ydata)
+        self.assertAlmostEqual(sx2, 11004687/983040, places=self.places)
+        self.assertAlmostEqual(sy2, 4647/3840, places=self.places)
+
+    def testPCov(self):
+        v = stats.pcov(self.xdata, self.ydata)
+        self.assertAlmostEqual(v, 197027/65536, places=self.places)
+
+    def testCov(self):
+        v = stats.cov(self.xdata, self.ydata)
+        self.assertAlmostEqual(v, 197027/61440, places=self.places)
+
+    def testErrSumSq(self):
+        se = stats.errsumsq(self.xdata, self.ydata)
+        self.assertAlmostEqual(se, 96243295/308131236, places=self.places)
+
+    def testLinr(self):
+        a, b = stats.linr(self.xdata, self.ydata)
+        expected_b = 3152432/11004687
+        expected_a = 115/64 - expected_b*3295/1024
+        self.assertAlmostEqual(a, expected_a, places=self.places)
+        self.assertAlmostEqual(b, expected_b, places=self.places)
+
+    def testCorr(self):
+        r = stats.corr(zip(self.xdata, self.ydata))
+        Sxx = 11004687/4096
+        Syy = 4647/16
+        Sxy = 197027/256
+        expected = Sxy/math.sqrt(Sxx*Syy)
+        self.assertAlmostEqual(r, expected, places=15)
 
 
 # Test helper and utility functions
@@ -2118,7 +2197,7 @@ class Corr1Test(CorrTest):
         a = self.func(xydata)
         random.shuffle(xydata)
         b = self.func(xydata)
-        self.assertAlmostEquals(a, b, places=15)
+        self.assertAlmostEquals(a, b, places=14)
 
     def testStress(self):
         # Stress the corr1() function looking for failures of the
@@ -2229,6 +2308,12 @@ class LinrTest(unittest.TestCase):
             a, b = getattr(record, self.HP_TEST_NAME)
             self.assertAlmostEquals(intercept, a, places=self.HP_TEST_PLACES)
             self.assertAlmostEquals(slope, b, places=self.HP_TEST_PLACES)
+
+    def testEmpty(self):
+        self.assertRaises(ValueError, self.func, [])
+
+    def testSingleton(self):
+        self.assertRaises(ValueError, self.func, [(1, 2)])
 
 
 # Test sums and products
