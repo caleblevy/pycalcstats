@@ -1966,14 +1966,28 @@ def _SP(xdata, mx, ydata, my):
     return (n, total)#, total2)
 
 
-def errsumsq(xdata, ydata=None):
-    """Return the error sum of squares of (x,y) data."""
+@_Multivariate.split_xydata
+def errsumsq(xdata, ydata):
+    """Return the error sum of squares of (x,y) data.
+
+    The error sum of squares, or residual sum of squares, is the estimated
+    variance of the least-squares linear regression line of (x,y) data.
+
+    >>> errsumsq([1, 2, 3, 4], [1.5, 1.5, 3.5, 3.5])
+    0.4
+
+    """
     t = xysums(xdata, ydata)
     return (t.Sxx*t.Syy - (t.Sxy**2))/(t.n*(t.n-2)*t.Sxx)
 
 
-def linr(xdata, ydata=None):
+@_Multivariate.split_xydata
+def linr(xdata, ydata):
     """Return the linear regression coefficients a and b for (x,y) data.
+
+    Returns the y-intercept and slope of the straight line of the least-
+    squared regression line, that is, the line which minimises the sum of
+    the squares of the errors between the actual and calculated y values.
 
     >>> xdata = [0.0, 0.25, 1.25, 1.75, 2.5, 2.75]
     >>> ydata = [1.5*x + 0.25 for x in xdata]
@@ -1982,6 +1996,8 @@ def linr(xdata, ydata=None):
 
     """
     t = xysums(xdata, ydata)
+    if t.n < 2:
+        raise StatsError('regression line requires at least two points')
     b = t.Sxy/t.Sxx
     a = t.sumy/t.n - b*t.sumx/t.n
     return (a, b)
