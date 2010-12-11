@@ -670,10 +670,11 @@ def simple_moving_average(data, window=3):
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
 #
-# Quantiles (fractiles) and percentiles are even worse -- R (and presumably
-# S) include nine different calculation methods for quantiles. Mathematica
-# uses a parameterized quantile function capable of matching eight of those
-# nine methods. Wikipedia lists a tenth method. There are probably more.
+# Quantiles (fractiles) and percentiles also have a plethora of methods.
+# R (and presumably S) include nine different calculation methods for
+# quantiles. Mathematica uses a parameterized quantile function capable
+# of matching eight of those nine methods. Wikipedia lists a tenth method.
+# There are probably others I don't know of.
 
 class _Quartiles:
     """Private namespace for quartile calculation methods.
@@ -1009,6 +1010,17 @@ def hinges(data):
     >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
     (6, 10, 14)
 
+    If the data has length N of the form 4n+5 (e.g. 5, 9, 13, 17...) then
+    the hinges can be visualised by writing out the ordered data in the
+    shape of a W, where each limb of the W is equal is length. For example,
+    the data (A,B,C,...) with N=9 would be written out like this:
+
+        A       E       I
+          B   D   F   H
+            C       G
+
+    and the hinges would be C, E and G.
+
     This is equivalent to quartiles() called with scheme=1.
     """
     return quartiles(data, scheme=1)
@@ -1048,9 +1060,10 @@ def quantile(data, p, scheme=None):
     of these. You can examine quantiles.aliases for a mapping of names to
     scheme numbers or parameters.
 
-        WARNING: the use of arbitrary parameters is not recommended!
-        Although quantile will calculate a result using them, the result
-        is unlikely to be meaningful or statistically useful.
+        WARNING:
+        The use of arbitrary values as a four-parameter scheme is not
+        recommended! Although quantile will calculate a result using them,
+        the result is unlikely to be meaningful or statistically useful.
 
     Integer schemes 1-9 are equivalent to R's quantile types with the same
     number. These are also equivalent to Mathematica's parameterized quartile
@@ -1073,14 +1086,13 @@ def quantile(data, p, scheme=None):
 
         (1) If scheme is missing or None, the default is taken from the
             global variable QUANTILE_DEFAULT (set to 1 by default).
-        (2) Scheme 1 ensures that the values returned are always data points.
-        (3) Mathematica's default is equivalent to scheme=1.
-        (4) The default used by programming languages R and S is scheme=7.
-        (5) For compatibility with Microsoft Excel and OpenOffice, use
-            scheme 7.
-        (6) For compatibility with Matlab's PRCTILE function, use scheme=5.
-        (7) For compatibility with Minitab, use scheme=6.
-        (8) Scheme 8 is recommended by Hyndman and Fan (1996).
+        (2) Scheme 1 ensures that the values returned are always data points,
+            and is the default used by Mathematica.
+        (3) Scheme 5 is equivalent to Matlab's PRCTILE function.
+        (4) Scheme 6 is equivalent to the method used by Minitab.
+        (5) Scheme 7 is the default used by programming languages R and S,
+            and is the method used by Microsoft Excel and OpenOffice.
+        (6) Scheme 8 is recommended by Hyndman and Fan (1996).
 
     Example of using a scheme written in the parameterized form used by
     Mathematica:
@@ -1127,7 +1139,7 @@ def _parametrized_quantile(parameters, data, p):
 
     data is assumed to be sorted and with at least two items; p is assumed
     to be between 0 and 1 inclusive. If either of these assumptions are
-    violated, the behaviour of this function are undefined.
+    violated, the behaviour of this function is undefined.
 
     >>> from builtins import range; data = range(1, 21)
     >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
@@ -1205,8 +1217,10 @@ def pvariance(data, m=None):
     If you know the population mean, or an estimate of it, then you can pass
     the mean as the optional argument m. See also pstdev.
 
-    If data represents a statistical sample rather than the entire
-    population, you should use variance instead.
+    The variance is a measure of the variability (spread or dispersion) of
+    data. The population variance applies when data represents the entire
+    relevant population. If it represents a statistical sample rather than
+    the entire population, you should use variance instead.
     """
     n, ss = _SS(data, m)
     if n < 1:
@@ -1225,8 +1239,10 @@ def variance(data, m=None):
     If you know the population mean, or an estimate of it, then you can pass
     the mean as the optional argument m. See also stdev.
 
-    If data represents the entire population, and not just a sample, then
-    you should use pvariance instead.
+    The variance is a measure of the variability (spread or dispersion) of
+    data. The sample variance applies when data represents a sample taken
+    from the relevant population. If it represents the entire population, you
+    should use pvariance instead.
     """
     n, ss = _SS(data, m)
     if n < 2:

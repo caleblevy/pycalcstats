@@ -1469,7 +1469,7 @@ class PVarianceTest(unittest.TestCase):
         data = [random.uniform(-100, 500) for _ in range(20)]
         a = self.func(data)
         b = self.func(data*2)
-        self.assertAlmostEquals(a*self.scale, b, places=9)
+        self.assertAlmostEquals(a*self.scale, b, places=6)
 
     def testDomainError(self):
         # Domain error exception reported by Geremy Condra.
