@@ -2667,8 +2667,55 @@ class CircularMeanTest(unittest.TestCase):
         self.assertAlmostEquals(theta, 0.0, places=places)
 
 
+# Integration with doctests
+# -------------------------
 
-# ============================================================================
+doc_test_suite = doctest.DocTestSuite(module=stats)
+
+
+# Test runners
+# ------------
+
+
+def run_garbage_detector():
+    # Simple garbage detector.
+    gc.collect()
+    if gc.garbage:
+        print("List of uncollectable garbage:")
+        print(gc.garbage)
+    else:
+        pr("No garbage found.")
+
+
+def run_doctests():
+    failures, tests = doctest.testmod(stats)
+    if failures:
+        print("Skipping further tests while doctests failing.")
+        sys.exit(1)
+    else:
+        pr("Doctests: failed %d, attempted %d" % (failures, tests))
+
+
+def run_example_tests():
+    if os.path.exists('examples.txt'):
+        failures, tests = doctest.testfile('examples.txt')
+        if failures:
+            print("Skipping further tests while doctests failing.")
+            sys.exit(1)
+        else:
+            pr("Example doc tests: failed %d, attempted %d" % (failures, tests))
+    else:
+        pr('WARNING: No example text file found.')
+
+
+def run_unit_tests():
+    pr("Running unit tests:")
+    unittest.main(exit=False)
+    #suite = unittest.TestLoader().loadTestsFromTestCase(TestSequenceFunctions)
+    #unittest.TextTestRunner(verbosity=2).run(suite)
+    unittest.TextTestRunner(verbosity=0).run(doc_test_suite)
+
+
 
 if __name__ == '__main__':
     # Define a function that prints, or doesn't, according to whether or not
@@ -2681,54 +2728,13 @@ if __name__ == '__main__':
     else:
         def pr(s):
             print(s)
-    #
     # Now run the tests.
-    #
-    gc.collect()
-    assert not gc.garbage
-    #
-    # Run doctests in the stats package.
-    #
-    failures, tests = doctest.testmod(stats)
-    if failures:
-        print("Skipping further tests while doctests failing.")
-        sys.exit(1)
-    else:
-        pr("Doctests: failed %d, attempted %d" % (failures, tests))
-    #
-    # Run doctests in the example text file.
-    #
-    if os.path.exists('examples.txt'):
-        failures, tests = doctest.testfile('examples.txt')
-        if failures:
-            print("Skipping further tests while doctests failing.")
-            sys.exit(1)
-        else:
-            pr("Example doc tests: failed %d, attempted %d" % (failures, tests))
-    else:
-        pr('WARNING: No example text file found.')
-    #
-    # Run unit tests.
-    #
-    pr("Running unit tests:")
-    try:
-        unittest.main()
-    except SystemExit:
-        pass
-    #
+    run_doctests()
+    run_example_tests()
+    run_unit_tests()
     # Check maximum error found in corr1.
-    #
     err = stats._MAX_CORR1_ERR
     if err:
         print('Warning: corr1 residue found: %r' % err)
-    #
-    # Check for reference leaks.
-    #
-    gc.collect()
-    if gc.garbage:
-        print("List of uncollectable garbage:")
-        print(gc.garbage)
-    else:
-        pr("No garbage found.")
-
+    run_garbage_detector()
 
