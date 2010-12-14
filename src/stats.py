@@ -387,26 +387,10 @@ def mean(data):
     It is commonly called "the average". It is a measure of the central
     location of the data.
     """
-    # Fast path for sequence data.
-    try:
-        n = len(data)
-    except TypeError:
-        # Slower path for iterable data with no len.
-        ap = add_partial
-        partials = []
-        n = 0
-        for x in data:
-            ap(x, partials)
-            n += 1
-        # FIXME given that this is a re-implementation of the math.fsum
-        # algorithm, is there any advantage to calling math.fsum here?
-        # Or should we just call the built-in sum on the partials?
-        sumx = math.fsum(partials)
-    else:
-        sumx = sum(data)  # Not the built-in version.
+    n, total = _generalised_sum(data, None)
     if n == 0:
         raise StatsError('mean of empty sequence is not defined')
-    return sumx/n
+    return total/n
 
 
 def harmonic_mean(data):
@@ -1259,24 +1243,7 @@ def _SS(data, m):
         # Two pass algorithm.
         data = as_sequence(data)
         m = mean(data)
-    # Fast path for sequences.
-    try:
-        n = len(data)
-    except TypeError:
-        # Slow path for iterables without a len.
-        ap = add_partial
-        partials = []
-        for n, x in enumerate(data, 1):
-            ap((x-m)**2, partials)
-        total = sum(partials)
-    else:
-        total = sum((x-m)**2 for x in data)
-    return (n, total)
-    # FIXME this may not be accurate enough, a more accurate algorithm
-    # is the compensated version:
-    # sum2 = sum(x-m)**2) as above
-    # sumc = sum(x-m)
-    # return (sum2 - sumc**2/n), n
+    return _generalised_sum(data, lambda x: (x-m)**2)
 
 
 def pstdev(data, m=None):
@@ -1479,20 +1446,7 @@ def average_deviation(data, m=None):
     if m is None:
         data = as_sequence(data)
         m = mean(data)
-    # Try a fast path for sequence data.
-    try:
-        n = len(data)
-    except TypeError:
-        # Slow path for iterables without a len.
-        ap = add_partial
-        partials = []
-        n = 0
-        for x in data:
-            n += 1
-            ap(abs(x - m), partials)
-        total = sum(partials)
-    else:
-        total = sum(abs(x-m) for x in data)
+    n, total = _generalised_sum(data, lambda x: abs(x-m))
     if n < 1:
         raise StatsError('average deviation requires at least 1 data point')
     return total/n
@@ -1627,20 +1581,7 @@ def skewness(data, m=None, s=None):
         data = as_sequence(data)
         if m is None: m = mean(data)
         if s is None: s = stdev(data, m)
-    # Try fast path.
-    try:
-        n = len(data)
-    except TypeError:
-        # Slow path for iterables without len.
-        ap = add_partial
-        partials = []
-        n = 0
-        for x in xdata:
-            n += 1
-            ap(((x - m)/s)**3, partials)
-        total = sum(partials)
-    else:
-        total = sum(((x-m)/s)**3 for x in data)
+    n, total = _generalised_sum(data, lambda x: ((x-m)/s)**3)
     return total/n
 
 
@@ -1675,23 +1616,43 @@ def kurtosis(data, m=None, s=None):
         data = as_sequence(data)
         if m is None: m = mean(data)
         if s is None: s = stdev(data, m)
+    n, total = _generalised_sum(data, lambda x: ((x-m)/s)**4)
+    k = total/n - 3
+    assert k >= -2
+    return k
+
+def _generalised_sum(data, func):
+    """_generalised_sum(data, func) -> len(data), sum(func(items of data))
+
+    Return a two-tuple of the length of data and the sum of func() of the
+    items of data. If func is None, use just the sum of items of data.
+    """
     # Try fast path.
     try:
-        n = len(data)
+        count = len(data)
     except TypeError:
         # Slow path for iterables without len.
         ap = add_partial
         partials = []
-        n = 0
-        for x in xdata:
-            n += 1
-            ap(((x - m)/s)**4, partials)
-        total = sum(partials)
+        count = 0
+        if func is None:
+            for count, x in enumerate(data, 1):
+                ap(x, partials)
+        else:
+            for count, x in enumerate(data, 1):
+                ap(func(x), partials)
+        total = math.fsum(partials)
     else:
-        total = sum(((x-m)/s)**4 for x in data)
-    k = total/n - 3
-    assert k >= -2
-    return k
+        if func is None:
+            total = math.fsum(data)
+        else:
+            total = math.fsum(func(x) for x in data)
+    return count, total
+    # FIXME this may not be accurate enough for 2nd moments (x-m)**2
+    # A more accurate algorithm would be the compensated version:
+    #   sum2 = sum(x-m)**2) as above
+    #   sumc = sum(x-m)  # Should be zero, but may not be.
+    #   total = sum2 - sumc**2/n
 
 
 def _terriberry(data):
@@ -1964,22 +1925,7 @@ def _SP(xdata, mx, ydata, my):
         # Two pass algorithm.
         ydata = as_sequence(ydata)
         my = mean(ydata)
-    # Fast path for sequences.
-    try:
-        n = len(xdata)
-        assert n == len(ydata)
-    except TypeError:
-        # Slow path for iterables without a len.
-        ap = add_partial
-        partials = []
-        for n, (x,y) in enumerate(zip(xdata, ydata), 1):
-            ap((x-mx)*(y-my), partials)
-        total = sum(partials)
-        #total2 = sum(x/n for x in partials)
-    else:
-        total = sum((x-mx)*(y-my) for x,y in zip(xdata, ydata))
-        #total2 = sum((x-mx)*(y-my)/n for x,y in zip(xdata, ydata))
-    return (n, total)#, total2)
+    return _generalised_sum(zip(xdata, ydata), lambda t: (t[0]-mx)*(t[1]-my))
 
 
 @_Multivariate.split_xydata
@@ -2038,7 +1984,8 @@ def sum(data, start=0):
     If optional argument start is given, it is added to the sequence. If the
     sequence is empty, start (defaults to 0) is returned.
     """
-    return math.fsum(data) + start
+    n, total = _generalised_sum(data, None)
+    return total + start
 
 
 def product(data, start=1):
