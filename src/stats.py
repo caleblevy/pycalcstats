@@ -91,7 +91,7 @@ __all__ = [
     'sum', 'sumsq', 'product', 'cumulative_sum', 'Sxx', 'Syy', 'Sxy',
     # Assorted others:
     'StatsError', 'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
-    'sterrmean', 'minmax',
+    'sterrmean', 'stderrskewness', 'stderrkurtosis', 'minmax',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -1554,16 +1554,20 @@ def pearson_mode_skewness(mean, mode, stdev):
 def skewness(data, m=None, s=None):
     """skewness(data [,m [,s]]) -> sample skewness of data.
 
-    Returns the degree to which the data is skewed to the left or the right
-    of the mean.
+    Returns a biased estimate of the degree to which the data is skewed to
+    the left or the right of the mean.
+
+    >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    ... #doctest: +ELLIPSIS
+    1.12521290135...
 
     If you know one or both of the population mean and standard deviation,
     or estimates of them, then you can pass the mean as optional argument m
     and the standard deviation as s.
 
-    >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5], m=2.25)
     ... #doctest: +ELLIPSIS
-    1.12521290135...
+    0.965559535600599...
 
     The reliablity of the result as an estimate for the true skewness depends
     on the estimated mean and standard deviation. If m or s are not given, or
@@ -1576,6 +1580,12 @@ def skewness(data, m=None, s=None):
     majority of values are to the left of the mean. A zero skew indicates
     that the values are evenly distributed around the mean, often but not
     necessarily implying the distribution is symmetric.
+
+        :: CAUTION ::
+        As a rule of thumb, a non-zero value for skewness should only be
+        treated as meaningful if its absolute value is larger than
+        approximately twice its standard error. See stderrskewness.
+
     """
     if m is None or s is None:
         data = as_sequence(data)
@@ -1586,31 +1596,42 @@ def skewness(data, m=None, s=None):
 
 
 def kurtosis(data, m=None, s=None):
-    """kurtosis(data [,m [,s]]) -> sample kurtosis of data.
+    """kurtosis(data [,m [,s]]) -> sample excess kurtosis of data.
 
-    Returns the excess kurtosis (degree of peakedness) of the data, relative
+    Returns a biased estimate of the excess kurtosis of the data, relative
     to the kurtosis of the normal distribution. To convert to kurtosis proper,
     add 3 to the result.
-
-        WARNING: As the kurtosis depends on the fourth power of the
-        data points, it can suffer from significant round-off error
-        and should be used with caution.
-
-    If you know one or both of the population mean and standard deviation,
-    or estimates of them, then you can pass the mean as optional argument m
-    and the standard deviation as s.
 
     >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
     ... #doctest: +ELLIPSIS
     -0.1063790369...
 
+    If you know one or both of the population mean and standard deviation,
+    or estimates of them, then you can pass the mean as optional argument m
+    and the standard deviation as s.
+
+    >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5], m=2.25)
+    ... #doctest: +ELLIPSIS
+    -0.37265014648437...
+
     The reliablity of the result as an estimate for the kurtosis depends on
     the estimated mean and standard deviation given. If m or s are not given,
     or are None, they are estimated from the data.
 
-    The higher the kurtosis, the sharper the peak. Higher kurtosis means more
-    of the variance is the result of infrequent extreme deviations, as opposed
-    to frequent modestly sized deviations.
+    The kurtosis of a population is a measure of the peakedness and weight
+    of the tails. The normal distribution has kurtosis of zero; positive
+    kurtosis has heavier tails and a sharper peak than normal; negative
+    kurtosis has ligher tails and a flatter peak.
+
+    There is no upper limit for kurtosis, and a lower limit of -2. Higher
+    kurtosis means more of the variance is the result of infrequent extreme
+    deviations, as opposed to frequent modestly sized deviations.
+
+        :: CAUTION ::
+        As a rule of thumb, a non-zero value for kurtosis should only
+        be treated as meaningful if its absolute value is larger than
+        approximately twice its standard error. See stderrkurtosis.
+
     """
     if m is None or s is None:
         data = as_sequence(data)
@@ -2299,6 +2320,42 @@ def sterrmean(s, n, N=None):
         assert 0 <= f <= 1
         sem *= math.sqrt(f)
     return sem
+
+
+# Tabachnick and Fidell (1996) appear to be the most commonly quoted
+# source for standard error of skewness and kurtosis; see also "Numerical
+# Recipes in Pascal", by William H. Press et al (Cambridge University Press).
+# Presumably "Numerical Recipes in C" and "... Fortran" by the same authors
+# say the same thing.
+
+def stderrskewness(n):
+    """stderrskewness(n) -> float
+
+    Return the approximate standard error of skewness for a sample of size
+    n taken from an approximately normal distribution.
+
+    >>> stderrskewness(15)  #doctest: +ELLIPSIS
+    0.63245553203...
+
+    """
+    if n == 0:
+        return float('inf')
+    return math.sqrt(6/n)
+
+
+def stderrkurtosis(n):
+    """stderrkurtosis(n) -> float
+
+    Return the approximate standard error of kurtosis for a sample of size
+    n taken from an approximately normal distribution.
+
+    >>> stderrkurtosis(15)  #doctest: +ELLIPSIS
+    1.2649110640...
+
+    """
+    if n == 0:
+        return float('inf')
+    return math.sqrt(24/n)
 
 
 # === Statistics of circular quantities ===
