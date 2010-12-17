@@ -36,27 +36,27 @@ Features:
     >>> stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
     4.38961843444...
 
-(2) Order statistics such as the median and quartiles:
+(2) Single-pass variations on common statistics for use on large iterators
+    with little or no loss of precision:
+
+    >>> data = iter([2.5, 3.25, 5.5, 11.25, 11.75])
+    >>> stdev1(data)  #doctest: +ELLIPSIS
+    4.38961843444...
+
+(3) Order statistics such as the median and quartiles:
 
     >>> median([6, 1, 5, 4, 2, 3])
     3.5
     >>> quartiles([2, 4, 5, 3, 1, 6])
     (2, 3.5, 5)
 
-(3) Over forty statistics, including such functions as trimean and standard
+(4) Over forty statistics, including such functions as trimean and standard
     error of the mean:
 
     >>> trimean([15, 18, 20, 29, 35])
     21.75
     >>> sterrmean(3.25, 100, 1000)  #doctest: +ELLIPSIS
     0.30847634861...
-
-(4) Perform calculations on iterators in one pass with little or no loss
-    of precision:
-
-    >>> data = iter([2.5, 3.25, 5.5, 11.25, 11.75])
-    >>> stdev1(data)  #doctest: +ELLIPSIS
-    4.38961843444...
 
 """
 
