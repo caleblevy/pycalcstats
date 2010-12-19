@@ -1152,7 +1152,7 @@ def _parametrized_quantile(parameters, data, p):
     return x + (y - x)*(c + d*f)
 
 
-def decile(data, d, scheme=1):
+def decile(data, d, scheme=None):
     """Return the dth decile of data, for integer d between 0 and 10.
 
     >>> data = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
@@ -1168,7 +1168,7 @@ def decile(data, d, scheme=1):
     return quantile(data, Fraction(d, 10), scheme)
 
 
-def percentile(data, p, scheme=1):
+def percentile(data, p, scheme=None):
     """Return the pth percentile of data, for integer p between 0 and 100.
 
     >>> import builtins; data = builtins.range(1, 201)
@@ -1409,18 +1409,18 @@ def range(data):
     return b - a
 
 
-def iqr(data, scheme=1):
+def iqr(data, scheme=None):
     """Returns the Inter-Quartile Range of a sequence of numbers.
 
     >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])
     3.25
 
     The IQR is the difference between the first and third quartile. The
-    optional argument scheme (defaulting to 1) is used to select the
-    algorithm for calculating the quartiles. See the quartile function for
-    further details.
+    optional argument scheme is used to select the algorithm for calculating
+    the quartiles. The default scheme is taken from the global variable
+    QUARTILE_DEFAULT. See the quartile function for further details.
 
-    The default IQR (with scheme 1) is equivalent to Tukey's H-spread.
+    The IQR with scheme 1 is equivalent to Tukey's H-spread.
     """
     q1, _, q3 = quartiles(data, scheme)
     return q3 - q1
@@ -1432,9 +1432,9 @@ def average_deviation(data, m=None):
     data = iterable of data values
     m (optional) = measure of central tendency for data.
 
-    m is usually chosen to be the mean or median, which you are expected to
-    know independently. If m is not given, or is None, the sample mean is
-    calculated from the data and used instead.
+    m is usually chosen to be the mean or median, but any measure of central
+    tendency is suitable. If m is not given, or is None, the sample mean is
+    calculated from the data and used.
 
     >>> data = [2.0, 2.25, 2.5, 2.5, 3.25]
     >>> average_deviation(data)  # Use the sample mean.
@@ -1864,7 +1864,7 @@ def corr1(xydata):
         raise StatsError('calculated y variance is zero')
     r = sum_coproduct/(pop_sd_x*pop_sd_y)
     err = max(abs(r)-1, 0)
-    if 0.0 < err <= 2**-51:
+    if 0.0 < err <= 2**-50:
         r = math.copysign(1, r)
         if __debug__:
             global _MAX_CORR1_ERR

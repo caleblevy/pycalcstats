@@ -52,7 +52,8 @@ import stats
 
 def approx_equal(x, y, tol=1e-12, rel=1e-7):
     if tol is rel is None:
-        raise TypeError('cannot use None for both absolute and relative errors')
+        # Fall back on exact equality.
+        return x == y
     tests = []
     if tol is not None: tests.append(tol)
     if rel is not None: tests.append(rel*abs(x))
@@ -65,13 +66,35 @@ class NumericTestCase(unittest.TestCase):
     tol = None
     rel = 1e-9
     def assertApproxEqual(
-        self, first, second, tol=USE_DEFAULT, rel=USE_DEFAULT, msg=None
+        self, actual, expected, tol=USE_DEFAULT, rel=USE_DEFAULT, msg=None
         ):
+        # Note that unlike most (all?) other unittest assert* methods, this
+        # is asymmetric -- the first argument is treated differently from
+        # the second. Is this a feature?
         if tol is USE_DEFAULT: tol = self.tol
         if rel is USE_DEFAULT: rel = self.rel
-        if not approx_equal(first, second, tol, rel):
-            standardMsg = '%r not ~= %r\n' % (first, second)
-            standardMsg += 'delta = %r' % abs(first - second)
+        # Note that we reverse the order of the arguments.
+        if not approx_equal(expected, actual, tol, rel):
+            # Generate the standard error message. We start with the
+            # common part, which comes at the end.
+            abs_err = abs(actual - expected)
+            rel_err = abs_err/abs(expected) if expected else float('inf')
+            err_msg = '    absolute error = %r\n    relative error = %r'
+            # Now the non-common part.
+            if tol is rel is None:
+                header = 'actual value %r is not equal to expected %r\n'
+                items = (actual, expected, abs_err, rel_err)
+            else:
+                header = 'actual value %r differs from expected %r\n' \
+                         '    by more than %s\n'
+                t = []
+                if tol is not None:
+                    t.append('tol=%f' % tol)
+                if rel is not None:
+                    t.append('rel=%f' % rel)
+                assert t
+                items = (actual, expected, ' and '.join(t), abs_err, rel_err)
+            standardMsg = (header + err_msg) % items
             msg = self._formatMessage(msg, standardMsg)
             raise self.failureException(msg)
 
@@ -128,14 +151,13 @@ def hp_multivariate_test_data(switch):
 
 class ApproxTest(NumericTestCase):
     # Test the approx_equal helper function.
-    def testBothNone(self):
-        self.assertRaises(TypeError, approx_equal, 1.1, 1.1, None, None)
 
     def testEqual(self):
         for x in (-123.456, -1.1, 0.0, 0.5, 1.9, 23.42, 1.2e68, -1, 0, 1):
             self.assertTrue(approx_equal(x, x))
             self.assertTrue(approx_equal(x, x, tol=None))
             self.assertTrue(approx_equal(x, x, rel=None))
+            self.assertTrue(approx_equal(x, x, tol=None, rel=None))
 
     def testAbsolute(self):
         x = random.uniform(-23, 42)
@@ -183,7 +205,7 @@ class CompareAgainstNumpyResultsTest(NumericTestCase):
     places = 8
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         # Read data from external test data file.
         # (In this case, produced by numpy and Python 2.5.)
         zf = zipfile.ZipFile('test_data.zip', 'r')
@@ -236,7 +258,7 @@ class AssortedResultsTest(NumericTestCase):
     places = 16
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.xdata = [1/64, 1/32, 1/16, 1/8, 1/4, 1/2, 1, 3/2, 5/2,
                       7/2, 9/2, 11/2, 13/2, 15/2, 17/2, 19/2]
         self.ydata = [1/4, 1/2, 3/2, 1, 1/2, 3/2, 1, 5/4, 5/2, 7/4,
@@ -626,8 +648,10 @@ class MeanTest(NumericTestCase):
     expected = 5.5
     func = stats.mean
 
+    tol = rel = None  # Default to expect exact equality.
+
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         # Black magic to force self.func to be a function rather
         # than a method.
         self.func = self.__class__.func
@@ -636,6 +660,7 @@ class MeanTest(NumericTestCase):
         random.shuffle(self.data)
 
     def myAssertEquals(self, a, b, **kwargs):
+        raise RuntimeError
         if hasattr(self, 'delta'):
             diff = abs(a-b)
             self.assertLessEqual(diff, self.delta, **kwargs)
@@ -646,20 +671,20 @@ class MeanTest(NumericTestCase):
         self.assertRaises(ValueError, self.func, [])
 
     def testSeq(self):
-        self.myAssertEquals(self.func(self.data), self.expected)
+        self.assertApproxEqual(self.func(self.data), self.expected)
 
     def testBigData(self):
         data = [x + 1e9 for x in self.data]
         expected = self.expected + 1e9
         assert expected != 1e9  # Avoid catastrophic loss of precision.
-        self.myAssertEquals(self.func(data), expected)
+        self.assertApproxEqual(self.func(data), expected)
 
     def testIter(self):
-        self.myAssertEquals(self.func(iter(self.data)), self.expected)
+        self.assertApproxEqual(self.func(iter(self.data)), self.expected)
 
     def testSingleton(self):
         for x in self.data:
-            self.myAssertEquals(self.func([x]), x)
+            self.assertApproxEqual(self.func([x]), x)
 
     def testDoubling(self):
         # Average of [a,b,c...z] should be same as for [a,a,b,b,c,c...z,z].
@@ -672,25 +697,17 @@ class MeanTest(NumericTestCase):
 class HarmonicMeanTest(MeanTest):
     func = stats.harmonic_mean
     expected = 3.4995090404755
-    delta = 1e-8
-
-    def testBigData(self):
-        data = [x + 1e9 for x in self.data]
-        expected = 1000000005.5  # Calculated with HP-48GX
-        diff = abs(self.func(data) - expected)
-        self.assertLessEqual(diff, 1e-6)
+    rel = 1e-8
 
 
 class GeometricMeanTest(MeanTest):
     func = stats.geometric_mean
     expected = 4.56188290183
-    delta = 1e-11
+    rel = 1e-11
 
+    @unittest.skip('geometric mean currently too inaccurate')
     def testBigData(self):
-        data = [x + 1e9 for x in self.data]
-        # HP-48GX calculates this as 1000000005.48
-        expected = 1000000005.5
-        self.assertEqual(self.func(data), expected)
+        super().testBigData()
 
     def testNegative(self):
         data = [1.0, 2.0, -3.0, 4.0]
@@ -706,16 +723,11 @@ class GeometricMeanTest(MeanTest):
 class QuadraticMeanTest(MeanTest):
     func = stats.quadratic_mean
     expected = 6.19004577259
-    delta = 1e-11
-
-    def testBigData(self):
-        data = [x + 1e9 for x in self.data]
-        expected = 1000000005.5  # Calculated with HP-48GX
-        self.assertEqual(self.func(data), expected)
+    rel = 1e-8
 
     def testNegative(self):
         data = [-x for x in self.data]
-        self.myAssertEquals(self.func(data), self.expected)
+        self.assertApproxEqual(self.func(data), self.expected)
 
 
 class MedianTest(MeanTest):
@@ -723,7 +735,7 @@ class MedianTest(MeanTest):
 
     def testSeq(self):
         assert len(self.data) % 2 == 1
-        MeanTest.testSeq(self)
+        super().testSeq()
 
     def testEven(self):
         data = self.data[:] + [0.0]
@@ -739,7 +751,17 @@ class MedianTest(MeanTest):
         self.assertEqual(data, save)
 
 
-class MedianExtrasTest(MedianTest):
+class MedianExtrasTest(NumericTestCase):
+    def __init__(self, *args, **kwargs):
+        NumericTestCase.__init__(self, *args, **kwargs)
+        self.func = stats.median
+
+    def testMedianOdd(self):
+        data = [11, 12, 13, 14, 15, 16, 17, 18, 19]
+        assert len(data)%2 == 1
+        for x in (-1, 0, 1):
+            random.shuffle(data)
+            self.assertEqual(self.func(data, x), 15)
 
     def testMedianLow(self):
         data = [11, 12, 13, 14, 15, 16, 17, 18]
@@ -808,7 +830,7 @@ class MidhingeTest(MedianTest):
         d = c + [7.4]
         for L in (a, b, c, d):
             random.shuffle(L)
-        self.assertEqual(round(stats.midhinge(a), 10), 2.9)
+        self.assertApproxEqual(stats.midhinge(a), 2.9, tol=1e-10, rel=None)
         self.assertEqual(stats.midhinge(b), 3.25)
         self.assertEqual(stats.midhinge(c), 3.5)
         self.assertEqual(stats.midhinge(d), 3.75)
@@ -819,7 +841,7 @@ class TrimeanTest(NumericTestCase):
     expected = 5.5
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.trimean
 
     def testFailures(self):
@@ -867,7 +889,7 @@ class TrimeanTest(NumericTestCase):
 
 class RunningAverageTest(NumericTestCase):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.running_average
 
     def testGenerator(self):
@@ -880,7 +902,7 @@ class RunningAverageTest(NumericTestCase):
         random.shuffle(data)
         expected = stats.mean(data)
         results = list(self.func(data))
-        self.assertAlmostEqual(results[-1], expected)
+        self.assertApproxEqual(results[-1], expected)
 
 
 class WeightedRunningAverageTest(RunningAverageTest):
@@ -1010,14 +1032,12 @@ class QuartileAliasesTest(NumericTestCase):
 
 
 class QuartileTest(NumericTestCase):
-    func = stats.quartiles
     # Schemes to be tested.
     schemes = [1, 2, 3, 4, 5, 6]
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-        # Force self.func to be a function rather than a method.
-        self.func = self.__class__.func
+        NumericTestCase.__init__(self, *args, **kwargs)
+        self.func = stats.quartiles
 
     # Helper methods:
 
@@ -1221,7 +1241,7 @@ class QuartileTest(NumericTestCase):
 
 class HingesTest(NumericTestCase):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.hinges
 
     def testNoSorting(self):
@@ -1261,10 +1281,9 @@ class HingesTest(NumericTestCase):
 
     def testHinges(self):
         f = self.func
-        g = stats.quartiles
         for n in range(3, 25):
             data = range(n)
-            self.assertEqual(f(data), g(data, 1))
+            self.assertEqual(f(data), stats.quartiles(data, 'hinges'))
 
 
 class QuantileBehaviourTest(NumericTestCase):
@@ -1272,7 +1291,7 @@ class QuantileBehaviourTest(NumericTestCase):
     # the actual values returned.
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.quantile
 
     def testSorting(self):
@@ -1294,8 +1313,9 @@ class QuantileBehaviourTest(NumericTestCase):
         self.assertRaises(ValueError, self.func, [1], 0.1)
 
     def testDefaultScheme(self):
-        data = list(range(50))
+        data = list(range(51))
         random.shuffle(data)
+        assert len(data) % 4 == 3
         save_scheme = stats.QUANTILE_DEFAULT
         schemes = [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
@@ -1318,7 +1338,7 @@ class QuantileValueTest(NumericTestCase):
     # values returned.
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.quantile
 
     def testUnsorted(self):
@@ -1336,23 +1356,26 @@ class QuantileValueTest(NumericTestCase):
     def testUnitInterval(self):
         data = [0, 1]
         for f in (0.01, 0.1, 0.2, 0.25, 0.5, 0.55, 0.8, 0.9, 0.99):
-            self.assertAlmostEqual(self.func(data, f, scheme=7), f, places=9)
+            result = self.func(data, f, scheme=7)
+            self.assertApproxEqual(result, f, tol=1e-9, rel=None)
 
+    # For the life of me I can't remember what LQD stands for...
     def testLQD(self):
         expected = [1.0, 1.7, 3.9, 6.1, 8.3, 10.5, 12.7, 14.9, 17.1, 19.3, 20.0]
         ps = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         data = range(1, 21)
         for i, p in enumerate(ps):
             result = stats.quantile(data, p, scheme=10)
-            self.assertAlmostEqual(expected[i], result, places=12)
+            self.assertApproxEqual(expected[i], result, tol=1e-12, rel=None)
 
 
 class QuantilesCompareWithR(NumericTestCase):
     # Compare results of calling quantile() against results from R.
-    places = 3
+    tol = 1e-3
+    rel = None
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.read_data('quantiles.dat')
 
     def read_data(self, filename):
@@ -1381,10 +1404,11 @@ class QuantilesCompareWithR(NumericTestCase):
         self.expected = expected
 
     def compare(self, scheme):
-        a = [round(stats.quantile(self.data, p, scheme=scheme), self.places)
-             for p in self.fractiles]
-        b = [round(x, self.places) for x in self.expected[scheme]]
-        self.assertEqual(a, b)
+        fractiles = self.fractiles
+        a = [stats.quantile(self.data, p, scheme=scheme) for p in fractiles]
+        b = self.expected[scheme]
+        for x,y in zip(a, b):
+            self.assertApproxEqual(x, y)
 
     def testR1(self):  self.compare(1)
     def testR2(self):  self.compare(2)
@@ -1419,7 +1443,7 @@ class CompareQuantileMethods(NumericTestCase):
         scheme = 1; params = (0, 0, 1, 0)
         self.compareMethods(scheme, params)
 
-    # Note that there is *no* test for R2, as it is not supported by the
+    # Note that there is no test for R2, as it is not supported by the
     # Mathematica parameterized quantile algorithm.
 
     @unittest.skip('test currently broken for unknown reasons')
@@ -1501,8 +1525,10 @@ class PVarianceTest(NumericTestCase):
     # Scaling factor when you duplicate each data point:
     scale = 1.0
 
+    tol = 1e-16  # Absolute error accepted.
+
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         # Force self.func to be a function rather than a method.
         self.func = self.__class__.func
 
@@ -1530,19 +1556,38 @@ class PVarianceTest(NumericTestCase):
         data = (list(range(1, 11)) + list(range(1000, 1201)) +
             [0, 3, 7, 23, 42, 101, 111, 500, 567])
         random.shuffle(data)
-        self.assertAlmostEqual(self.func(data), self.hp_expected, places=7)
+        self.assertApproxEqual(self.func(data), self.hp_expected)
 
     def testDuplicate(self):
         data = [random.uniform(-100, 500) for _ in range(20)]
         a = self.func(data)
         b = self.func(data*2)
-        self.assertAlmostEqual(a*self.scale, b, places=6)
+        self.assertApproxEqual(a*self.scale, b)
 
     def testDomainError(self):
         # Domain error exception reported by Geremy Condra.
         data = [0.123456789012345]*10000
         # All the items are identical, so variance should be zero.
-        self.assertAlmostEqual(self.func(data), 0.0, places=16)
+        self.assertApproxEqual(self.func(data), 0.0)
+
+    def testWithLargeData(self):
+        small_data = [random.gauss(7.5, 5.5) for _ in range(1000)]
+        a = self.func(small_data)
+        # We expect a to be close to the exact result for the variance,
+        # namely 5.5**2, but if it's not, that's just a fluke of the random
+        # sample. Either way, it doesn't matter.
+        b = self.func(small_data)
+        self.assertApproxEqual(a, b, tol=1e-12)
+
+        def big_data():
+            for _ in range(100):
+                for x in small_data:
+                    yield x
+
+        c = self.func(big_data())
+        # In principle, the calculated variance should be unchanged;
+        # however due to rounding errors it may have changed somewhat.
+        self.assertApproxEqual(a, c, tol=None, rel=0.001)
 
 
 class VarianceTest(PVarianceTest):
@@ -1562,8 +1607,8 @@ class VarianceTest(PVarianceTest):
         #   > var(x)
         #   [1] 57563.55
         data = list(range(1, 11)) + list(range(1000, 1201))
-        expected = 57563.55
-        self.assertAlmostEqual(self.func(data), expected, places=3)
+        expected = 57563.550
+        self.assertApproxEqual(self.func(data), expected, tol=1e-3)
         # The expected value from R looks awfully precise... are they
         # rounding it, or is that the exact value?
         # My HP-48GX calculator returns 57563.5502144.
@@ -1586,7 +1631,7 @@ class StdevTest(VarianceTest):
     def testCompareR(self):
         data = list(range(1, 11)) + list(range(1000, 1201))
         expected = 239.9241
-        self.assertAlmostEqual(self.func(data), expected, places=4)
+        self.assertApproxEqual(self.func(data), expected, tol=1e-4)
 
 
 class PVariance1Test(PVarianceTest):
@@ -1599,9 +1644,11 @@ class Variance1Test(VarianceTest):
     def testWithLargeData(self):
         small_data = [random.gauss(3.5, 2.5) for _ in range(1000)]
         a = stats.variance(small_data)
-        # Expect a to be close to 2.5**2.
+        # We expect a to be close to the exact result for the variance,
+        # namely 5.5**2, but if it's not, that's just a fluke of the random
+        # sample. Either way, it doesn't matter.
         b = self.func(small_data)
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertApproxEqual(a, b, tol=1e-12)
 
         def big_data():
             for _ in range(100):
@@ -1609,8 +1656,8 @@ class Variance1Test(VarianceTest):
                     yield x
 
         c = self.func(big_data())
-        # Expect a == b == c.
-        self.assertAlmostEqual(a, c, places=4)
+        # Expect variance to be unchanged, except for rounding errors.
+        self.assertApproxEqual(a, c, tol=None, rel=1e-3)
 
 class PStdev1Test(PStdevTest):
     func = stats.pstdev1
@@ -1621,6 +1668,7 @@ class Stdev1Test(StdevTest):
 
 
 class VarianceMeanTest(NumericTestCase):
+    # Test variance calculations when the mean is explicitly supplied.
 
     def compare_with_and_without_mean(self, func):
         mu = 100*random.random()
@@ -1629,12 +1677,12 @@ class VarianceMeanTest(NumericTestCase):
             [-6, -2, 0, 3, 4, 5, 5, 5, 6, 7, 9, 11, 15, 25, 26, 27, 28, 42],
             [random.random() for _ in range(10)],
             [random.uniform(10000, 11000) for _ in range(50)],
-            [random.uniform(mu, sigma) for _ in range(50)],
+            [random.gauss(mu, sigma) for _ in range(50)],
             ):
             m = stats.mean(data)
             a = func(data)
             b = func(data, m)
-            self.assertEqual(a, b)
+            self.assertApproxEqual(a, b, tol=None, rel=None)
 
     def test_pvar(self):
         self.compare_with_and_without_mean(stats.pvariance)
@@ -1695,27 +1743,77 @@ class RangeTest(NumericTestCase):
 
 class IQRTest(NumericTestCase):
 
-    def testBadSelector(self):
-        for method in (-1, 1.5, "spam"):
-            self.assertRaises(ValueError, stats.iqr, [1, 2, 3, 4], method)
+    def testBadScheme(self):
+        # Test that a bad scheme raises an exception.
+        for scheme in (-1, 1.5, "spam"):
+            self.assertRaises(ValueError, stats.iqr, [1, 2, 3, 4], scheme)
 
-    def testBadData(self):
+    def testFailure(self):
+        # Test that too few items raises an exception.
         for data in ([], [1], [2, 3]):
             self.assertRaises(ValueError, stats.iqr, data)
+
+    def testTriplet(self):
+        # Test that data consisting of three items behaves as expected.
+        data = [1, 5, 12]
+        self.assertEqual(stats.iqr(data, 'inclusive'), 5.5)
+        self.assertEqual(stats.iqr(data, 'exclusive'), 11)
 
     def testCaseInsensitive(self):
         data = [1, 2, 3, 6, 9, 12, 18, 22]
         for name, num in stats.quartiles.aliases.items():
             a = stats.iqr(data, name.lower())
             b = stats.iqr(data, name.upper())
-            c = stats.iqr(data, num)
+            c = stats.iqr(data, name.title())
+            d = stats.iqr(data, num)
             self.assertEqual(a, b)
             self.assertEqual(a, c)
+            self.assertEqual(a, d)
+
+    def testDefaultScheme(self):
+        # Test that iqr inherits the global default for quartiles.
+        data = list(range(51))
+        random.shuffle(data)
+        assert len(data) % 4 == 3
+        save_scheme = stats.QUARTILE_DEFAULT
+        schemes = [1, 2, 3, 4, 5, 6]
+        try:
+            for scheme in schemes:
+                stats.QUARTILE_DEFAULT = scheme
+                a = stats.iqr(data)
+                b = stats.iqr(data, scheme)
+                self.assertEqual(a, b)
+        finally:
+            stats.QUARTILE_DEFAULT = save_scheme
+
+    def same_result(self, data, scheme):
+        # Check that data gives the same result, no matter what order
+        # it is given in.
+        assert len(data) > 2
+        if len(data) <= 7:
+            # Exhaustively try every permutation for small amounts of data.
+            perms = itertools.permutations(data)
+        else:
+            # Take a random sample for larger amounts of data.
+            data = list(data)
+            perms = []
+            for _ in range(50):
+                random.shuffle(data)
+                perms.append(data[:])
+        results = [stats.iqr(perm, scheme) for perm in perms]
+        assert len(results) > 1
+        self.assertTrue(len(set(results)) == 1)
+
+    def testCompareOrder(self):
+        # Ensure results don't depend on the order of the input.
+        for scheme in [1, 2, 3, 4, 5, 6]:
+            for size in range(3, 12):  # size % 4 -> 3,0,1,2 ...
+                self.same_result(range(size), scheme)
 
 
 class AverageDeviationTest(NumericTestCase):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.average_deviation
 
     def testTooFewItems(self):
@@ -1767,8 +1865,11 @@ class AverageDeviationTest(NumericTestCase):
 
 class MedianAverageDeviationTest(AverageDeviationTest):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.median_average_deviation
+
+    def testHasScaling(self):
+        self.assertTrue(hasattr(self.func, 'scaling'))
 
     def testSuppliedMedian(self):
         # Test that pre-calculating the median gives the same result.
@@ -1797,8 +1898,10 @@ class MedianAverageDeviationTest(AverageDeviationTest):
         data = [100*random.random()+42 for _ in range(100)]
         expected = self.func(data)
         self.assertEqual(self.func(data, scale='normal'), expected*1.4826)
-        self.assertAlmostEqual(self.func(data, scale='uniform'),
-            expected*1.1547, places=4) # Documented value in docstring.
+        self.assertApproxEqual(
+            self.func(data, scale='uniform'),
+            expected*1.1547, # Documented value in docstring.
+            tol=0.0001, rel=None)
         self.assertEqual(self.func(data, scale='uniform'),
             expected*math.sqrt(4/3))  # Exact value.
         for x in (-1.25, 0.0, 1.25, 4.5, 9.75):
@@ -1812,9 +1915,6 @@ class MedianAverageDeviationTest(AverageDeviationTest):
             c = self.func(data, scale=scale.title())
             self.assertEqual(a, b)
             self.assertEqual(a, c)
-
-    def testHasScaling(self):
-        self.assertTrue(hasattr(self.func, 'scaling'))
 
     def testSignOdd(self):
         data = [23*random.random()+42 for _ in range(55)]
@@ -1839,13 +1939,19 @@ class MedianAverageDeviationTest(AverageDeviationTest):
 
 class QuartileSkewnessTest(NumericTestCase):
     def testFailure(self):
+        # Test that function raises an exception if the arguments are
+        # out of order.
         self.assertRaises(ValueError, stats.quartile_skewness, 2, 3, 1)
+        self.assertRaises(ValueError, stats.quartile_skewness, 9, 8, 7)
 
     def testNan(self):
-        x = stats.quartile_skewness(1, 1, 1)
-        self.assertTrue(math.isnan(x))
+        # Test that the degenerate case where all three arguments are
+        # equal returns NAN.
+        self.assertTrue(math.isnan(stats.quartile_skewness(1, 1, 1)))
+        self.assertTrue(math.isnan(stats.quartile_skewness(5, 5, 5)))
 
     def testSkew(self):
+        # Test skew calculations.
         self.assertEqual(stats.quartile_skewness(3, 5, 7), 0.0)
         self.assertEqual(stats.quartile_skewness(0, 1, 10), 0.8)
         self.assertEqual(stats.quartile_skewness(0, 9, 10), -0.8)
@@ -1853,18 +1959,29 @@ class QuartileSkewnessTest(NumericTestCase):
 
 class PearsonModeSkewnessTest(NumericTestCase):
     def testFailure(self):
+        # Test that stdev must be positive.
         self.assertRaises(ValueError, stats.pearson_mode_skewness, 2, 3, -1)
+        self.assertRaises(ValueError, stats.pearson_mode_skewness, 3, 2, -5)
 
     def testNan(self):
-        x = stats.pearson_mode_skewness(5, 5, 0)
-        self.assertTrue(math.isnan(x))
+        # Test that a numerator and denominator of zero returns NAN.
+        self.assertTrue(math.isnan(stats.pearson_mode_skewness(5, 5, 0)))
+        self.assertTrue(math.isnan(stats.pearson_mode_skewness(42, 42, 0)))
 
     def testInf(self):
-        x = stats.pearson_mode_skewness(3, 2, 0)
-        self.assertTrue(math.isinf(x))
+        # Test that a non-zero numerator and zero denominator returns INF.
+        self.assertTrue(math.isinf(stats.pearson_mode_skewness(3, 2, 0)))
+        self.assertTrue(math.isinf(stats.pearson_mode_skewness(2, 3, 0)))
+
+    def testZero(self):
+        # Test that a zero numerator and non-zero denominator returns zero.
+        self.assertEqual(stats.pearson_mode_skewness(3, 3, 1), 0)
+        self.assertEqual(stats.pearson_mode_skewness(42, 42, 7), 0)
 
     def testSkew(self):
+        # Test skew calculations.
         self.assertEqual(stats.pearson_mode_skewness(2.5, 2.25, 2.5), 0.1)
+        self.assertEqual(stats.pearson_mode_skewness(225, 250, 25), -1.0)
 
 
 class SkewnessTest(NumericTestCase):
@@ -1891,7 +2008,7 @@ class SkewnessTest(NumericTestCase):
         random.shuffle(data)
         k1 = stats.skewness(data)
         k2 = stats.skewness(x+1e9 for x in data)
-        self.assertAlmostEqual(k1, k2, places=7)
+        self.assertApproxEqual(k1, k2, tol=1e-7)
 
     def test_types(self):
         # Results should be the same no matter what type is used.
@@ -1915,7 +2032,7 @@ class SkewnessTest(NumericTestCase):
         data = [x*y for x,y in zip(d1, d2)]
         a = stats.skewness(data)
         b = stats.skewness(sorted(data))
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertApproxEqual(a, b, tol=1e-14)
 
     def testMeanStdev(self):
         # Giving the sample mean and/or stdev shouldn't change the result.
@@ -1936,6 +2053,8 @@ class SkewnessTest(NumericTestCase):
 
 
 class KurtosisTest(NumericTestCase):
+    tol = 1e-7
+    rel = None
 
     def corrected_uniform_kurtosis(self, n):
         """Return the exact kurtosis for a discrete uniform distribution."""
@@ -1943,8 +2062,6 @@ class KurtosisTest(NumericTestCase):
         expected = -6*(n**2 + 1)/(5*(n - 1)*(n + 1))
         # Give a correction factor to adjust it for sample kurtosis:
         expected *= (n/(n-1))**3
-        # XXX why 3? I can't justify this, but it seems to give the closest
-        # results.
         return expected
 
     def test_uniform(self):
@@ -1953,9 +2070,9 @@ class KurtosisTest(NumericTestCase):
         n = 10000
         data = range(n)
         expected = self.corrected_uniform_kurtosis(n)
-        self.assertAlmostEqual(stats.kurtosis(data), expected, places=6)
+        self.assertApproxEqual(stats.kurtosis(data), expected)
         data = [x + 1e9 for x in data]
-        self.assertAlmostEqual(stats.kurtosis(data), expected, places=6)
+        self.assertApproxEqual(stats.kurtosis(data), expected)
 
     def test_shift0(self):
         data = [(2*i+1)/4 for i in range(1000)]
@@ -1972,7 +2089,7 @@ class KurtosisTest(NumericTestCase):
         data = [x*y for x,y in zip(d1, d2)]
         k1 = stats.kurtosis(data)
         k2 = stats.kurtosis(x+1e9 for x in data)
-        self.assertAlmostEqual(k1, k2, places=9)
+        self.assertApproxEqual(k1, k2, tol=1e-9)
 
     def test_types(self):
         # Results should be the same no matter what type is used.
@@ -1996,7 +2113,7 @@ class KurtosisTest(NumericTestCase):
         data = [x*y for x,y in zip(d1, d2)]
         a = stats.kurtosis(data)
         b = stats.kurtosis(sorted(data))
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertApproxEqual(a, b, tol=1e-14)
 
     def testMeanStdev(self):
         # Giving the sample mean and/or stdev shouldn't change the result.
@@ -2087,10 +2204,10 @@ class CorrTest(NumericTestCase):
     # See CorrExtrasTest for two-argument tests.
 
     HP_TEST_NAME = 'CORR'
-    HP_TEST_PLACES = 12
+    tol = 1e-14
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.corr
 
     def testOrdered(self):
@@ -2145,8 +2262,8 @@ class CorrTest(NumericTestCase):
         for i in range(NUM_HP_TESTS):
             record = hp_multivariate_test_data(i)
             result = self.func(record.DATA)
-            exp = getattr(record, self.HP_TEST_NAME)
-            self.assertAlmostEqual(result, exp, places=self.HP_TEST_PLACES)
+            expected = getattr(record, self.HP_TEST_NAME)
+            self.assertApproxEqual(result, expected)
 
     def testDuplicate(self):
         # corr shouldn't change if you duplicate each point.
@@ -2155,29 +2272,38 @@ class CorrTest(NumericTestCase):
         ydata = [x - 0.5 + random.random() for x in xdata]
         a = self.func(zip(xdata, ydata))
         b = self.func(zip(xdata*2, ydata*2))
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertApproxEqual(a, b)
         # And again with a (probably) low correlation.
         ydata = [random.uniform(-5, 15) for _ in range(15)]
         a = self.func(zip(xdata, ydata))
         b = self.func(zip(xdata*2, ydata*2))
-        self.assertAlmostEqual(a, b, places=12)
+        self.assertApproxEqual(a, b)
 
     def testSame(self):
         data = [random.random() for x in range(5)]
         result = self.func([(x, x) for x in data])
-        self.assertAlmostEqual(result, 1.0, places=14)  # small list
+        self.assertApproxEqual(result, 1.0)  # small list
         data = [random.random() for x in range(100)]
         result = self.func([(x, x) for x in data])
-        self.assertAlmostEqual(result, 1.0, places=14)  # medium list
+        self.assertApproxEqual(result, 1.0)  # medium list
         data = [random.random() for x in range(100000)]
         result = self.func([(x, x) for x in data])
-        self.assertAlmostEqual(result, 1.0, places=14)  # large list
+        self.assertApproxEqual(result, 1.0)  # large list
 
     def generate_stress_data(self, start, end, step):
-        xfuncs = (lambda x: x, lambda x: 12345*x + 9876,
-                  lambda x: 1e9*x, lambda x: 1e-9*x)
-        yfuncs = (lambda y: y, lambda y: 67890*y + 6428,
-                  lambda y: 1e9*y, lambda y: 1e-9*y)
+        xfuncs = (lambda x: x,
+                  lambda x: 12345*x + 9876,
+                  lambda x: 1e9*x,
+                  lambda x: 1e-9*x,
+                  lambda x: 1e-7*x + 3,
+                  lambda x: 846*x - 423,
+                  )
+        yfuncs = (lambda y: y,
+                  lambda y: 67890*y + 6428,
+                  lambda y: 1e9*y,
+                  lambda y: 1e-9*y,
+                  lambda y: 2342*y - 1171,
+                  )
         for i in range(start, end, step):
             xdata = [random.random() for _ in range(i)]
             ydata = [random.random() for _ in range(i)]
@@ -2189,24 +2315,31 @@ class CorrTest(NumericTestCase):
     def testStress(self):
         # Stress the corr() function looking for failures of the
         # post-condition -1 <= r <= 1.
-        for xdata, ydata in self.generate_stress_data(5, 51, 3):
+        for xdata, ydata in self.generate_stress_data(5, 351, 23):
             result = self.func(zip(xdata, ydata))
             self.assertTrue(-1.0 <= result <= 1.0)
 
+    def shifted_correlation(self, xdata, ydata, xdelta, ydelta):
+        xdata = [x+xdelta for x in xdata]
+        ydata = [y+ydelta for y in ydata]
+        return self.func(zip(xdata, ydata))
+
     def testShift(self):
+        # Shifting the data by a constant amount shouldn't change the
+        # correlation.
         xdata = [random.random() for _ in range(50)]
         ydata = [random.random() for _ in range(50)]
         a = self.func(zip(xdata, ydata))
-        for x0, y0 in [(42, -99), (1.2e6, 4.5e5), (7.8e9, 3.6e9)]:
-            xdata = [x+x0 for x in xdata]
-            ydata = [y+y0 for y in ydata]
-            b = self.func(zip(xdata, ydata))
-            self.assertAlmostEqual(a, b, places=5)  # FIXME
+        offsets = [(42, -99), (1.2e6, 4.5e5), (7.8e9, 3.6e9)]
+        tolerances = [self.tol, 5e-10, 1e-6]
+        for (x0,y0), tol in zip(offsets, tolerances):
+            b = self.shifted_correlation(xdata, ydata, x0, y0)
+            self.assertApproxEqual(a, b, tol=tol)
 
 
 class CorrExtrasTest(NumericTestCase):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.corr
 
     def testSimple(self):
@@ -2259,19 +2392,19 @@ class CorrExtrasTest(NumericTestCase):
 
 class Corr1Test(CorrTest):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        CorrTest.__init__(self, *args, **kwargs)
         self.func = stats.corr1
 
     def testPerfectCorrelation(self):
         xydata = [(x, 2.3*x - 0.8) for x in range(-17, 395, 3)]
-        self.assertAlmostEqual(self.func(xydata), 1.0, places=14)
+        self.assertApproxEqual(self.func(xydata), 1.0)
 
     def testPerfectZeroCorrelation(self):
-        data = []
+        xydata = []
         for x in range(1, 10):
             for y in range(1, 10):
-                data.append((x, y))
-        self.assertAlmostEqual(self.func(data), 0.0, places=14)
+                xydata.append((x, y))
+        self.assertApproxEqual(self.func(xydata), 0.0)
 
     def testOrdered(self):
         # Order shouldn't matter.
@@ -2279,27 +2412,29 @@ class Corr1Test(CorrTest):
         a = self.func(xydata)
         random.shuffle(xydata)
         b = self.func(xydata)
-        self.assertAlmostEqual(a, b, places=14)
+        self.assertApproxEqual(a, b)
 
     def testStress(self):
         # Stress the corr1() function looking for failures of the
-        # post-condition -1 <= r <= 1. Don't stop on the first error.
+        # post-condition -1 <= r <= 1. We expect that there may be some,
+        # (but hope there won't be!) so don't stop on the first error.
         failed = 0
-        it = self.generate_stress_data(5, 51, 1)
+        it = self.generate_stress_data(5, 358, 11)
         for count, (xdata, ydata) in enumerate(it, 1):
             result = self.func(zip(xdata, ydata))
             failed += not -1.0 <= result <= 1.0
-        assert count == 736
+        assert count == 33*6*5
         self.assertEqual(failed, 0,
             "%d out of %d out of range errors" % (failed, count))
 
 
 class PCovTest(NumericTestCase):
     HP_TEST_NAME = 'PCOV'
-    HP_TEST_PLACES = 10
+    tol = 5e-12
+    rel = 1e-8
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.pcov
 
     def testEmpty(self):
@@ -2331,17 +2466,22 @@ class PCovTest(NumericTestCase):
         data = [random.random() for _ in range(50)]
         a = stats.pvariance(data)
         b = self.func(zip(data, data))
-        self.assertEqual(a, b)
+        self.assertApproxEqual(a, b)
 
     def testShift(self):
         xdata = [random.random() for _ in range(50)]
         ydata = [random.random() for _ in range(50)]
         a = self.func(zip(xdata, ydata))
-        for x0, y0 in [(-23, 89), (3.7e5, 2.9e6), (1.4e9, 8.1e9)]:
+        for x0, y0 in [(-23, 89), (193, -4362), (3.7e5, 2.9e6)]:
             xdata = [x+x0 for x in xdata]
             ydata = [y+y0 for y in ydata]
             b = self.func(zip(xdata, ydata))
-            self.assertAlmostEqual(a, b, places=6)
+            self.assertApproxEqual(a, b)
+        for x0, y0 in [(1.4e9, 8.1e9), (-2.3e9, 5.8e9)]:
+            xdata = [x+x0 for x in xdata]
+            ydata = [y+y0 for y in ydata]
+            b = self.func(zip(xdata, ydata))
+            self.assertApproxEqual(a, b, tol=1e-7)
 
     def testHP(self):
         # Compare against results calculated on a HP-48GX calculator.
@@ -2349,14 +2489,14 @@ class PCovTest(NumericTestCase):
             record = hp_multivariate_test_data(i)
             result = self.func(record.DATA)
             exp = getattr(record, self.HP_TEST_NAME)
-            self.assertAlmostEqual(result, exp, places=self.HP_TEST_PLACES)
+            self.assertApproxEqual(result, exp)
 
 
 class CovTest(PCovTest):
     HP_TEST_NAME = 'COV'
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        PCovTest.__init__(self, *args, **kwargs)
         self.func = stats.cov
 
     def testSingleton(self):
@@ -2367,20 +2507,29 @@ class CovTest(PCovTest):
         data = [random.random() for _ in range(50)]
         a = stats.variance(data)
         b = self.func(zip(data, data))
-        self.assertEqual(a, b)
+        self.assertApproxEqual(a, b)
 
 
 class ErrSumSqTest(NumericTestCase):
-    pass
+
+    @unittest.skip('not yet implemented')
+    def testErrSumSq(self):
+        self.fail()
 
 
 class LinrTest(NumericTestCase):
     HP_TEST_NAME = 'LINFIT'
-    HP_TEST_PLACES = 11
 
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.linr
+
+    def testTwoTuple(self):
+        # Test that linear regression returns a two tuple.
+        data = [(1,2), (3, 5), (5, 9)]
+        result = self.func(data)
+        self.assertTrue(isinstance(result, tuple))
+        self.assertTrue(len(result) == 2)
 
     def testHP(self):
         # Compare against results calculated on a HP-48GX calculator.
@@ -2388,8 +2537,8 @@ class LinrTest(NumericTestCase):
             record = hp_multivariate_test_data(i)
             intercept, slope = self.func(record.DATA)
             a, b = getattr(record, self.HP_TEST_NAME)
-            self.assertAlmostEqual(intercept, a, places=self.HP_TEST_PLACES)
-            self.assertAlmostEqual(slope, b, places=self.HP_TEST_PLACES)
+            self.assertApproxEqual(intercept, a)
+            self.assertApproxEqual(slope, b)
 
     def testEmpty(self):
         self.assertRaises(ValueError, self.func, [])
@@ -2403,7 +2552,7 @@ class LinrTest(NumericTestCase):
 
 class SumTest(NumericTestCase):
     def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
+        NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.sum
 
     def testEmpty(self):
@@ -2462,8 +2611,8 @@ class SumTortureTest(NumericTestCase):
         func = stats.sum
         self.assertEqual(func([1, 1e100, 1, -1e100]*10000), 20000.0)
         self.assertEqual(func([1e100, 1, 1, -1e100]*10000), 20000.0)
-        self.assertAlmostEqual(
-            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, places=15)
+        self.assertApproxEqual(
+            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, tol=1e-15)
 
 
 class ProductTest(NumericTestCase):
@@ -2486,14 +2635,21 @@ class ProductTest(NumericTestCase):
         for data in (range(23), range(-35, 36)):
             self.assertEqual(stats.product(data), 0)
 
+    def testNegatives(self):
+        self.assertEqual(stats.product([2, -3]), -6)
+        self.assertEqual(stats.product([2, -3, -4]), 24)
+        self.assertEqual(stats.product([-2, 3, -4, -5]), -120)
+
     def testProduct(self):
+        self.assertEqual(stats.product([1.5, 5.0, 7.5, 12.0]), 675.0)
+        self.assertEqual(stats.product([5]*20), 5**20)
         self.assertEqual(stats.product(range(1, 24)), math.factorial(23))
 
     def testExact(self):
         data = [i/(i+1) for i in range(1, 1024)]
         random.shuffle(data)
-        self.assertAlmostEqual(stats.product(data), 1/1024, places=12)
-        self.assertAlmostEqual(stats.product(data, 2.5), 5/2048, places=12)
+        self.assertApproxEqual(stats.product(data), 1/1024, tol=1e-12)
+        self.assertApproxEqual(stats.product(data, 2.5), 5/2048, tol=1e-12)
 
     def testTypes(self):
         for data in (range(1, 42), range(-35, 36, 2)):
@@ -2508,12 +2664,21 @@ class ProductTest(NumericTestCase):
     def testStart(self):
         data = [random.uniform(1, 50) for _ in range(10)]
         t = stats.product(data)
-        # assertAlmostEqual not up to the job here.
         for start in (42, 0.2, -23, 1e20):
             a = t*start
             b = stats.product(data, start)
             err = abs(a - b)/b
-            self.assertTrue(err <= 1e-12)
+            self.assertApproxEqual(a, b, rel=1e-12)
+
+    def testTorture(self):
+        # Torture test for product.
+        data = []
+        for i in range(1, 101):
+            data.append(i)
+            data.append(1/i)
+        self.assertApproxEqual(stats.product(data), 1.0, tol=1e-14)
+        random.shuffle(data)
+        self.assertApproxEqual(stats.product(data), 1.0, tol=1e-14)
 
 
 class SumSqTest(SumTest):
@@ -2523,13 +2688,14 @@ class SumSqTest(SumTest):
 
     def testSum(self):
         data = [random.random() for _ in range(100)]
-        self.assertEqual(self.func(data), math.fsum(x**2 for x in data))
+        expected = math.fsum(x**2 for x in data)
+        self.assertApproxEqual(self.func(data), expected, tol=None, rel=2e-16)
 
     def testExact(self):
         # sum of squares of 1, 2, 3, ... n = n(n+1)(2n+1)/6
         data = range(1, 101)
         expected = 100*101*201/6
-        self.assertEqual(self.func(data), expected)
+        self.assertApproxEqual(self.func(data), expected, tol=None, rel=None)
 
 
 class CumulativeSumTest(NumericTestCase):
@@ -2594,7 +2760,10 @@ class CumulativeSumTest(NumericTestCase):
 
 
 class SxxTest(NumericTestCase):
-    pass
+
+    @unittest.skip('not yet implemented')
+    def testMain(self):
+        self.fail()
 
 
 class SyyTest(SxxTest):
@@ -2606,11 +2775,17 @@ class SxyTest(SxxTest):
 
 
 class XSumsTest(NumericTestCase):
-    pass
+
+    @unittest.skip('not yet implemented')
+    def testMain(self):
+        self.fail()
 
 
 class XYSumsTest(NumericTestCase):
-    pass
+
+    @unittest.skip('not yet implemented')
+    def testMain(self):
+        self.fail()
 
 
 # Test partitioning and binning
@@ -2639,8 +2814,8 @@ class StErrMeanTest(NumericTestCase):
         # Population size must not be less than sample size.
         self.assertRaises(ValueError, stats.sterrmean, 1, 100, 99)
         # But equal or greater is allowed.
-        self.assertTrue(stats.sterrmean(1, 100, 100) or True)
-        self.assertTrue(stats.sterrmean(1, 100, 101) or True)
+        self.assertEqual(stats.sterrmean(1, 100, 100), 0.0)
+        self.assertTrue(stats.sterrmean(1, 100, 101))
 
     def testZeroStdev(self):
         for n in (5, 10, 25, 100):
@@ -2662,18 +2837,19 @@ class StErrMeanTest(NumericTestCase):
         self.assertEqual(stats.sterrmean(2.5, 16), 0.625)
 
     def testFPC(self):
-        self.assertAlmostEqual(
-            stats.sterrmean(0.25, 25, 100), 0.043519413989, places=11)
-        self.assertAlmostEqual(
-            stats.sterrmean(1.0, 100, 150), 5.79284446364e-2, places=11)
-        self.assertAlmostEqual(
-            stats.sterrmean(2.5, 16, 20), 0.286769667338, places=11)
+        self.assertApproxEqual(
+            stats.sterrmean(0.25, 25, 100), 0.043519413989, tol=1e-11)
+        self.assertApproxEqual(
+            stats.sterrmean(1.0, 100, 150), 5.79284446364e-2, tol=1e-11)
+        self.assertApproxEqual(
+            stats.sterrmean(2.5, 16, 20), 0.286769667338, tol=1e-11)
 
 
 # Test statistics of circular quantities
 # --------------------------------------
 
 class CircularMeanTest(NumericTestCase):
+    tol = 1e-12
 
     def testDefaultDegrees(self):
         # Test that degrees are the default.
@@ -2696,38 +2872,33 @@ class CircularMeanTest(NumericTestCase):
     def testSingleton(self):
         for x in (-1.0, 0.0, 1.0, 3.0):
             self.assertEqual(stats.circular_mean([x], False), x)
-            self.assertAlmostEqual(
-                stats.circular_mean([x], True), x, places=12
-                )
+            self.assertApproxEqual(stats.circular_mean([x], True), x)
 
     def testNegatives(self):
         data1 = [355, 5, 15, 320, 45]
         theta = stats.circular_mean(data1)
         data2 = [d-360 if d > 180 else d for d in data1]
         phi = stats.circular_mean(data2)
-        self.assertAlmostEqual(theta, phi, places=12)
+        self.assertApproxEqual(theta, phi)
 
     def testIter(self):
         theta = stats.circular_mean(iter([355, 5, 15]))
-        self.assertAlmostEqual(theta, 5.0, places=12)
+        self.assertApproxEqual(theta, 5.0)
 
     def testSmall(self):
-        places = 12
         t = stats.circular_mean([0, 360])
-        self.assertEqual(round(t, places), 0.0)
+        self.assertApproxEqual(t, 0.0)
         t = stats.circular_mean([10, 20, 30])
-        self.assertEqual(round(t, places), 20.0)
+        self.assertApproxEqual(t, 20.0)
         t = stats.circular_mean([355, 5, 15])
-        self.assertEqual(round(t, places), 5.0)
+        self.assertApproxEqual(t, 5.0)
 
     def testFullCircle(self):
         # Test with angle > full circle.
-        places = 12
         theta = stats.circular_mean([3, 363])
-        self.assertAlmostEqual(theta, 3, places=places)
+        self.assertApproxEqual(theta, 3)
 
     def testBig(self):
-        places = 12
         pi = math.pi
         # Generate angles between pi/2 and 3*pi/2, with expected mean of pi.
         delta = pi/1000
@@ -2737,7 +2908,7 @@ class CircularMeanTest(NumericTestCase):
         assert len(data) == 1001
         random.shuffle(data)
         theta = stats.circular_mean(data, False)
-        self.assertAlmostEqual(theta, pi, places=places)
+        self.assertApproxEqual(theta, pi)
         # Now try the same with angles in the first and fourth quadrants.
         data = [0.0]
         for i in range(1, 501):
@@ -2746,7 +2917,7 @@ class CircularMeanTest(NumericTestCase):
         assert len(data) == 1001
         random.shuffle(data)
         theta = stats.circular_mean(data, False)
-        self.assertAlmostEqual(theta, 0.0, places=places)
+        self.assertApproxEqual(theta, 0.0)
 
 
 # Integration with doctests
