@@ -88,10 +88,12 @@ __all__ = [
     # Multivariate statistics:
     'qcorr', 'corr', 'corr1', 'pcov', 'cov', 'errsumsq', 'linr',
     # Sums and products:
-    'sum', 'sumsq', 'product', 'cumulative_sum', 'Sxx', 'Syy', 'Sxy',
+    'sum', 'sumsq', 'product', 'cumulative_sum', 'running_sum',
+    'Sxx', 'Syy', 'Sxy',
     # Assorted others:
     'StatsError', 'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
     'sterrmean', 'stderrskewness', 'stderrkurtosis', 'minmax',
+    'coroutine', 'feed',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -364,6 +366,18 @@ def _round(x, rounding_mode):
             else:
                 # n is even, so round down.
                 return n
+
+
+def coroutine(func):
+    """Co-routine decorator"""
+
+
+def feed(consumer, data):
+    """Helper function to feed data into a coroutine consumer, yielding values.
+
+    """
+    for obj in data:
+        yield data.send(obj)
 
 
 # === Basic univariate statistics ===
@@ -1649,10 +1663,16 @@ def _generalised_sum(data, func):
         count = len(data)
     except TypeError:
         # Slow path for iterables without len.
+        # We want to support BIG data streams, so avoid converting to a
+        # list. Since we need both a count and a sum, we iterate over the
+        # items and emulate math.fsum ourselves.
         ap = add_partial
         partials = []
         count = 0
         if func is None:
+            # Note: we could check for func is None inside the loop. That
+            # is much slower. We could also say func = lambda x: x, which
+            # isn't as bad but still costs somewhat.
             for count, x in enumerate(data, 1):
                 ap(x, partials)
         else:
@@ -1661,12 +1681,13 @@ def _generalised_sum(data, func):
         total = math.fsum(partials)
     else:
         if func is None:
+            # See comment above.
             total = math.fsum(data)
         else:
             total = math.fsum(func(x) for x in data)
     return count, total
     # FIXME this may not be accurate enough for 2nd moments (x-m)**2
-    # A more accurate algorithm would be the compensated version:
+    # A more accurate algorithm may be the compensated version:
     #   sum2 = sum(x-m)**2) as above
     #   sumc = sum(x-m)  # Should be zero, but may not be.
     #   total = sum2 - sumc**2/n
@@ -2064,6 +2085,36 @@ def cumulative_sum(data, start=None):
         for x in it:
             ap(x, cs)
             yield math.fsum(cs)
+
+
+@coroutine
+def running_sum(start=None):
+    """Running sum co-routine.
+
+    >>> rsum = running_sum()
+    >>> for x in [1, 2, 3, 4]:
+    ...     total = rsum.send(x)
+    ...
+    >>> total
+    10
+
+    Given data [a, b, c, d, ...] the running sum yields the values:
+        a, a+b, a+b+c, a+b+c+d, ...
+
+    If optional argument start is given, it must be a number, and it will
+    be added to each of the running sums:
+        start+a, start+a+b, start+a+b+c, start+a+b+c+d, ...
+
+    """
+    ap = add_partial
+    if start is not None:
+        cs = [start]
+    else:
+        cs = []
+    x = (yield None)
+    while True:
+        x = (yield math.fsum(cs))
+        ap(x, cs)
 
 
 @_Multivariate.merge_xydata
