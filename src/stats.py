@@ -110,10 +110,6 @@ import collections
 QUARTILE_DEFAULT = 1
 QUANTILE_DEFAULT = 1
 
-if __debug__:
-    # For debugging out-of-range errors in corr1 function.
-    _MAX_CORR1_ERR = 0.0
-
 
 # === Exceptions ===
 
@@ -1863,12 +1859,11 @@ def corr1(xydata):
     if pop_sd_y == 0.0:
         raise StatsError('calculated y variance is zero')
     r = sum_coproduct/(pop_sd_x*pop_sd_y)
-    err = max(abs(r)-1, 0)
-    if 0.0 < err <= 2**-50:
+    # r can sometimes exceed the limits -1, 1 by up to 2**-51. We accept
+    # that without comment.
+    excess = max(abs(r) - 1.0, 0.0)
+    if 0 < excess <= 2**-51:
         r = math.copysign(1, r)
-        if __debug__:
-            global _MAX_CORR1_ERR
-            _MAX_CORR1_ERR = max(_MAX_CORR1_ERR, err)
     assert -1.0 <= r <= 1.0, "expected -1.0 <= r <= 1.0 but got r = %r" % r
     return r
 

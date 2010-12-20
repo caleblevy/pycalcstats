@@ -2985,9 +2985,5 @@ if __name__ == '__main__':
     run_doctests()
     run_example_tests()
     run_unit_tests()
-    # Check maximum error found in corr1.
-    err = stats._MAX_CORR1_ERR
-    if err:
-        print('Warning: corr1 residue found: %r' % err)
     run_garbage_detector()
 
