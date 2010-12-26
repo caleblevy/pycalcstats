@@ -78,7 +78,6 @@ __all__ = [
     'running_average', 'weighted_running_average', 'simple_moving_average',
     # Order statistics:
     'quartiles', 'hinges', 'quantile', 'decile', 'percentile',
-    'boxwhiskerplot',
     # Measures of spread:
     'pvariance', 'variance', 'pstdev', 'stdev',
     'pvariance1', 'variance1', 'pstdev1', 'stdev1',
@@ -1192,10 +1191,6 @@ def percentile(data, p, scheme=None):
         raise ValueError('percentile argument p must be between 0 and 100')
     from fractions import Fraction
     return quantile(data, Fraction(p, 100), scheme)
-
-
-def boxwhiskerplot(*args, **kwargs):
-    pass  # placeholder
 
 
 # Measures of spread (dispersion or variability)
@@ -2428,14 +2423,13 @@ def circular_mean(data, deg=True):
     0.261799387799...
 
     """
-    radians, cos, sin = math.radians, math.cos, math.sin
     ap = add_partial
     if deg:
-        data = (radians(theta) for theta in data)
+        data = (math.radians(theta) for theta in data)
     n, cosines, sines = 0, [], []
     for n, theta in enumerate(data, 1):
-        ap(cos(theta), cosines)
-        ap(sin(theta), sines)
+        ap(math.cos(theta), cosines)
+        ap(math.sin(theta), sines)
     if n == 0:
         raise StatsError('circular mean of empty sequence is not defined')
     x = math.fsum(cosines)/n
