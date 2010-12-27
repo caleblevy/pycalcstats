@@ -210,7 +210,7 @@ def as_sequence(iterable):
 
 
 class _Multivariate:
-# Helpers for dealing with multivariate functions.
+    # Helpers for dealing with multivariate functions.
 
     def __new__(cls):
         raise RuntimeError('namespace, do not instantiate')
@@ -318,13 +318,6 @@ def _validate_int(n):
         raise ValueError('requires integer value')
 
 
-def _get(alist, index):
-    """1-based indexing for lists."""
-    raise RuntimeError
-    assert 1 <= index <= len(alist)
-    return alist[index-1]
-
-
 def _interpolate(data, x):
     i, f = math.floor(x), x%1
     if f:
@@ -369,6 +362,12 @@ def _round(x, rounding_mode):
 
 def coroutine(func):
     """Co-routine decorator"""
+    @functools.wraps(func)
+    def started(*args, **kwargs):
+        cr = func(*args,**kwargs)
+        cr.send(None)
+        return cr
+    return start
 
 
 def feed(consumer, data):
