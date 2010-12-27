@@ -4,25 +4,27 @@
 
 
 Version 0.1.2a  2010-12-?????????????????????
-    * Clean up many functions and adding many more tests.
+    * Clean up many functions.
+    * Many more tests. There is now more code in the tests than in the
+      library.
     * Emulate all nine of R's quantile types, plus one additional, plus
       Mathematica's parameterized quantiles.
     * The private module containing quantile code has been merged with
-      the main module. Apart from tests, all code is now in one file.
+      the main module. Apart from tests, all code is (temporarily) now
+      in one file.
     * qcorr now returns NAN if all the data points lie on the medians,
       and raises an exception if there are no data points.
     * sum, product and friends now include an optional start argument,
       similar to the built-in sum function.
+    * Many more enhancements and bug fixes, too many to list.
 
     Known issues:
-    * This is still alpha software. The API is not yet locked down.
-    * Test coverage is still incomplete.
-    * Multivariate functions including cov, corr and linr are still painfully
-      naive and need work.
+    * This is still alpha software. The API is not yet locked down and is
+      subject to change.
+    * Test coverage is better, but still incomplete.
     * Requires better documentation, including executable examples.
     * Quantile scheme #3 doesn't match the parameterized version.
     * Windows binary installer appears to be broken.
-    * Doubling the data should leave variance unchanged, but doesn't.
 
 
 Version 0.1.1a  2010-11-14
