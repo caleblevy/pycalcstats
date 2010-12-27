@@ -367,15 +367,31 @@ def coroutine(func):
         cr = func(*args,**kwargs)
         cr.send(None)
         return cr
-    return start
+    return started
 
 
-def feed(consumer, data):
-    """Helper function to feed data into a coroutine consumer, yielding values.
+def feed(consumer, iterable):
+    """feed(consumer, iterable) -> yield items
+
+    Helper function to send elements from an iterable into a coroutine.
+
+    >>> def counter():              # Count the items sent in.
+    ...     c = 0
+    ...     _ = (yield None)        # Start the coroutine.
+    ...     while True:
+    ...             c += 1
+    ...             _ = (yield c)   # Accept a value sent into the coroutine.
+    ... 
+    >>> cr = counter()
+    >>> cr.send(None)  # Prime the coroutine.
+    >>> list(feed(cr, ["spam", "ham", "eggs"]))  # Send many values.
+    [1, 2, 3]
+    >>> cr.send("spam and eggs")  # Manually sending works too.
+    4
 
     """
-    for obj in data:
-        yield data.send(obj)
+    for obj in iterable:
+        yield consumer.send(obj)
 
 
 # === Basic univariate statistics ===
@@ -2086,11 +2102,12 @@ def running_sum(start=None):
     """Running sum co-routine.
 
     >>> rsum = running_sum()
-    >>> for x in [1, 2, 3, 4]:
-    ...     total = rsum.send(x)
-    ...
-    >>> total
-    10
+    >>> rsum.send(1)
+    1.0
+    >>> rsum.send(2)
+    3.0
+    >>> rsum.send(3)
+    6.0
 
     Given data [a, b, c, d, ...] the running sum yields the values:
         a, a+b, a+b+c, a+b+c+d, ...
@@ -2099,16 +2116,24 @@ def running_sum(start=None):
     be added to each of the running sums:
         start+a, start+a+b, start+a+b+c, start+a+b+c+d, ...
 
+    >>> rsum = running_sum(9)
+    >>> rsum.send(1)
+    10.0
+    >>> rsum.send(2)
+    12.0
+    >>> rsum.send(3)
+    15.0
+
     """
     ap = add_partial
     if start is not None:
-        cs = [start]
+        total = [start]
     else:
-        cs = []
+        total = []
     x = (yield None)
     while True:
-        x = (yield math.fsum(cs))
-        ap(x, cs)
+        ap(x, total)
+        x = (yield math.fsum(total))
 
 
 @_Multivariate.merge_xydata
