@@ -21,20 +21,30 @@ setup(
 Statistical functions
 ---------------------
 
-stats is a pure-Python module providing basic statistics functions similar
-to those found on scientific calculators. It has over 40 statistics functions,
+stats is a pure-Python package providing statistics functions similar to
+those found on scientific calculators. It has over 40 statistics functions,
 including:
 
-Univariate statistics:
-  * arithmetic, harmonic, geometric and quadratic means
-  * median, mode, midrange, trimean
+Basic calculator statistics:
+  * arithmetic mean
+  * variance (population and sample)
+  * standard deviation (population and sample)
+
+Other univariate statistics:
+  * harmonic, geometric and quadratic means
+  * mode
   * mean of angular quantities
-  * running and weighted averages
-  * quartiles, hinges and quantiles
-  * variance and standard deviation (sample and population)
   * average deviation and median average deviation (MAD)
-  * skew and kurtosis
+  * skewness and kurtosis
   * standard error of the mean
+
+Order statistics:
+  * median
+  * quartiles, hinges and quantiles
+  * range and midrange
+  * interquartile range, midhinge and trimean
+  * support for R-style quantile alternative calculation methods
+  * Mathematica-style parameterized quantile calculation methods
 
 Multivariate statistics:
   * Pearson's correlation coefficient
@@ -43,7 +53,12 @@ Multivariate statistics:
   * linear regression
   * sums Sxx, Syy and Sxy
 
-and others.
+Coroutine versions of selected functions:
+  * sum and mean
+  * running and weighted averages
+  * variance and standard deviation
+
+among others.
 
 
 Requires Python 3.1 or better.
