@@ -62,8 +62,8 @@ Features:
 
 
 # Module metadata.
-__version__ = "0.1.1a"
-__date__ = "2010-11-14"
+__version__ = "0.1.2a"
+__date__ = "2010-12-31"
 __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
