@@ -1,0 +1,69 @@
+=====================================================================
+                         C H A N G E   L O G
+=====================================================================
+
+
+Version 0.1.2a  2010-12-31
+    * Clean up most functions.
+    * Added six new statistics functions:
+      midhinge, quartile_skewness, cumulative_sum, running_sum,
+      stderrskewness, stderrkurtosis
+    * Hinges are now also available as a dedicated function, as well as
+      via the quartile function.
+    * Emulate all nine of R's quantile types, plus one that R doesn't
+      include, plus Mathematica's parameterized quantiles.
+    * The private module containing quantile code has been merged with
+      the main module. Apart from tests, all code is (temporarily) now
+      in one file.
+    * Many more tests. There are now more lines of code in the tests than in
+      the library (approx. 2:1 excluding docstrings, blanks and comments.)
+    * skew renamed to skewness.
+    * qcorr now returns NAN if all the data points lie on the medians,
+      and raises an exception if there are no data points.
+    * sum, product and friends now include an optional start argument,
+      similar to the built-in sum function.
+    * Many enhancements and bug fixes, too many to list.
+
+    Known issues:
+    * Test coverage is better, but still incomplete.
+    * Executable examples and more documentation are needed.
+    * Quantile scheme #3 doesn't match the parameterized version.
+    * This will be the last version in a single module. The next version
+      will (re-)introduce a package structure, which will give more
+      flexibility and a better UI.
+    * Expect some API changes in the next version.
+    * Still a question mark over the Windows binary installer.
+
+
+Version 0.1.1a  2010-11-14
+    Many changes since the initial release:
+    * The project has a home page outside of PyPI:
+      http://code.google.com/p/pycalcstats/
+    * stats is now aimed at Python 3.1 or better. Support functions for
+      older versions have been removed.
+    * Many more statistics functions.
+    * Tests are now worthy of the name.
+    * Serious numerical instability in variance and standard deviation
+      due to use of a naive algorithm has been corrected. (Thanks to Kurt
+      Smith for spotting this).
+    * I now know more about quartiles than I ever hoped to learn :(
+
+    Known issues:
+    * This is still alpha software. The API is not yet locked down: function
+      signatures or even names may still change.
+    * Many more tests are required. Test coverage is good, but incomplete.
+    * Multivariate functions including cov, corr and linr are still painfully
+      naive and need work.
+    * Better documentation, including executable examples.
+    * Quantile-related functions are split off into a private module, but
+      without the full package structure. I'm not sure this is the right way
+      to do it.
+    * Not all quartile/quantile modes are supported yet, or fully debugged.
+    * Windows binary installer appears to be broken.
+
+    Thanks also to Geremy Condra for his efforts.
+
+Version 0.1a    2010-10-18
+    Initial release, for Python 2.5.
+
+
