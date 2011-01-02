@@ -4,16 +4,67 @@
 ##  See the file __init__.py for the licence terms for this software.
 
 """
-Coroutine-based statistics functions.
+Coroutine-based statistics functions
+------------------------------------
+
+These functions provide a consumer model for calculating statistics using
+coroutines. For example, to calculate a running sum, you use the send()
+method to pass values into the consumer, and get the running sum back:
+
+>>> import stats.co
+>>> running_sum = stats.co.sum()
+>>> running_sum.send(42)
+42
+>>> running_sum.send(23)
+65
+
+Each time you send a value into the consumer, the running total is updated
+and returned. A consumer version of the mean is also provided:
+
+>>> rmean = stats.co.mean()
+>>> rmean.send(1)
+1.0
+>>> rmean.send(5)
+3.0
+
+Consumer versions of variance and stdev functions (both population and
+sample) and Pearson's correlation coefficient are also provided. They may
+be particularly useful when you have a very large data stream and don't
+want to make multiple passes over the data.
+
+To convert a consumer into a producer, use the helper function `feed`. This
+takes two arguments, a consumer such as a coroutine and an iterable data
+source, and returns a generator object that yields the output of sending
+data into the consumer:
+
+>>> rsum = stats.co.sum()  # Create a consumer of data.
+>>> it = stats.co.feed(rsum, [1, 4, 7])  # Turn it into a producer.
+>>> next(it)
+1
+>>> next(it)
+5
+>>> next(it)
+12
+
+The weighted_running_average consumer accepts data points and returns the
+running average of the current data point and the previous average:
+
+>>> aver = stats.co.weighted_running_average()
+>>> aver.send(3)
+3
+>>> aver.send(5)
+4.0
+>>> aver.send(2)
+3.0
+>>> it = stats.co.feed(aver, [1, 4, 7])
+>>> list(it)
+[2.0, 3.0, 5.0]
 
 """
 
 __all__ = [
-    'sum', 'mean',
-    'running_average', 'weighted_running_average', 'simple_moving_average',
-    'pvariance1', 'variance1', 'pstdev1', 'stdev1',
-    'corr1',
-    'running_sum',
+    'feed', 'sum', 'mean', 'weighted_running_average',
+    'pvariance', 'variance', 'pstdev', 'stdev', 'corr',
     ]
 
 
@@ -22,13 +73,41 @@ import itertools
 import math
 
 from builtins import sum as _sum
-from stats.utils import StatsError, coroutine, feed, add_partial
+from stats.utils import StatsError, coroutine, add_partial
+
+
+# === Utilities and helpers ===
+
+def feed(consumer, iterable):
+    """feed(consumer, iterable) -> yield items
+
+    Helper function to convert a consumer coroutine into a producer.
+    feed() returns a generator that yields items from the given coroutine
+    and iterator.
+
+    >>> def counter():              # Consumer that counts items sent in.
+    ...     c = 0
+    ...     _ = (yield None)
+    ...     while True:
+    ...             c += 1
+    ...             _ = (yield c)
+    ... 
+    >>> cr = counter()
+    >>> cr.send(None)  # Prime the coroutine.
+    >>> list(feed(cr, ["spam", "ham", "eggs"]))  # Send many values.
+    [1, 2, 3]
+    >>> cr.send("spam and eggs")  # Manually sending still works.
+    4
+
+    """
+    for obj in iterable:
+        yield consumer.send(obj)
 
 
 # === Sums and averages ===
 
 @coroutine
-def sum(start=None, func=None):
+def sum(start=None):
     """Running sum co-routine.
 
     With no arguments, sum() consumes values and returns the running sum:
@@ -46,27 +125,15 @@ def sum(start=None, func=None):
     >>> [rsum.send(n) for n in (1, 2, 3)]
     [10, 12, 15]
 
-    If optional argument func is given and is not None, it is applied to each
-    value consumed:
-
-    >>> rsum = sum(9, lambda x: x**2)
-    >>> [rsum.send(n) for n in (1, 2, 3)]
-    [10, 14, 23]
-
     """
     if start is not None:
         total = [start]
     else:
         total = []
     x = (yield None)
-    if func is None:
-        while True:
-            add_partial(x, total)
-            x = (yield _sum(total))
-    else:
-        while True:
-            add_partial(func(x), total)
-            x = (yield _sum(total))
+    while True:
+        add_partial(x, total)
+        x = (yield _sum(total))
 
 
 @coroutine
@@ -87,9 +154,6 @@ def mean():
     and returns the values:
         a/1, (a+b)/2, (a+b+c)/3, (a+b+c+d)/4, ...
 
-    that is, the average of the first item, the first two items, the first
-    three items, the first four items, and so forth.
-
     >>> aver = mean()
     >>> [aver.send(n) for n in (40, 30, 50, 46, 39, 44)]
     [40.0, 35.0, 40.0, 41.5, 41.0, 41.5]
@@ -109,9 +173,17 @@ def weighted_running_average():
     """Weighted running average co-routine.
 
     weighted_running_average() consumes values and returns a running average
-    with exponentially decreasing weights.
+    with exponentially decreasing weights. The first value returned is the
+    first data point consumed; after that, each value is the average between
+    the previous average and the most-recent data point:
 
     >>> aver = weighted_running_average()
+    >>> aver.send(5)
+    5
+    >>> aver.send(1)  # average of 5 and 1
+    3.0
+    >>> aver.send(2)  # average of 3 and 2
+    2.5
 
     The weighted running average consumes data
         a, b, c, d, ...
@@ -119,23 +191,12 @@ def weighted_running_average():
     and returns the values:
         a, (a+b)/2, ((a+b)/2 + c)/2, (((a+b)/2 + c)/2 + d)/2, ...
 
-    This running average yields the average between the previous running
-    average and the current data point. Given data [a, b, c, d, ...] it
-    yields the values:
-        a, (a+b)/2, ((a+b)/2 + c)/2, (((a+b)/2 + c)/2 + d)/2, ...
-
-    The values yielded are weighted means where the weight on older points
+    The values returned are weighted means, where the weight on older points
     decreases exponentially.
 
-    that is, the average of the first item, the first two items, the first
-    three items, the first four items, and so forth.
-
-    >>> list(weighted_running_average([40, 30, 50, 46, 39, 44]))
-    [40, 35.0, 42.5, 44.25, 41.625, 42.8125]
-
-    >>> aver = mean()
+    >>> aver = weighted_running_average()
     >>> [aver.send(n) for n in (40, 30, 50, 46, 39, 44)]
-    [40.0, 35.0, 40.0, 41.5, 41.0, 41.5]
+    [40, 35.0, 42.5, 44.25, 41.625, 42.8125]
 
     """
     ca = (yield None)
@@ -145,128 +206,170 @@ def weighted_running_average():
         x = (yield ca)
 
 
-def simple_moving_average(data, window=3):
-    """Iterate over data, yielding the simple moving average with a fixed
-    window size (defaulting to three).
-
-    >>> list(simple_moving_average([40, 30, 50, 46, 39, 44]))
-    [40.0, 42.0, 45.0, 43.0]
-
-    """
-    it = iter(data)
-    d = collections.deque(itertools.islice(it, window))
-    if len(d) != window:
-        raise StatsError('too few data points for given window size')
-    s = sum(d)
-    yield s/window
-    for x in it:
-        s += x - d.popleft()
-        d.append(x)
-        yield s/window
-
-
 # === Measures of spread ===
 
-def pvariance1(data):
-    """pvariance1(data) -> population variance.
-
-    Return an estimate of the population variance for data using one pass
-    through the data. Use this when you can only afford a single path over
-    the data -- if you can afford multiple passes, pvariance is likely to be
-    more accurate.
-
-    >>> pvariance1([0.25, 0.5, 1.25, 1.25,
-    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
-    1.17602040816...
-
-    If data represents a statistical sample rather than the entire
-    population, then you should use variance1 instead.
-    """
-    n, s = _welford(data)
-    if n < 1:
-        raise StatsError('pvariance requires at least one data point')
-    return s/n
-
-
-def variance1(data):
-    """variance1(data) -> sample variance.
-
-    Return an estimate of the sample variance for data using a single pass.
-    Use this when you can only afford a single path over the data -- if you
-    can afford multiple passes, variance is likely to be more accurate.
-
-    >>> variance1([0.25, 0.5, 1.25, 1.25,
-    ...           1.75, 2.75, 3.5])  #doctest: +ELLIPSIS
-    1.37202380952...
-
-    If data represents the entire population rather than a statistical
-    sample, then you should use pvariance1 instead.
-    """
-    n, s = _welford(data)
-    if n < 2:
-        raise StatsError('sample variance or standard deviation'
-        ' requires at least two data points')
-    return s/(n-1)
-
-
-def _welford(data):
+@coroutine
+def _welford():
     """Welford's method of calculating the running variance.
 
-    This calculates the second moment M2 = sum( (x-m)**2 ) where m=mean of x.
-    Returns (n, M2) where n = number of items.
+    Consume values and return running estimates of (n, M2) where:
+        n = number of data points seen so far
+        M2 = the second moment about the mean
+           = sum( (x-m)**2 ) where m = mean of the x seen so far.
+
     """
-    # Note: for better results, use this on the residues (x - m) instead of x,
-    # where m equals the mean of the data... except that would require two
-    # passes, which we're trying to avoid.
-    data = iter(data)
-    n = 0
-    M2 = 0.0  # Current sum of powers of differences from the mean.
-    try:
-        m = next(data)  # Current estimate of the mean.
-        n = 1
-    except StopIteration:
-        pass
-    else:
-        for n, x in enumerate(data, 2):
-            delta = x - m
-            m += delta/n
-            M2 += delta*(x - m)  # m here is the new, updated mean.
-    assert M2 >= 0.0
-    return (n, M2)
+    # Note: for better results, use this on the residues (x - m) instead
+    # of the raw x values, where m equals the mean of the data.
+    M2_partials = []
+    x = (yield None)
+    m = x  # First estimate of the mean is the first value.
+    n = 1
+    while True:
+        delta = x - m
+        m += delta/n  # Update the mean.
+        add_partial(delta*(x-m), M2_partials)  # Update the second moment.
+        M2 = _sum(M2_partials)
+        assert M2 >= 0.0
+        x = (yield (n, M2))
+        n += 1
 
 
-def pstdev1(data):
-    """pstdev1(data) -> population standard deviation.
+@coroutine
+def pvariance():
+    """Running population variance co-routine.
 
-    Return an estimate of the population standard deviation for data using
-    a single pass. Use this when you can only afford a single path over the
-    data -- if you can afford multiple passes, pstdev is likely to be more
-    accurate.
+    pvariance() consumes values and returns the population variance of the
+    data points seen so far:
 
-    >>> pstdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
-    0.986893273527...
+    >>> data = [0.25, 0.5, 1.25, 1.25, 1.75, 2.75, 3.5]
+    >>> rvar = pvariance()
+    >>> for x in data:
+    ...     print(rvar.send(x))
+    ...     #doctest: +ELLIPSIS
+    0.0
+    0.015625
+    0.18055555555...
+    0.19921875
+    0.3
+    0.67534722222...
+    1.17602040816...
 
-    If data is a statistical sample rather than the entire population, you
-    should use stdev1 instead.
+    This may be especially useful when you can only afford a single pass
+    through the data.
+
+    If your data represents a statistical sample rather than the entire
+    population, then you should use variance instead.
     """
-    return math.sqrt(pvariance1(data))
+    cr = _welford()
+    x = (yield None)
+    n, M2 = cr.send(x)
+    while True:
+        n, M2 = cr.send((yield M2/n))
 
 
-def stdev1(data):
-    """stdev1(data) -> sample standard deviation.
+@coroutine
+def variance():
+    """Running sample variance co-routine.
 
-    Return an estimate of the sample standard deviation for data using
-    a single pass. Use this when you can only afford a single path over the
-    data -- if you can afford multiple passes, stdev is likely to be more
-    accurate.
+    variance() consumes values and returns the sample variance of the
+    data points seen so far. Note that the sample variance is never defined
+    for a single data point, and a float NAN will always be returned.
 
-    >>> stdev1([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])  #doctest: +ELLIPSIS
-    1.08108741552...
+    >>> data = [0.25, 0.5, 1.25, 1.25, 1.75, 2.75, 3.5]
+    >>> rvar = variance()
+    >>> for x in data:
+    ...     print(rvar.send(x))
+    ...     #doctest: +ELLIPSIS
+    nan
+    0.03125
+    0.27083333333...
+    0.265625
+    0.375
+    0.81041666666...
+    1.37202380952...
 
-    If data represents the entire population rather than a statistical
-    sample, then use pstdev1 instead.
+    This may be especially useful when you can only afford a single pass
+    through the data.
+
+    If your data represents the entire population rather than a statistical
+    sample, then you should use pvariance instead.
     """
-    return math.sqrt(variance1(data))
+    cr = _welford()
+    x = (yield None)
+    n, M2 = cr.send(x)
+    assert n == 1 and M2 == 0.0
+    x = (yield float('nan'))
+    n, M2 = cr.send(x)
+    while True:
+        n, M2 = cr.send((yield M2/(n-1)))
+
+
+@coroutine
+def pstdev():
+    """Running population standard deviation co-routine.
+
+    pstdev() consumes values and returns the population standard deviation
+    of the data points seen so far:
+
+    >>> data = [1.75, 0.25, 1.25, 3.5, 2.75, 1.25, 0.5]
+    >>> rsd = pstdev()
+    >>> for x in data:
+    ...     print(rsd.send(x))
+    ...     #doctest: +ELLIPSIS
+    0.0
+    0.75
+    0.62360956446...
+    1.17759023009...
+    1.13578166916...
+    1.0647443616
+    1.08444474648...
+
+    This may be especially useful when you can only afford a single pass
+    through the data.
+
+    If your data represents a statistical sample rather than the entire
+    population, then you should use stdev instead.
+    """
+    var = pvariance()
+    x = (yield None)
+    x = var.send(x)
+    while True:
+        x = var.send((yield math.sqrt(x)))
+
+
+@coroutine
+def stdev():
+    """Running sample standard deviation co-routine.
+
+    stdev() consumes values and returns the sample standard deviation
+    of the data points seen so far. Note that the sample standard deviation
+    is never defined for a single data point, and a float NAN will always
+    be returned.
+
+    >>> data = [1.75, 0.25, 1.25, 3.5, 2.75, 1.25, 0.5]
+    >>> rsd = stdev()
+    >>> for x in data:
+    ...     print(rsd.send(x))
+    ...     #doctest: +ELLIPSIS
+    nan
+    1.06066017178...
+    0.76376261582...
+    1.35976407267...
+    1.26984250992...
+    1.16636900965...
+    1.17133420061...
+
+    This may be especially useful when you can only afford a single pass
+    through the data.
+
+    If your data represents the entire population rather than a statistical
+    sample, then you should use pstdev instead.
+    """
+    var = variance()
+    x = (yield None)
+    x = var.send(x)
+    while True:
+        x = var.send((yield math.sqrt(x)))
 
 
 
