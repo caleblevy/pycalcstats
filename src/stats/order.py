@@ -22,8 +22,8 @@ __all__ = [
 import functools
 import math
 
-from . import StatsError
-from .utils import minmax, _round, _UP, _DOWN, _EVEN
+import stats.utils
+#from stats.utils import StatsError, minmax, _round, _UP, _DOWN, _EVEN
 
 
 # === Global variables ===
@@ -42,15 +42,6 @@ def sorted_data(func):
         data = sorted(data)
         return func(data, *args, **kwargs)
     return inner
-
-
-def _interpolate(data, x):
-    i, f = math.floor(x), x%1
-    if f:
-        a, b = data[i], data[i+1]
-        return a + f*(b-a)
-    else:
-        return data[i]
 
 
 # === Order statistics ===
@@ -87,7 +78,7 @@ def median(data, sign=0):
     """
     n = len(data)
     if n == 0:
-        raise StatsError('no median for empty iterable')
+        raise stats.utils.StatsError('no median for empty iterable')
     m = n//2
     if n%2 == 1:
         # For an odd number of items, there is only one middle element, so
@@ -120,7 +111,7 @@ def midrange(data):
     a weak measure of central tendency.
     """
     try:
-        L, H = minmax(data)
+        L, H = stats.utils.minmax(data)
     except ValueError as e:
         e.args = ('no midrange defined for empty iterables',)
         raise
@@ -171,7 +162,7 @@ def range(data):
     is a weak measure of statistical variability.
     """
     try:
-        a, b = minmax(data)
+        a, b = stats.utils.minmax(data)
     except ValueError as e:
         e.args = ('no range defined for empty iterables',)
         raise
@@ -271,10 +262,10 @@ class _Quartiles:
         # Perform index calculations using 1-based counting, and adjust for
         # 0-based at the very end.
         n = len(data)
-        M = _round((n+1)/2, _EVEN)
-        L = _round((n+1)/4, _UP)
+        M = stats.utils._round((n+1)/2, stats.utils._EVEN)
+        L = stats.utils._round((n+1)/4, stats.utils._UP)
         U = n+1-L
-        assert U == _round(3*(n+1)/4, _DOWN)
+        assert U == _round(3*(n+1)/4, stats.utils._DOWN)
         return (data[L-1], data[M-1], data[U-1])
 
     def minitab(data):
@@ -287,9 +278,9 @@ class _Quartiles:
         U = n+1-L
         assert U == 3*(n+1)/4
         return (
-                _interpolate(data, L-1),
-                _interpolate(data, M-1),
-                _interpolate(data, U-1)
+                stats.utils._interpolate(data, L-1),
+                stats.utils._interpolate(data, M-1),
+                stats.utils._interpolate(data, U-1)
                 )
 
     def excel(data):
@@ -304,9 +295,9 @@ class _Quartiles:
         L = (n+3)/4
         U = (3*n+1)/4
         return (
-                _interpolate(data, L-1),
-                _interpolate(data, M-1),
-                _interpolate(data, U-1)
+                stats.utils._interpolate(data, L-1),
+                stats.utils._interpolate(data, M-1),
+                stats.utils._interpolate(data, U-1)
                 )
 
     def langford(data):
@@ -409,45 +400,45 @@ class _Quantiles:
         n = len(data)
         if p < 1/n: return data[0]
         elif p == 1.0: return data[-1]
-        else: return _interpolate(data, n*p - 1)
+        else: return stats.utils._interpolate(data, n*p - 1)
 
     def r5(data, p):
         n = len(data)
         if p < 1/(2*n): return data[0]
         elif p >= (n-0.5)/n: return data[-1]
         h = n*p + 0.5
-        return _interpolate(data, h-1)
+        return stats.utils._interpolate(data, h-1)
 
     def r6(data, p):
         n = len(data)
         if p < 1/(n+1): return data[0]
         elif p >= n/(n+1): return data[-1]
         h = (n+1)*p
-        return _interpolate(data, h-1)
+        return stats.utils._interpolate(data, h-1)
 
     def r7(data, p):
         n = len(data)
         if p == 1: return data[-1]
         h = (n-1)*p + 1
-        return _interpolate(data, h-1)
+        return stats.utils._interpolate(data, h-1)
 
     def r8(data, p):
         n = len(data)
         h = (n + 1/3)*p + 1/3
         h = max(1, min(h, n))
-        return _interpolate(data, h-1)
+        return stats.utils._interpolate(data, h-1)
 
     def r9(data, p):
         n = len(data)
         h = (n + 0.25)*p + 3/8
         h = max(1, min(h, n))
-        return _interpolate(data, h-1)
+        return stats.utils._interpolate(data, h-1)
 
     def lqd(data, p):
         n = len(data)
         h = (n + 2)*p - 0.5
         h = max(1, min(h, n))
-        return _interpolate(data, h-1)
+        return stats.utils._interpolate(data, h-1)
 
     # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
     # calculation methods with the same number.
@@ -525,7 +516,8 @@ def quartiles(data, scheme=None):
     """
     n = len(data)
     if n < 3:
-        raise StatsError('need at least 3 items to split data into quartiles')
+        raise stats.utils.StatsError(
+        'need at least 3 items to split data into quartiles')
     # Select a method.
     if scheme is None: scheme = QUARTILE_DEFAULT
     if isinstance(scheme, str):
@@ -534,7 +526,7 @@ def quartiles(data, scheme=None):
         key = scheme
     func = _Quartiles.QUARTILE_MAP.get(key)
     if func is None:
-        raise StatsError('unrecognised scheme `%s`' % scheme)
+        raise stats.utils.StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
 quartiles.aliases = _Quartiles.QUARTILE_ALIASES  # TO DO make this read-only?
@@ -647,9 +639,11 @@ def quantile(data, p, scheme=None):
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
     # http://en.wikipedia.org/wiki/Quantile
     if not 0.0 <= p <= 1.0:
-        raise StatsError('quantile argument must be between 0.0 and 1.0')
+        raise stats.utils.StatsError(
+        'quantile argument must be between 0.0 and 1.0')
     if len(data) < 2:
-        raise StatsError('need at least 2 items to split data into quantiles')
+        raise stats.utils.StatsError(
+        'need at least 2 items to split data into quantiles')
     # Select a scheme.
     if scheme is None: scheme = QUANTILE_DEFAULT
     if isinstance(scheme, str):
@@ -661,7 +655,7 @@ def quantile(data, p, scheme=None):
     else:
         func = _Quantiles.QUANTILE_MAP.get(key)
         if func is None:
-            raise StatsError('unrecognised scheme `%s`' % scheme)
+            raise stats.utils.StatsError('unrecognised scheme `%s`' % scheme)
         return func(data, p)
 
 quantile.aliases = _Quantiles.QUANTILE_ALIASES  # TO DO make this read-only?
@@ -713,7 +707,7 @@ def decile(data, d, scheme=None):
 
     See function quantile for details about the optional argument scheme.
     """
-    _validate_int(d)
+    stats.utils._validate_int(d)
     if not 0 <= d <= 10:
         raise ValueError('decile argument d must be between 0 and 10')
     from fractions import Fraction
@@ -729,7 +723,7 @@ def percentile(data, p, scheme=None):
 
     See function quantile for details about the optional argument scheme.
     """
-    _validate_int(p)
+    stats.utils._validate_int(p)
     if not 0 <= p <= 100:
         raise ValueError('percentile argument p must be between 0 and 100')
     from fractions import Fraction
@@ -750,17 +744,11 @@ def quartile_skewness(q1, q2, q3):
 
     """
     if not q1 <= q2 <= q3:
-        raise StatsError('quartiles must be ordered q1 <= q2 <= q3')
+        raise stats.utils.StatsError(
+        'quartiles must be ordered q1 <= q2 <= q3')
     if q1 == q2 == q3:
         return float('nan')
     skew = (q3 + q1 - 2*q2)/(q3 - q1)
     assert -1.0 <= skew <= 1.0
     return skew
-
-
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
 

@@ -17,9 +17,12 @@ __all__ = [
     ]
 
 
+import collections
+import itertools
+import math
+
 from builtins import sum as _sum
-from . import StatsError
-from .utils import coroutine, feed
+from stats.utils import StatsError, coroutine, feed, add_partial
 
 
 # === Sums and averages ===
@@ -347,9 +350,4 @@ def corr1(xydata):
         r = math.copysign(1, r)
     assert -1.0 <= r <= 1.0, "expected -1.0 <= r <= 1.0 but got r = %r" % r
     return r
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
 

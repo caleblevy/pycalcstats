@@ -544,9 +544,3 @@ def circular_mean(data, deg=True):
         theta = math.degrees(theta)
     return theta
 
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
-

@@ -542,9 +542,3 @@ def xysums(xdata, ydata=None):
         'statsums', 'n sumx sumy sumxy sumx2 sumy2 Sxx Syy Sxy')
     return statsums(*(n, sumx, sumy, sumxy, sumx2, sumy2, Sxx, Syy, Sxy))
 
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
-
