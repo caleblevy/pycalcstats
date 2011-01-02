@@ -33,6 +33,7 @@ import itertools
 import collections
 
 import stats
+import stats.utils
 from stats import StatsError
 
 
@@ -70,7 +71,7 @@ def geometric_mean(data):
     The geometric mean is the Nth root of the product of the data. It is
     best suited for averaging exponential growth rates.
     """
-    ap = add_partial
+    ap = stats.utils.add_partial
     log = math.log
     partials = []
     count = 0
@@ -166,9 +167,9 @@ def average_deviation(data, m=None):
 
     """
     if m is None:
-        data = as_sequence(data)
-        m = mean(data)
-    n, total = _generalised_sum(data, lambda x: abs(x-m))
+        data = stats.utils.as_sequence(data)
+        m = stats.mean(data)
+    n, total = stats.utils._generalised_sum(data, lambda x: abs(x-m))
     if n < 1:
         raise StatsError('average deviation requires at least 1 data point')
     return total/n
@@ -210,6 +211,7 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
     defined for distributions such as the Cauchy distribution which don't
     have a mean or standard deviation.
     """
+    from stats.order import median
     # Check for an appropriate scale factor.
     if isinstance(scale, str):
         f = median_average_deviation.scaling.get(scale.lower())
@@ -219,7 +221,7 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
     elif scale is None:
         scale = 1
     if m is None:
-        data = as_sequence(data)
+        data = stats.utils.as_sequence(data)
         m = median(data, sign)
     med = median((abs(x - m) for x in data), sign)
     return scale*med
@@ -291,10 +293,10 @@ def skewness(data, m=None, s=None):
 
     """
     if m is None or s is None:
-        data = as_sequence(data)
-        if m is None: m = mean(data)
-        if s is None: s = stdev(data, m)
-    n, total = _generalised_sum(data, lambda x: ((x-m)/s)**3)
+        data = stats.utils.as_sequence(data)
+        if m is None: m = stats.mean(data)
+        if s is None: s = stats.stdev(data, m)
+    n, total = stats.utils._generalised_sum(data, lambda x: ((x-m)/s)**3)
     return total/n
 
 
@@ -323,8 +325,8 @@ def kurtosis(data, m=None, s=None):
 
     The kurtosis of a population is a measure of the peakedness and weight
     of the tails. The normal distribution has kurtosis of zero; positive
-    kurtosis has heavier tails and a sharper peak than normal; negative
-    kurtosis has ligher tails and a flatter peak.
+    kurtosis generally has heavier tails and a sharper peak than normal;
+    negative kurtosis generally has ligher tails and a flatter peak.
 
     There is no upper limit for kurtosis, and a lower limit of -2. Higher
     kurtosis means more of the variance is the result of infrequent extreme
@@ -337,20 +339,16 @@ def kurtosis(data, m=None, s=None):
 
     """
     if m is None or s is None:
-        data = as_sequence(data)
-        if m is None: m = mean(data)
-        if s is None: s = stdev(data, m)
-    n, total = _generalised_sum(data, lambda x: ((x-m)/s)**4)
+        data = stats.utils.as_sequence(data)
+        if m is None: m = stats.mean(data)
+        if s is None: s = stats.stdev(data, m)
+    n, total = stats.utils._generalised_sum(data, lambda x: ((x-m)/s)**4)
     k = total/n - 3
     assert k >= -2
     return k
 
 
-
 # === Sums and products ===
-
-
-
 
 def product(data, start=1):
     """Return the product of a sequence of numbers.
@@ -488,7 +486,7 @@ def circular_mean(data, deg=True):
     0.261799387799...
 
     """
-    ap = add_partial
+    ap = stats.utils.add_partial
     if deg:
         data = (math.radians(theta) for theta in data)
     n, cosines, sines = 0, [], []
