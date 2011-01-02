@@ -5,8 +5,8 @@
 
 """
 General utilities used by the stats package.
-
 """
+
 
 __all__ = ['minmax', 'add_partial', 'coroutine', 'feed']
 
@@ -14,8 +14,13 @@ __all__ = ['minmax', 'add_partial', 'coroutine', 'feed']
 import collections
 import functools
 import itertools
+import math
 
-from . import StatsError
+
+# === Exceptions ===
+
+class StatsError(ValueError):
+    pass
 
 
 # === Helper functions ===
@@ -128,6 +133,20 @@ def _generalised_sum(data, func):
     #   total = sum2 - sumc**2/n
 
 
+def _sum_sq_deviations(data, m):
+    """Returns the sum of square deviations (SS).
+    Helper function for calculating variance.
+    """
+    if m is None:
+        # Two pass algorithm.
+        data = as_sequence(data)
+        n, total = _generalised_sum(data, None)
+        if n == 0:
+            return (0, total)
+        m = total/n
+    return _generalised_sum(data, lambda x: (x-m)**2)
+
+
 def _validate_int(n):
     # This will raise TypeError, OverflowError (for infinities) or
     # ValueError (for NANs or non-integer numbers).
@@ -166,6 +185,15 @@ def _round(x, rounding_mode):
             else:
                 # n is even, so round down.
                 return n
+
+
+def _interpolate(data, x):
+    i, f = math.floor(x), x%1
+    if f:
+        a, b = data[i], data[i+1]
+        return a + f*(b-a)
+    else:
+        return data[i]
 
 
 # === Generic utilities ===
@@ -230,9 +258,4 @@ def minmax(*values, **kw):
         except StopIteration:
             pass
     return (minimum, maximum)
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
 

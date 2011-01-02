@@ -25,39 +25,59 @@
 
 
 """
-Basic calculator statistics.
+Mathematical statistics for Python 3.
 
-'Scientific calculator' statistics for Python 3.
+Standard calculator statistics, including mean, variance and standard
+deviation, are available from the top level of the package:
+
+    >>> import stats
+    >>> stats.mean([-1.0, 2.5, 3.25, 5.75])
+    2.625
+    >>> stats.stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
+    4.38961843444...
+
+Other statistics functions are available from package modules. Order
+statistics such as the median and quartiles:
+
+    !>> import stats.order
+    !>> stats.order.median([6, 1, 5, 4, 2, 3])
+    3.5
+    !>> stats.order.quartiles([2, 4, 5, 3, 1, 6])
+    (2, 3.5, 5)
+
+Other univariate statistics and multivariate statistics:
+
+    !>> import stats.univar
+    !>> x = []
+    !>> stats.univar.XXXXXXXXX(x)
+    1234
+
+    !>> import stats.multivar
+    !>> x = []
+    !>> y = []
+    !>> stats.multivar.XXXXXXXXX(zip(x, y))
+    1234
+
+
 
 Features:
 
 (1) Standard calculator statistics such as mean and standard deviation:
 
-    >>> mean([-1.0, 2.5, 3.25, 5.75])
-    2.625
-    >>> stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
-    4.38961843444...
 
 (2) Single-pass variations on common statistics for use on large iterators
     with little or no loss of precision:
 
-    >>> data = iter([2.5, 3.25, 5.5, 11.25, 11.75])
-    >>> stdev1(data)  #doctest: +ELLIPSIS
+    !>> data = iter([2.5, 3.25, 5.5, 11.25, 11.75])
+    !>> stdev1(data)  #doctest: +ELLIPSIS
     4.38961843444...
-
-(3) Order statistics such as the median and quartiles:
-
-    >>> median([6, 1, 5, 4, 2, 3])
-    3.5
-    >>> quartiles([2, 4, 5, 3, 1, 6])
-    (2, 3.5, 5)
 
 (4) Over forty statistics, including such functions as trimean and standard
     error of the mean:
 
-    >>> trimean([15, 18, 20, 29, 35])
+    !>> trimean([15, 18, 20, 29, 35])
     21.75
-    >>> sterrmean(3.25, 100, 1000)  #doctest: +ELLIPSIS
+    !>> sterrmean(3.25, 100, 1000)  #doctest: +ELLIPSIS
     0.30847634861...
 
 """
@@ -70,17 +90,16 @@ __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
 
-__all__ = ['StatsError', 'sum', 'mean', 'pvariance', 'variance', 'pstdev', 'stdev']
+__all__ = [
+            'StatsError', 'sum', 'mean',
+            'pvariance', 'variance', 'pstdev', 'stdev',
+          ]
 
 import collections
+import math
 
-from . import utils
-
-
-# === Exceptions ===
-
-class StatsError(ValueError):
-    pass
+import stats.utils
+from stats.utils import StatsError
 
 
 # === Basic univariate statistics ===
@@ -155,7 +174,7 @@ def pvariance(data, m=None):
     relevant population. If it represents a statistical sample rather than
     the entire population, you should use variance instead.
     """
-    n, ss = _SS(data, m)
+    n, ss = utils._sum_sq_deviations(data, m)
     if n < 1:
         raise StatsError('population variance or standard deviation'
         ' requires at least one data point')
@@ -177,22 +196,11 @@ def variance(data, m=None):
     from the relevant population. If it represents the entire population, you
     should use pvariance instead.
     """
-    n, ss = _SS(data, m)
+    n, ss = utils._sum_sq_deviations(data, m)
     if n < 2:
         raise StatsError('sample variance or standard deviation'
         ' requires at least two data points')
     return ss/(n-1)
-
-
-def _SS(data, m):
-    """SS = sum of square deviations.
-    Helper function for calculating variance directly.
-    """
-    if m is None:
-        # Two pass algorithm.
-        data = as_sequence(data)
-        m = mean(data)
-    return _generalised_sum(data, lambda x: (x-m)**2)
 
 
 def pstdev(data, m=None):
@@ -237,11 +245,4 @@ def stdev(data, m=None):
     you should use pstdev instead.
     """
     return math.sqrt(variance(data, m))
-
-
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
 
