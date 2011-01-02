@@ -30,22 +30,26 @@ To suppress output if all tests pass, pass the quiet flag:
 
 """
 
-
-if __name__ == '__main__' and __package__ is not None:
+def process_options():
     import sys
     argv = sys.argv[1:]
     if '-h' in argv or '--help' in argv:
         print(__doc__)
         sys.exit(0)
-    quiet = '-q' in argv or '--quiet' in argv
     verbose = '-v' in argv or '--verbose' in argv
-    if quiet and verbose:
+    quiet = '-q' in argv or '--quiet' in argv
+    if verbose and quiet:
         print('cannot be both quiet and verbose', file=sys.stderr)
         sys.exit(1)
     if '-V' in argv or '--version' in argv:
         import stats
         print(stats.__version__)
         sys.exit(0)
+    return verbose, quiet
+
+
+def self_test(verbose, quiet):
+    assert not (verbose and quiet)
     import doctest
     import stats, stats.utils, stats.order, stats.co
     modules = (stats, stats.utils, stats.order, stats.co)
@@ -58,3 +62,7 @@ if __name__ == '__main__' and __package__ is not None:
         print("Successfully run %d doctests from %d files."
               % (tried, len(modules)))
 
+
+if __name__ == '__main__' and __package__ is not None:
+    verbose, quiet = process_options()
+    self_test(verbose, quiet)
