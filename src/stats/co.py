@@ -403,54 +403,66 @@ def _terriberry(data):
 
 # === Multivariate functions ===
 
-def corr1(xydata):
-    """corr1(xydata) -> float
-
-    Calculate an estimate of the Pearson's correlation coefficient with
-    a single pass over iterable xydata. See also the function corr which may
-    be more accurate but requires multiple passes over the data.
-
-    >>> data = zip([0, 5, 4, 9, 8, 4], [1, 2, 4, 8, 6, 3])
-    >>> corr1(data)  #doctest: +ELLIPSIS
-    0.903737838893...
-
-    xydata must be an iterable of (x, y) points. Raises StatsError if there
-    are fewer than two points, or if either of the estimated x and y variances
-    are zero.
-    """
-    xydata = iter(xydata)
-    sum_sq_x = 0
-    sum_sq_y = 0
-    sum_coproduct = 0
-    try:
-        mean_x, mean_y = next(xydata)
-    except StopIteration:
-        i = 0
-    else:
-        i = 1
-        for i,(x,y) in zip(itertools.count(2), xydata):
-            sweep = (i-1)/i
-            delta_x = x - mean_x
-            delta_y = y - mean_y
-            sum_sq_x += sweep*delta_x**2
-            sum_sq_y += sweep*(delta_y**2)
-            sum_coproduct += sweep*(delta_x*delta_y)
-            mean_x += delta_x/i
-            mean_y += delta_y/i
-    if i < 2:
-        raise StatsError('correlation coefficient requires two or more items')
-    pop_sd_x = math.sqrt(sum_sq_x)
-    pop_sd_y = math.sqrt(sum_sq_y)
-    if pop_sd_x == 0.0:
-        raise StatsError('calculated x variance is zero')
-    if pop_sd_y == 0.0:
-        raise StatsError('calculated y variance is zero')
-    r = sum_coproduct/(pop_sd_x*pop_sd_y)
-    # r can sometimes exceed the limits -1, 1 by up to 2**-51. We accept
-    # that without comment.
+def _calc_r(sumsqx, sumsqy, sumco):
+    """Helper function to calculate r."""
+    sx = math.sqrt(sumsqx)
+    sy = math.sqrt(sumsqy)
+    den = sx*sy
+    if den == 0.0:
+       return float('nan')
+    r = sumco/den
+    # -1 <= r <= +1 should hold, but due to rounding errors sometimes the
+    # absolute value of r can exceed 1 by up to 2**-51. We accept this
+    # without comment.
     excess = max(abs(r) - 1.0, 0.0)
     if 0 < excess <= 2**-51:
         r = math.copysign(1, r)
     assert -1.0 <= r <= 1.0, "expected -1.0 <= r <= 1.0 but got r = %r" % r
     return r
+
+
+@coroutine
+def corr():
+    """Running Pearson's correlation coefficient coroutine.
+
+    corr() consumes (x,y) pairs and returns r, the Pearson's correlation
+    coefficient, of the data points seen so far. Note that r requires at
+    least two pairs of data to be defined, and consequently the first value
+    returned will be a float NAN.
+
+    >>> xdata = [0, 5, 4, 9, 8, 4]
+    >>> ydata = [1, 2, 4, 8, 6, 3]
+    >>> rr = corr()
+    >>> for x,y in zip(xdata, ydata):
+    ...     r = rr.send((x, y))
+    ...
+    >>> r  #doctest: +ELLIPSIS
+    0.903737838893...
+
+    This may be especially useful when you can only afford a single pass
+    through the data.
+
+    r is always between -1 and 1 inclusive. If the estimated variance of
+    either the x or the y data points is zero (e.g. if they are constant),
+    a float NAN will be returned.
+    """
+    sumsqx = 0  # sum of the squares of the x values
+    sumsqy = 0  # sum of the squares of the y values
+    sumco = 0  # sum of the co-product x*y
+    i = 1
+    x,y = (yield None)
+    mx = x  # First estimate of the means are the first values.
+    my = y
+    while True:
+        sweep = (i-1)/i
+        dx = x - mx
+        dy = y - my
+        sumsqx += sweep*dx**2
+        sumsqy += sweep*(dy**2)
+        sumco += sweep*(dx*dy)
+        mx += dx/i  # Update the means.
+        my += dy/i
+        r = _calc_r(sumsqx, sumsqy, sumco)
+        x,y = (yield r)
+        i += 1
 
