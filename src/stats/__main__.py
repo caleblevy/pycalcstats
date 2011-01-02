@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+
+##  Copyright (c) 2011 Steven D'Aprano.
+##  See the file __init__.py for the licence terms for this software.
+
+"""
+Run the stats package as if it were an executable module.
+
+Usage:
+    $ python3 -m stats [options]
+
+Options:
+    -h  --help      Print this help text.
+    -V  --version   Print the version number.
+    -v  --verbose   Run tests verbosely.
+    -q  --quiet     Don't print anything on success.
+
+With no options, perform a self-test of the stats package by running all
+doctests in the package. By default, failed tests will be printed. If all
+tests pass, a count of how tests were performed is printed.
+
+To print details of all tests regardless of whether they succeed or fail,
+pass the verbose flag after the package name:
+
+    $ python3 -m stats -v
+
+To suppress output if all tests pass, pass the quiet flag:
+
+    $ python3 -m stats -q
+
+"""
+
+
+if __name__ == '__main__' and __package__ is not None:
+    import sys
+    argv = sys.argv[1:]
+    if '-h' in argv or '--help' in argv:
+        print(__doc__)
+        sys.exit(0)
+    quiet = '-q' in argv or '--quiet' in argv
+    verbose = '-v' in argv or '--verbose' in argv
+    if quiet and verbose:
+        print('cannot be both quiet and verbose', file=sys.stderr)
+        sys.exit(1)
+    if '-V' in argv or '--version' in argv:
+        import stats
+        print(stats.__version__)
+        sys.exit(0)
+    import doctest
+    import stats, stats.utils, stats.order, stats.co
+    modules = (stats, stats.utils, stats.order, stats.co)
+    failed = tried = 0
+    for module in modules:
+        a, b = doctest.testmod(module, verbose=verbose)
+        failed += a
+        tried += b
+    if failed == 0 and not quiet:
+        print("Successfully run %d doctests from %d files."
+              % (tried, len(modules)))
+
