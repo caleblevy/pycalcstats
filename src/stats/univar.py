@@ -12,15 +12,15 @@ __all__ = [
     # Means and averages:
     'harmonic_mean', 'geometric_mean', 'quadratic_mean',
     # Other measures of central tendancy:
-    'mode',
+    'mode', 'moving_average',
     # Measures of spread:
     'average_deviation', 'median_average_deviation',
     # Other moments:
     'pearson_mode_skewness', 'skewness', 'kurtosis',
     # Sums and products:
-    'product', 'cumulative_sum',
+    'product',
     # Assorted others:
-    'sterrmean', 'stderrskewness', 'stderrkurtosis', 'minmax',
+    'sterrmean', 'stderrskewness', 'stderrkurtosis',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -33,28 +33,11 @@ import itertools
 import collections
 
 import stats
-from . import StatsError
+from stats import StatsError
+
 
 # Measures of central tendency (means and averages)
 # -------------------------------------------------
-
-
-
-
-# Measures of spread (dispersion or variability)
-# ----------------------------------------------
-
-# Other moments of the data
-# -------------------------
-
-
-
-
-
-# === Basic univariate statistics ===
-
-# Measures of central tendency (averages)
-# ---------------------------------------
 
 def harmonic_mean(data):
     """Return the sample harmonic mean of a sequence of non-zero numbers.
@@ -139,24 +122,47 @@ def mode(data):
     return L[0][1]
 
 
+def moving_average(data, window=3):
+    """Iterate over data, yielding the simple moving average with a fixed
+    window size (defaulting to three).
+
+    >>> list(moving_average([40, 30, 50, 46, 39, 44]))
+    [40.0, 42.0, 45.0, 43.0]
+
+    """
+    it = iter(data)
+    d = collections.deque(itertools.islice(it, window))
+    if len(d) != window:
+        raise StatsError('too few data points for given window size')
+    s = sum(d)
+    yield s/window
+    for x in it:
+        s += x - d.popleft()
+        d.append(x)
+        yield s/window
+
+
 # Measures of spread (dispersion or variability)
 # ----------------------------------------------
 
 def average_deviation(data, m=None):
     """average_deviation(data [, m]) -> average absolute deviation of data.
 
-    data = iterable of data values
-    m (optional) = measure of central tendency for data.
+    Returns the average deviation of the sample data from the population
+    centre m (usually the mean, or the median). If you know the population
+    mean or median, pass it as the second element:
 
-    m is usually chosen to be the mean or median, but any measure of central
-    tendency is suitable. If m is not given, or is None, the sample mean is
-    calculated from the data and used.
-
-    >>> data = [2.0, 2.25, 2.5, 2.5, 3.25]
-    >>> average_deviation(data)  # Use the sample mean.
-    0.3
-    >>> average_deviation(data, 2.75)  # Use the true mean known somehow.
+    >>> data = [2.0, 2.25, 2.5, 2.5, 3.25]  # A sample from a population
+    >>> mu = 2.75                           # with a known mean.
+    >>> average_deviation(data, mu)
     0.45
+
+    If you don't know the centre location, you can estimate it by passing
+    the sample mean or median instead. If m is not None, or not given, the
+    sample mean is calculated from the data and used:
+
+    >>> average_deviation(data)
+    0.3
 
     """
     if m is None:
@@ -360,52 +366,6 @@ def product(data, start=1):
         # Note: do *not* be tempted to do something clever with logarithms:
         # return math.exp(sum([math.log(x) for x in data], start))
         # This is FAR less accurate than the naive multiplication above.
-
-
-def sumsq(data, start=0):
-    """Return the sum of the squares of a sequence of numbers.
-
-    >>> sumsq([2.25, 4.5, -0.5, 1.0])
-    26.5625
-
-    If optional argument start is given, it is added to the sequence. If the
-    sequence is empty, start (defaults to 0) is returned.
-    """
-    return sum((x*x for x in data), start)
-
-
-def cumulative_sum(data, start=None):
-    """Iterate over data, yielding the cumulative sums.
-
-    >>> list(cumulative_sum([40, 30, 50, 46, 39, 44]))
-    [40.0, 70.0, 120.0, 166.0, 205.0, 249.0]
-
-    Given data [a, b, c, d, ...] the cumulative sum yields the values:
-        a, a+b, a+b+c, a+b+c+d, ...
-
-    If optional argument start is given, it must be a number, and it will
-    be added to each of the running sums:
-        start+a, start+a+b, start+a+b+c, start+a+b+c+d, ...
-
-    """
-    it = iter(data)
-    ap = add_partial
-    if start is not None:
-        cs = [start]
-    else:
-        cs = []
-    try:
-        x = next(it)
-    except StopIteration:
-        # Empty data.
-        if start is not None:
-            yield start
-    else:
-        ap(x, cs)
-        yield math.fsum(cs)
-        for x in it:
-            ap(x, cs)
-            yield math.fsum(cs)
 
 
 # === Partitioning, sorting and binning ===
