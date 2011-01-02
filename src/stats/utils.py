@@ -8,7 +8,7 @@ General utilities used by the stats package.
 """
 
 
-__all__ = ['minmax', 'add_partial', 'coroutine', 'feed']
+__all__ = ['minmax', 'add_partial', 'coroutine']
 
 
 import collections
@@ -39,32 +39,6 @@ def coroutine(func):
         cr.send(None)
         return cr
     return started
-
-
-def feed(consumer, iterable):
-    """feed(consumer, iterable) -> yield items
-
-    Helper function to send elements from an iterable into a coroutine.
-    feed() returns a generator that yields items from the given coroutine
-    and iterator.
-
-    >>> def counter():              # Count the items sent in.
-    ...     c = 0
-    ...     _ = (yield None)        # Start the coroutine.
-    ...     while True:
-    ...             c += 1
-    ...             _ = (yield c)   # Accept a value sent into the coroutine.
-    ... 
-    >>> cr = counter()
-    >>> cr.send(None)  # Prime the coroutine.
-    >>> list(feed(cr, ["spam", "ham", "eggs"]))  # Send many values.
-    [1, 2, 3]
-    >>> cr.send("spam and eggs")  # Manually sending still works.
-    4
-
-    """
-    for obj in iterable:
-        yield consumer.send(obj)
 
 
 # Modified from http://code.activestate.com/recipes/393090/
