@@ -12,7 +12,16 @@ __all__ = [
     'qcorr', 'corr', 'pcov', 'cov', 'errsumsq', 'linr',
     ]
 
-from . import StatsError
+import collections
+import functools
+import itertools
+import math
+
+import stats
+
+from stats import StatsError
+from stats.utils import as_sequence, add_partial, _generalised_sum, \
+    _sum_sq_deviations, _sum_prod_deviations
 
 # === Helper and utility functions ===
 
@@ -152,6 +161,7 @@ def qcorr(xdata, ydata):
 
     In the case where all points are on the median lines, returns a float NAN.
     """
+    from stats.order import median
     n = len(xdata)
     assert n == len(ydata)
     if n == 0:
@@ -217,11 +227,11 @@ def corr(xdata, ydata):
         raise StatsError(
             'correlation requires at least two data points, got %d' % n)
     # First pass is to determine the means.
-    mx = mean(xdata)
-    my = mean(ydata)
+    mx = stats.mean(xdata)
+    my = stats.mean(ydata)
     # Second pass to determine the standard deviations.
-    sx = stdev(xdata, mx)
-    sy = stdev(ydata, my)
+    sx = stats.stdev(xdata, mx)
+    sy = stats.stdev(ydata, my)
     if sx == 0:
         raise StatsError('all x values are equal')
     if sy == 0:
@@ -255,7 +265,7 @@ def pcov(xdata, ydata=None):
     0.15125
 
     """
-    n, s = _SP(xdata, None, ydata, None)
+    n, s = _sum_prod_deviations(zip(xdata, ydata), None, None)
     if n > 0:
         return s/n
     else:
@@ -285,11 +295,11 @@ def cov(xdata, ydata):
     >>> data = [1.2, 0.75, 1.5, 2.45, 1.75]
     >>> cov(data, data)  #doctest: +ELLIPSIS
     0.40325000000...
-    >>> variance(data)  #doctest: +ELLIPSIS
+    >>> stats.variance(data)  #doctest: +ELLIPSIS
     0.40325000000...
 
     """
-    n, s = _SP(xdata, None, ydata, None)
+    n, s = _sum_prod_deviations(zip(xdata, ydata), None, None)
     if n > 1:
         return s/(n-1)
     else:
@@ -305,11 +315,11 @@ def _SP(xdata, mx, ydata, my):
     if mx is None:
         # Two pass algorithm.
         xdata = as_sequence(xdata)
-        mx = mean(xdata)
+        mx = stats.mean(xdata)
     if my is None:
         # Two pass algorithm.
         ydata = as_sequence(ydata)
-        my = mean(ydata)
+        my = stats.mean(ydata)
     return _generalised_sum(zip(xdata, ydata), lambda t: (t[0]-mx)*(t[1]-my))
 
 
@@ -374,7 +384,7 @@ def Sxx(xydata):
     24.0
 
     """
-    n, ss = _SS((x for (x, y) in xydata), None)
+    n, ss = _sum_sq_deviations((x for (x, y) in xydata), None)
     return ss*n
 
 
@@ -415,7 +425,7 @@ def Syy(xydata):
             xydata = ((x, y) for (y, x) in xydata)
         # Re-insert the first element back into the data stream.
         xydata = itertools.chain([first], xydata)
-    n, ss = _SS((y for (x, y) in xydata), None)
+    n, ss = _sum_sq_deviations((y for (x, y) in xydata), None)
     return ss*n
 
 

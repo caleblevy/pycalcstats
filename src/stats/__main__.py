@@ -51,8 +51,11 @@ def process_options():
 def self_test(verbose, quiet):
     assert not (verbose and quiet)
     import doctest
-    import stats, stats.utils, stats.order, stats.co, stats.univar
-    modules = (stats, stats.utils, stats.order, stats.co, stats.univar)
+    import stats, stats.co, stats.multivar, stats.order, \
+           stats.univar, stats.utils
+    modules = (stats, stats.co, stats.multivar, stats.order,
+               stats.univar, stats.utils
+               )
     failed = tried = 0
     for module in modules:
         a, b = doctest.testmod(module, verbose=verbose)

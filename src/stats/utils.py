@@ -121,6 +121,23 @@ def _sum_sq_deviations(data, m):
     return _generalised_sum(data, lambda x: (x-m)**2)
 
 
+def _sum_prod_deviations(xydata, mx, my):
+    """Returns the sum of the product of deviations (SP).
+    Helper function for calculating covariance.
+    """
+    if mx is None:
+        # Two pass algorithm.
+        xydata = as_sequence(xydata)
+        nx, sumx = _generalised_sum((t[0] for t in xydata), None)
+        mx = sumx/nx
+    if my is None:
+        # Two pass algorithm.
+        xydata = as_sequence(xydata)
+        ny, sumy = _generalised_sum((t[1] for t in xydata), None)
+        my = sumy/ny
+    return _generalised_sum(xydata, lambda t: (t[0]-mx)*(t[1]-my))
+
+
 def _validate_int(n):
     # This will raise TypeError, OverflowError (for infinities) or
     # ValueError (for NANs or non-integer numbers).
