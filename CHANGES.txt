@@ -3,6 +3,18 @@
 =====================================================================
 
 
+Version 0.2a  2011-01-???
+    Major API changes:
+    * stats has now been split up into a package with separate sub-modules.
+    * Single-pass versions of variance and friends have been re-written as
+      coroutines.
+    * Running the package from the command line runs all doctests. See 
+      `python3 -m stats --help` for further details.
+
+    Known issues:
+    * none yet :)
+
+
 Version 0.1.2a  2010-12-31
     * Clean up most functions.
     * Added six new statistics functions:
