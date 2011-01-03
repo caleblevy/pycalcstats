@@ -430,21 +430,26 @@ def corr():
     least two pairs of data to be defined, and consequently the first value
     returned will be a float NAN.
 
-    >>> xdata = [0, 5, 4, 9, 8, 4]
-    >>> ydata = [1, 2, 4, 8, 6, 3]
+    >>> xdata = [0, 5, 4, 9, 8, 4, 3]
+    >>> ydata = [1, 2, 4, 8, 6, 3, 4]
     >>> rr = corr()
     >>> for x,y in zip(xdata, ydata):
-    ...     r = rr.send((x, y))
-    ...
-    >>> r  #doctest: +ELLIPSIS
-    0.903737838893...
+    ...     print(rr.send((x, y)))
+    ...     #doctest: +ELLIPSIS
+    nan
+    1.0
+    0.618589574132
+    0.888359981681
+    0.901527628267
+    0.903737838894
+    0.875341049362
 
     This may be especially useful when you can only afford a single pass
     through the data.
 
     r is always between -1 and 1 inclusive. If the estimated variance of
     either the x or the y data points is zero (e.g. if they are constant),
-    a float NAN will be returned.
+    or if their product underflows to zero, a float NAN will be returned.
     """
     sumsqx = 0  # sum of the squares of the x values
     sumsqy = 0  # sum of the squares of the y values
