@@ -2,8 +2,9 @@ CHANGES.txt
 LICENCE.txt
 README.txt
 setup.py
-src/_stats_quantiles.py
 src/stats.py
 tests/main_test.py
+tests/make_quantiles_data.r
 tests/make_test_data.py
+tests/quantiles.dat
 tests/test_data.zip
