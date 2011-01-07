@@ -30,9 +30,7 @@ class GlobalsTest(unittest.TestCase, common.GlobalsMixin):
             )
 
 
-class SumTest(
-    NumericTestCase, common.SingleDataPassMixin, common.UnivariateMixin
-    ):
+class SumTest(NumericTestCase, common.UnivariateMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.sum
@@ -86,9 +84,7 @@ class SumTortureTest(NumericTestCase):
             func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, tol=1e-15)
 
 
-class MeanTest(
-    NumericTestCase, common.SingleDataPassMixin, common.UnivariateMixin
-    ):
+class MeanTest(NumericTestCase, common.UnivariateMixin):
     tol = rel = None  # Default to expect exact equality.
 
     def __init__(self, *args, **kwargs):
@@ -124,45 +120,36 @@ class MeanTest(
         self.assertEqual(a, b)
 
 
-"""
-class TinyVariance(NumericTestCase):
+class TinyVarianceTest(NumericTestCase):
     # Minimal tests for variance and friends.
+
    def testVariance(self):
        data = [1, 2, 3]
        assert stats.mean(data) == 2
        self.assertEqual(stats.pvariance(data), 2/3)
        self.assertEqual(stats.variance(data), 1.0)
-       self.assertEqual(stats.pvariance1(data), 2/3)
-       self.assertEqual(stats.variance1(data), 1.0)
        self.assertEqual(stats.pstdev(data), math.sqrt(2/3))
        self.assertEqual(stats.stdev(data), 1.0)
-       self.assertEqual(stats.pstdev1(data), math.sqrt(2/3))
-       self.assertEqual(stats.stdev1(data), 1.0)
 
 
-class PVarianceTest(NumericTestCase):
-    # General test data:
-    func = stats.pvariance
-    data = (4.0, 7.0, 13.0, 16.0)
-    expected = 22.5  # Exact population variance.
-    # Test data for exact (uniform distribution) test:
-    uniform_data = range(10000)
-    uniform_expected = (10000**2 - 1)/12
-    # Expected result calculated by HP-48GX:
-    hp_expected = 88349.2408884
-    # Scaling factor when you duplicate each data point:
-    scale = 1.0
+class PVarianceTest(NumericTestCase, common.UnivariateMixin):
+    # Test population variance.
 
     tol = 1e-16  # Absolute error accepted.
 
     def __init__(self, *args, **kwargs):
         NumericTestCase.__init__(self, *args, **kwargs)
-        # Force self.func to be a function rather than a method.
-        self.func = self.__class__.func
-
-    def testEmptyFailure(self):
-        for data in ([], (), iter([])):
-            self.assertRaises(ValueError, self.func, data)
+        self.func = stats.pvariance
+        # Standard test data.
+        self.data = [4.0, 7.0, 13.0, 16.0]
+        self.expected = 22.5  # Exact population variance of self.data.
+        # Test data for exact (uniform distribution) test:
+        self.uniform_data = range(10000)
+        self.uniform_expected = (10000**2 - 1)/12
+        # Expected result calculated by HP-48GX:
+        self.hp_expected = 88349.2408884
+        # Scaling factor when you duplicate each data point:
+        self.scale = 1.0
 
     def test_small(self):
         self.assertEqual(self.func(self.data), self.expected)
@@ -198,36 +185,43 @@ class PVarianceTest(NumericTestCase):
         # All the items are identical, so variance should be zero.
         self.assertApproxEqual(self.func(data), 0.0)
 
-    def testWithLargeData(self):
-        small_data = [random.gauss(7.5, 5.5) for _ in range(1000)]
-        a = self.func(small_data)
-        # We expect a to be close to the exact result for the variance,
-        # namely 5.5**2, but if it's not, that's just a fluke of the random
-        # sample. Either way, it doesn't matter.
-        b = self.func(small_data)
-        self.assertApproxEqual(a, b, tol=1e-12)
 
+class PVarianceDupsTest(NumericTestCase):
+    def testManyDuplicates(self):
+        from stats import pvariance
+        # Start with 1000 normally distributed data points.
+        data = [random.gauss(7.5, 5.5) for _ in range(1000)]
+        a = pvariance(data)
+        # We expect a to be close to the exact result for the variance,
+        # namely 5.5**2, but because it's random, it might not be.
+        # Either way, it doesn't matter.
+
+        # Duplicating the data points should keep the variance the same.
+        for n in (3, 5, 10, 20, 30):
+            d = data*n
+            b = pvariance(d)
+            self.assertApproxEqual(a, b, tol=1e-12)
+
+        # Now try again with a lot of duplicates.
         def big_data():
-            for _ in range(100):
-                for x in small_data:
+            for _ in range(500):
+                for x in data:
                     yield x
 
-        c = self.func(big_data())
-        # In principle, the calculated variance should be unchanged;
-        # however due to rounding errors it may have changed somewhat.
-        self.assertApproxEqual(a, c, tol=None, rel=0.001)
+        b = pvariance(big_data())
+        self.assertApproxEqual(a, b, tol=1e-12)
 
 
-class VarianceTest(PVarianceTest):
-    func = stats.variance
-    expected = 30.0  # Exact sample variance.
-    uniform_expected = PVarianceTest.uniform_expected * 10000/(10000-1)
-    hp_expected = 88752.6620797
-    scale = (2*20-2)/(2*20-1)
+class VarianceTest(common.SingleDataFailMixin, PVarianceTest):
 
-    def testSingletonFailure(self):
-        for data in ([1], iter([1])):
-            self.assertRaises(ValueError, self.func, data)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.variance
+        self.expected = 30.0  # Exact sample variance of self.data.
+        self.uniform_expected = self.uniform_expected * 10000/(10000-1)
+        self.hp_expected = 88752.6620797
+        # Scaling factor when you duplicate each data point:
+        self.scale = (2*20-2)/(2*20-1)
 
     def testCompareR(self):
         # Compare against a result calculated with R code:
@@ -243,18 +237,23 @@ class VarianceTest(PVarianceTest):
 
 
 class PStdevTest(PVarianceTest):
-    func = stats.pstdev
-    expected = math.sqrt(22.5)  # Exact population stdev.
-    uniform_expected = math.sqrt(PVarianceTest.uniform_expected)
-    hp_expected = 297.236002006
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.pstdev
+        self.expected = math.sqrt(self.expected)
+        self.uniform_expected = math.sqrt(self.uniform_expected)
+        self.hp_expected = 297.236002006
+        self.scale = math.sqrt(self.scale)
 
 
 class StdevTest(VarianceTest):
-    func = stats.stdev
-    expected = math.sqrt(30.0)  # Exact sample stdev.
-    uniform_expected = math.sqrt(VarianceTest.uniform_expected)
-    hp_expected = 297.913850097
-    scale = math.sqrt(VarianceTest.scale)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.stdev
+        self.expected = math.sqrt(self.expected)
+        self.uniform_expected = math.sqrt(self.uniform_expected)
+        self.hp_expected = 297.913850097
+        self.scale = math.sqrt(self.scale)
 
     def testCompareR(self):
         data = list(range(1, 11)) + list(range(1000, 1201))
@@ -290,7 +289,4 @@ class VarianceMeanTest(NumericTestCase):
 
     def test_stdev(self):
         self.compare_with_and_without_mean(stats.stdev)
-
-
-"""
 
