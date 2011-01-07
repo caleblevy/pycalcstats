@@ -175,9 +175,9 @@ class PVarianceTest(NumericTestCase, common.UnivariateMixin):
 
     def testDuplicate(self):
         data = [random.uniform(-100, 500) for _ in range(20)]
-        a = self.func(data)
-        b = self.func(data*2)
-        self.assertApproxEqual(a*self.scale, b)
+        expected = self.func(data)*self.scale
+        actual = self.func(data*2)
+        self.assertApproxEqual(actual, expected)
 
     def testDomainError(self):
         # Domain error exception reported by Geremy Condra.
@@ -191,7 +191,7 @@ class PVarianceDupsTest(NumericTestCase):
         from stats import pvariance
         # Start with 1000 normally distributed data points.
         data = [random.gauss(7.5, 5.5) for _ in range(1000)]
-        a = pvariance(data)
+        expected = pvariance(data)
         # We expect a to be close to the exact result for the variance,
         # namely 5.5**2, but because it's random, it might not be.
         # Either way, it doesn't matter.
@@ -199,8 +199,8 @@ class PVarianceDupsTest(NumericTestCase):
         # Duplicating the data points should keep the variance the same.
         for n in (3, 5, 10, 20, 30):
             d = data*n
-            b = pvariance(d)
-            self.assertApproxEqual(a, b, tol=1e-12)
+            actual = pvariance(d)
+            self.assertApproxEqual(actual, expected, tol=1e-12)
 
         # Now try again with a lot of duplicates.
         def big_data():
@@ -208,8 +208,8 @@ class PVarianceDupsTest(NumericTestCase):
                 for x in data:
                     yield x
 
-        b = pvariance(big_data())
-        self.assertApproxEqual(a, b, tol=1e-12)
+        actual = pvariance(big_data())
+        self.assertApproxEqual(actual, expected, tol=1e-12)
 
 
 class VarianceTest(common.SingleDataFailMixin, PVarianceTest):
@@ -274,9 +274,9 @@ class VarianceMeanTest(NumericTestCase):
             [random.gauss(mu, sigma) for _ in range(50)],
             ):
             m = stats.mean(data)
-            a = func(data)
-            b = func(data, m)
-            self.assertApproxEqual(a, b, tol=None, rel=None)
+            expected = func(data)
+            actual = func(data, m)
+            self.assertEqual(actual, expected)
 
     def test_pvar(self):
         self.compare_with_and_without_mean(stats.pvariance)
