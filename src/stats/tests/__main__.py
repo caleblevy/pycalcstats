@@ -8,16 +8,27 @@ Run the test suite for the stats package.
 
 """
 
-
 import unittest
 
 
+# Tests to run:
+import stats.tests.basic
+#import stats.tests.co
+#import stats.tests.multivar
+#import stats.tests.order
+#import stats.tests.univar
+import stats.tests.utils
 
 
 if __name__ == '__main__' and __package__ is not None:
-    import stats.tests.utils, stats.tests.basic
-    modules = (stats.tests.utils, stats.tests.basic,
-    )
+    modules = (
+        stats.tests.basic,
+        # stats.tests.co,
+        # stats.tests.multivar,
+        # stats.tests.order,
+        # stats.tests.univar,
+        stats.tests.utils,
+        )
     total = failures = errors = skipped = 0
     for module in modules:
         print("\n+++ Testing module %s +++" % module.__name__)

@@ -48,9 +48,11 @@ class UnivariateMixin:
             self.assertRaises(ValueError, self.func, empty)
 
     def testSingleData(self):
-        # Fail when given a single data point.
+        # Pass when given a single data point.
+        # Note that this test doesn't care what result is returned, so
+        # long as *some* result is returned -- even None.
         for x in (1.0, 0.0, -2.5, 5.5):
-            self.assertRaises(TypeError, self.func, [x])
+            _ = self.func([x])
 
     def testDoubleData(self):
         # Pass when given two data points.
@@ -111,17 +113,15 @@ class UnivariateMixin:
             self._compareTypes(data)
 
 
-class SingleDataPassMixin:
-    # Test that the test function accepts a single data point.
-    # This class overrides the method of the same name in
+class SingleDataFailMixin:
+    # Test that the test function fails with a single data point.
+    # This class overrides the method with the same name in
     # UnivariateMixin.
 
     def testSingleData(self):
-        # Pass when given a single data point.
-        # Note that this test doesn't care what result is returned, so
-        # long as *some* result is returned -- even None.
+        # Fail when given a single data point.
         for x in (1.0, 0.0, -2.5, 5.5):
-            _ = self.func([x])
+            self.assertRaises(ValueError, self.func, [x])
 
 
 
