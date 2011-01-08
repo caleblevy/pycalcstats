@@ -9,6 +9,9 @@ Test suite for the stats.univar module.
 """
 
 from stats.tests import NumericTestCase
+import stats.tests.common as common
+
+# The module to be tested:
 import stats.univar
 
 

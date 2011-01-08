@@ -120,7 +120,7 @@ class MeanTest(NumericTestCase, common.UnivariateMixin):
         self.assertEqual(a, b)
 
 
-class TinyVarianceTest(NumericTestCase):
+class MinimalVarianceTest(NumericTestCase):
     # Minimal tests for variance and friends.
 
    def testVariance(self):

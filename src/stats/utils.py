@@ -25,6 +25,15 @@ class StatsError(ValueError):
 
 # === Helper functions ===
 
+def sorted_data(func):
+    """Decorator to sort data passed to stats functions."""
+    @functools.wraps(func)
+    def inner(data, *args, **kwargs):
+        data = sorted(data)
+        return func(data, *args, **kwargs)
+    return inner
+
+
 def as_sequence(iterable):
     """Helper function to convert iterable arguments into sequences."""
     if isinstance(iterable, (list, tuple)): return iterable

@@ -4,14 +4,61 @@
 ##  See the file stats/__init__.py for the licence terms for this software.
 
 """
-Test suite for the stats.order module.
+Test suite for the stats.utils module.
 
 """
 
 import random
 import unittest
 
+# Modules and functions being tested:
 import stats.utils
+from stats.tests import approx_equal
+
+
+class ApproxTest(unittest.TestCase):
+    # Test the approx_equal test helper function.
+
+    def testEqual(self):
+        for x in (-123.456, -1.1, 0.0, 0.5, 1.9, 23.42, 1.2e68, -1, 0, 1):
+            self.assertTrue(approx_equal(x, x))
+            self.assertTrue(approx_equal(x, x, tol=None))
+            self.assertTrue(approx_equal(x, x, rel=None))
+            self.assertTrue(approx_equal(x, x, tol=None, rel=None))
+
+    def testUnequal(self):
+        for _ in range(20):
+            a = b = random.uniform(-1000, 1000)
+            while b == a:
+                b = random.uniform(-1000, 1000)
+            assert a != b
+            self.assertFalse(approx_equal(a, b))
+            self.assertFalse(approx_equal(a, b, tol=None))
+            self.assertFalse(approx_equal(a, b, rel=None))
+            self.assertFalse(approx_equal(a, b, tol=None, rel=None))
+
+    def testAbsolute(self):
+        x = random.uniform(-23, 42)
+        for tol in (1e-13, 1e-12, 1e-10, 1e-5):
+            # Test error < tol.
+            self.assertTrue(approx_equal(x, x+tol/2, tol=tol, rel=None))
+            self.assertTrue(approx_equal(x, x-tol/2, tol=tol, rel=None))
+            # Test error > tol.
+            self.assertFalse(approx_equal(x, x+tol*2, tol=tol, rel=None))
+            self.assertFalse(approx_equal(x, x-tol*2, tol=tol, rel=None))
+            # error == tol exactly could go either way, due to rounding.
+
+    def testRelative(self):
+        for x in (1e-10, 1.1, 123.456, 1.23456e18, -17.98):
+            for rel in (1e-2, 1e-4, 1e-7, 1e-9):
+                # Test error < rel.
+                delta = x*rel/2
+                self.assertTrue(approx_equal(x, x+delta, tol=None, rel=rel))
+                self.assertTrue(approx_equal(x, x+delta, tol=None, rel=rel))
+                # Test error > rel.
+                delta = x*rel*2
+                self.assertFalse(approx_equal(x, x+delta, tol=None, rel=rel))
+                self.assertFalse(approx_equal(x, x+delta, tol=None, rel=rel))
 
 
 class MinmaxTest(unittest.TestCase):
@@ -183,5 +230,23 @@ class RoundTest(unittest.TestCase):
         self.assertEqual(f(2.4, self.EVEN), 2)
         self.assertEqual(f(2.5, self.EVEN), 2)
         self.assertEqual(f(2.6, self.EVEN), 3)
+
+
+class SortedDataDecoratorTest(unittest.TestCase):
+    # Test that the sorted_data decorator works correctly.
+    def testDecorator(self):
+        @stats.utils.sorted_data
+        def f(data):
+            return data
+
+        values = random.sample(range(1000), 100)
+        sorted_values = sorted(values)
+        while values == sorted_values:
+            # Ensure values aren't sorted.
+            random.shuffle(values)
+        result = f(values)
+        self.assertNotEqual(result, values)
+        self.assertEqual(result, sorted_values)
+
 
 
