@@ -10,10 +10,10 @@ Order statistics.
 
 __all__ = [
     'median', 'midrange', 'midhinge', 'trimean',
-    'quartiles', 'hinges', 'quantile', 'decile', 'percentile',
     'range', 'iqr', 
     'quartile_skewness',
     'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
+    'hinges', 'quartiles', 'quantile', 'decile', 'percentile',
     ]
 
 
@@ -23,6 +23,7 @@ import functools
 import math
 
 import stats.utils
+from stats.utils import sorted_data
 #from stats.utils import StatsError, minmax, _round, _UP, _DOWN, _EVEN
 
 
@@ -31,17 +32,6 @@ import stats.utils
 # Default schemes to use for order statistics:
 QUARTILE_DEFAULT = 1
 QUANTILE_DEFAULT = 1
-
-
-# === Helper and utility functions ===
-
-def sorted_data(func):
-    """Decorator to sort data passed to stats functions."""
-    @functools.wraps(func)
-    def inner(data, *args, **kwargs):
-        data = sorted(data)
-        return func(data, *args, **kwargs)
-    return inner
 
 
 # === Order statistics ===
@@ -186,6 +176,29 @@ def iqr(data, scheme=None):
     return q3 - q1
 
 
+# Other moments of the data
+# -------------------------
+
+def quartile_skewness(q1, q2, q3):
+    """Return the quartile skewness coefficient, or Bowley skewness, from
+    the three quartiles q1, q2, q3.
+
+    >>> quartile_skewness(1, 2, 5)
+    0.5
+    >>> quartile_skewness(1, 4, 5)
+    -0.5
+
+    """
+    if not q1 <= q2 <= q3:
+        raise stats.utils.StatsError(
+        'quartiles must be ordered q1 <= q2 <= q3')
+    if q1 == q2 == q3:
+        return float('nan')
+    skew = (q3 + q1 - 2*q2)/(q3 - q1)
+    assert -1.0 <= skew <= 1.0
+    return skew
+
+
 # Fractiles: hinges, quartiles and quantiles
 # ------------------------------------------
 
@@ -197,11 +210,14 @@ def iqr(data, scheme=None):
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
 #
-# Quantiles (fractiles) and percentiles also have a plethora of methods.
-# R (and presumably S) include nine different calculation methods for
-# quantiles. Mathematica uses a parameterized quantile function capable
-# of matching eight of those nine methods. Wikipedia lists a tenth method.
-# There are probably others I don't know of.
+# Quantiles (fractiles) and percentiles also have a plethora of calculation
+# methods. R (and presumably S) include nine different methods for quantiles.
+# Mathematica uses a parameterized quantile function capable of matching
+# eight of those nine methods. Wikipedia lists a tenth method. There are
+# probably others I don't know of.
+
+
+# Private functions for fractiles:
 
 class _Quartiles:
     """Private namespace for quartile calculation methods.
@@ -265,7 +281,7 @@ class _Quartiles:
         M = stats.utils._round((n+1)/2, stats.utils._EVEN)
         L = stats.utils._round((n+1)/4, stats.utils._UP)
         U = n+1-L
-        assert U == _round(3*(n+1)/4, stats.utils._DOWN)
+        assert U == stats.utils._round(3*(n+1)/4, stats.utils._DOWN)
         return (data[L-1], data[M-1], data[U-1])
 
     def minitab(data):
@@ -474,6 +490,67 @@ class _Quantiles:
 # End of private _Quantiles namespace.
 
 
+def _parametrized_quantile(parameters, data, p):
+    """_parameterized_quantile(parameters, data, p) -> value
+
+    Private function calculating a parameterized version of quantile,
+    equivalent to the Mathematica Quantile() function.
+
+    data is assumed to be sorted and with at least two items; p is assumed
+    to be between 0 and 1 inclusive. If either of these assumptions are
+    violated, the behaviour of this function is undefined.
+
+    >>> from builtins import range; data = range(1, 21)
+    >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
+    6.0
+    >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
+    6.5
+
+    WARNING: While this function will accept arbitrary numberic values for
+    the parameters, not all such combinations are meaningful:
+
+    >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
+    2.9
+
+    """
+    # More details here:
+    # http://reference.wolfram.com/mathematica/ref/Quantile.html
+    # http://mathworld.wolfram.com/Quantile.html
+    a, b, c, d = parameters
+    n = len(data)
+    h = a + (n+b)*p
+    f = h % 1
+    i = max(1, min(math.floor(h), n))
+    j = max(1, min(math.ceil(h), n))
+    x = data[i-1]
+    y = data[j-1]
+    return x + (y - x)*(c + d*f)
+
+
+# Public functions for fractiles:
+
+def hinges(data):
+    """Return Tukey's hinges H1, M, H2 from data.
+
+    >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
+    (6, 10, 14)
+
+    If the data has length N of the form 4n+5 (e.g. 5, 9, 13, 17...) then
+    the hinges can be visualised by writing out the ordered data in the
+    shape of a W, where each limb of the W is equal is length. For example,
+    the data (A,B,C,...) with N=9 would be written out like this:
+
+        A       E       I
+          B   D   F   H
+            C       G
+
+    and the hinges would be C, E and G.
+
+    This is equivalent to quartiles() called with scheme=1.
+    """
+    return quartiles(data, scheme=1)
+
+
 @sorted_data
 def quartiles(data, scheme=None):
     """quartiles(data [, scheme]) -> (Q1, Q2, Q3)
@@ -530,28 +607,6 @@ def quartiles(data, scheme=None):
     return func(data)
 
 quartiles.aliases = _Quartiles.QUARTILE_ALIASES  # TO DO make this read-only?
-
-
-def hinges(data):
-    """Return Tukey's hinges H1, M, H2 from data.
-
-    >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
-    (6, 10, 14)
-
-    If the data has length N of the form 4n+5 (e.g. 5, 9, 13, 17...) then
-    the hinges can be visualised by writing out the ordered data in the
-    shape of a W, where each limb of the W is equal is length. For example,
-    the data (A,B,C,...) with N=9 would be written out like this:
-
-        A       E       I
-          B   D   F   H
-            C       G
-
-    and the hinges would be C, E and G.
-
-    This is equivalent to quartiles() called with scheme=1.
-    """
-    return quartiles(data, scheme=1)
 
 
 @sorted_data
@@ -661,43 +716,6 @@ def quantile(data, p, scheme=None):
 quantile.aliases = _Quantiles.QUANTILE_ALIASES  # TO DO make this read-only?
 
 
-def _parametrized_quantile(parameters, data, p):
-    """_parameterized_quantile(parameters, data, p) -> value
-
-    Private function calculating a parameterized version of quantile,
-    equivalent to the Mathematica Quantile() function.
-
-    data is assumed to be sorted and with at least two items; p is assumed
-    to be between 0 and 1 inclusive. If either of these assumptions are
-    violated, the behaviour of this function is undefined.
-
-    >>> from builtins import range; data = range(1, 21)
-    >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
-    6.0
-    >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
-    6.5
-
-    WARNING: While this function will accept arbitrary numberic values for
-    the parameters, not all such combinations are meaningful:
-
-    >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
-    2.9
-
-    """
-    # More details here:
-    # http://reference.wolfram.com/mathematica/ref/Quantile.html
-    # http://mathworld.wolfram.com/Quantile.html
-    a, b, c, d = parameters
-    n = len(data)
-    h = a + (n+b)*p
-    f = h % 1
-    i = max(1, min(math.floor(h), n))
-    j = max(1, min(math.ceil(h), n))
-    x = data[i-1]
-    y = data[j-1]
-    return x + (y - x)*(c + d*f)
-
-
 def decile(data, d, scheme=None):
     """Return the dth decile of data, for integer d between 0 and 10.
 
@@ -728,27 +746,4 @@ def percentile(data, p, scheme=None):
         raise ValueError('percentile argument p must be between 0 and 100')
     from fractions import Fraction
     return quantile(data, Fraction(p, 100), scheme)
-
-
-# Other moments of the data
-# -------------------------
-
-def quartile_skewness(q1, q2, q3):
-    """Return the quartile skewness coefficient, or Bowley skewness, from
-    the three quartiles q1, q2, q3.
-
-    >>> quartile_skewness(1, 2, 5)
-    0.5
-    >>> quartile_skewness(1, 4, 5)
-    -0.5
-
-    """
-    if not q1 <= q2 <= q3:
-        raise stats.utils.StatsError(
-        'quartiles must be ordered q1 <= q2 <= q3')
-    if q1 == q2 == q3:
-        return float('nan')
-    skew = (q3 + q1 - 2*q2)/(q3 - q1)
-    assert -1.0 <= skew <= 1.0
-    return skew
 
