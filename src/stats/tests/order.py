@@ -9,6 +9,8 @@ Test suite for the stats.order module.
 """
 
 import collections
+import itertools
+import math
 import random
 import unittest
 
@@ -29,7 +31,7 @@ class GlobalsTest(unittest.TestCase, common.GlobalsMixin):
 
 
 
-class MedianTest(NumericTestCase, common.UnivariateMixin):
+class MedianTest(unittest.TestCase, common.UnivariateMixin):
     tol = rel = None  # Default to expect exact equality.
 
     def __init__(self, *args, **kwargs):
@@ -76,7 +78,7 @@ class MedianTest(NumericTestCase, common.UnivariateMixin):
         self.assertEqual(a, b)
 
 
-class MedianExtrasTest(NumericTestCase):
+class MedianExtrasTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.median
@@ -135,7 +137,8 @@ class MidhingeTest(common.DoubleDataFailMixin, MedianTest):
         d = c + [7.4]
         for L in (a, b, c, d):
             random.shuffle(L)
-        self.assertApproxEqual(self.func(a), 2.9, tol=1e-10, rel=None)
+        # self.assertApproxEqual(self.func(a), 2.9, tol=1e-10, rel=None)
+        self.assertEqual(self.func(a), (1.4+4.4)/2)  # 2.9 plus rounding error.
         self.assertEqual(self.func(b), 3.25)
         self.assertEqual(self.func(c), 3.5)
         self.assertEqual(self.func(d), 3.75)
@@ -146,7 +149,7 @@ class MidhingeTest(common.DoubleDataFailMixin, MedianTest):
 
 
 class TrimeanTest(
-    NumericTestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
     ):
 
     def __init__(self, *args, **kwargs):
@@ -188,15 +191,14 @@ class TrimeanTest(
         self.assertEqual(self.func(iter(data)), expected)
 
 
-"""
-class RangeTest(NumericTestCase):
-    def testFailure(self):
-        self.assertRaises(ValueError, stats.range, [])
-        self.assertRaises(ValueError, stats.range, iter([]))
+class RangeTest(unittest.TestCase, common.UnivariateMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.range
 
     def testSingleton(self):
         for x in (-3.1, 0.0, 4.2, 1.789e12):
-            self.assertEqual(stats.range([x]), 0)
+            self.assertEqual(self.func([x]), 0)
 
     def generate_data_sets(self):
         # Yield 2-tuples of (data, expected range).
@@ -226,37 +228,42 @@ class RangeTest(NumericTestCase):
 
     def testSequence(self):
         for data, expected in self.generate_data_sets():
-            self.assertEqual(stats.range(data), expected)
+            self.assertEqual(self.func(data), expected)
 
     def testIterator(self):
         for data, expected in self.generate_data_sets():
-            self.assertEqual(stats.range(iter(data)), expected)
+            self.assertEqual(self.func(iter(data)), expected)
 
-class IQRTest(NumericTestCase):
+
+class IQRTest(
+    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    ):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.iqr
+        self.extras = [(obj,) for obj in
+                       (None, 1, 2, 3, 4, 5, 6, 'excel', 'tukey')]
 
     def testBadScheme(self):
         # Test that a bad scheme raises an exception.
         for scheme in (-1, 1.5, "spam"):
-            self.assertRaises(ValueError, stats.iqr, [1, 2, 3, 4], scheme)
-
-    def testFailure(self):
-        # Test that too few items raises an exception.
-        for data in ([], [1], [2, 3]):
-            self.assertRaises(ValueError, stats.iqr, data)
+            self.assertRaises(ValueError, self.func, [1, 2, 3, 4], scheme)
+        self.assertRaises(TypeError, self.func, [1, 2, 3, 4], {})
 
     def testTriplet(self):
         # Test that data consisting of three items behaves as expected.
         data = [1, 5, 12]
-        self.assertEqual(stats.iqr(data, 'inclusive'), 5.5)
-        self.assertEqual(stats.iqr(data, 'exclusive'), 11)
+        self.assertEqual(self.func(data, 'inclusive'), 5.5)
+        self.assertEqual(self.func(data, 'exclusive'), 11)
 
     def testCaseInsensitive(self):
         data = [1, 2, 3, 6, 9, 12, 18, 22]
-        for name, num in stats.quartiles.aliases.items():
-            a = stats.iqr(data, name.lower())
-            b = stats.iqr(data, name.upper())
-            c = stats.iqr(data, name.title())
-            d = stats.iqr(data, num)
+        for name, num in stats.order.quartiles.aliases.items():
+            a = self.func(data, name.lower())
+            b = self.func(data, name.upper())
+            c = self.func(data, name.title())
+            d = self.func(data, num)
             self.assertEqual(a, b)
             self.assertEqual(a, c)
             self.assertEqual(a, d)
@@ -266,23 +273,23 @@ class IQRTest(NumericTestCase):
         data = list(range(51))
         random.shuffle(data)
         assert len(data) % 4 == 3
-        save_scheme = stats.QUARTILE_DEFAULT
-        schemes = [1, 2, 3, 4, 5, 6]
+        save_scheme = stats.order.QUARTILE_DEFAULT
+        schemes = [1, 2, 3, 4, 5, 6, 'inclusive', 'exclusive', 'excel']
         try:
             for scheme in schemes:
-                stats.QUARTILE_DEFAULT = scheme
-                a = stats.iqr(data)
-                b = stats.iqr(data, scheme)
+                stats.order.QUARTILE_DEFAULT = scheme
+                a = self.func(data)
+                b = self.func(data, scheme)
                 self.assertEqual(a, b)
         finally:
-            stats.QUARTILE_DEFAULT = save_scheme
+            stats.order.QUARTILE_DEFAULT = save_scheme
 
     def same_result(self, data, scheme):
         # Check that data gives the same result, no matter what order
         # it is given in.
         assert len(data) > 2
         if len(data) <= 7:
-            # Exhaustively try every permutation for small amounts of data.
+            # Test every permutation exhaustively for small amounts of data.
             perms = itertools.permutations(data)
         else:
             # Take a random sample for larger amounts of data.
@@ -291,7 +298,7 @@ class IQRTest(NumericTestCase):
             for _ in range(50):
                 random.shuffle(data)
                 perms.append(data[:])
-        results = [stats.iqr(perm, scheme) for perm in perms]
+        results = [self.func(perm, scheme) for perm in perms]
         assert len(results) > 1
         self.assertTrue(len(set(results)) == 1)
 
@@ -301,7 +308,54 @@ class IQRTest(NumericTestCase):
             for size in range(3, 12):  # size % 4 -> 3,0,1,2 ...
                 self.same_result(range(size), scheme)
 
-"""
+
+class QuartileSkewnessTest(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.quartile_skewness
+
+    def testFailure(self):
+        # Test that function raises an exception if the arguments are
+        # out of order.
+        self.assertRaises(ValueError, self.func, 2, 3, 1)
+        self.assertRaises(ValueError, self.func, 9, 8, 7)
+
+    def testNan(self):
+        # Test that the degenerate case where all three arguments are
+        # equal returns NAN.
+        self.assertTrue(math.isnan(self.func(1, 1, 1)))
+        self.assertTrue(math.isnan(self.func(5, 5, 5)))
+
+    def testSkew(self):
+        # Test skew calculations.
+        self.assertEqual(self.func(3, 5, 7), 0.0)
+        self.assertEqual(self.func(0, 1, 10), 0.8)
+        self.assertEqual(self.func(0, 9, 10), -0.8)
+
+
+class HingesTest(
+    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.hinges
+
+    def testQuartileScheme(self):
+        # Compare results with those from the quartiles function with the
+        # 'hinges' scheme.
+        quartiles = stats.order.quartiles
+        for n in range(3, 25):
+            data = range(n)
+            self.assertEqual(self.func(data), quartiles(data, 'hinges'))
+
+    def testHinges(self):
+        # Compare results calculated by hand.
+        self.assertEqual(self.func([0, 1, 2, 3, 4]), (1, 2, 3))
+        self.assertEqual(self.func(range(100, 109)), (102, 104, 106))
+        # Now test data that requires interpolation between points.
+        self.assertEqual(self.func(range(100, 110)), (102, 104.5, 107))
+        self.assertEqual(self.func(range(100, 111)), (102.5, 105, 107.5))
+        self.assertEqual(self.func(range(100, 112)), (102.5, 105.5, 108.5))
 
 
 class DrMathTests(unittest.TestCase):
@@ -390,8 +444,6 @@ class DrMathTests(unittest.TestCase):
 
 
 class QuartileAliasesTest(unittest.TestCase):
-    allowed_methods = set(stats.order._Quartiles.QUARTILE_MAP.keys())
-
     def testAliasesMapping(self):
         # Test that the quartile function exposes a mapping of aliases.
         self.assertTrue(hasattr(stats.order.quartiles, 'aliases'))
@@ -400,8 +452,9 @@ class QuartileAliasesTest(unittest.TestCase):
         self.assertTrue(aliases)
 
     def testAliasesValues(self):
-        for method in stats.order.quartiles.aliases.values():
-            self.assertTrue(method in self.allowed_methods)
+        allowed_schemes = set(stats.order._Quartiles.QUARTILE_MAP.keys())
+        for scheme in stats.order.quartiles.aliases.values():
+            self.assertTrue(scheme in allowed_schemes)
 
 
 class QuartileTest(
@@ -566,110 +619,24 @@ class QuartileTest(
         self.assertEqual(self.func(data, 2), (1251, 1502, 1753))
 
 
-
-"""
-
-class QuartileSkewnessTest(NumericTestCase):
-    def testFailure(self):
-        # Test that function raises an exception if the arguments are
-        # out of order.
-        self.assertRaises(ValueError, stats.quartile_skewness, 2, 3, 1)
-        self.assertRaises(ValueError, stats.quartile_skewness, 9, 8, 7)
-
-    def testNan(self):
-        # Test that the degenerate case where all three arguments are
-        # equal returns NAN.
-        self.assertTrue(math.isnan(stats.quartile_skewness(1, 1, 1)))
-        self.assertTrue(math.isnan(stats.quartile_skewness(5, 5, 5)))
-
-    def testSkew(self):
-        # Test skew calculations.
-        self.assertEqual(stats.quartile_skewness(3, 5, 7), 0.0)
-        self.assertEqual(stats.quartile_skewness(0, 1, 10), 0.8)
-        self.assertEqual(stats.quartile_skewness(0, 9, 10), -0.8)
-
-
-
-
-
-class HingesTest(NumericTestCase):
+class QuantileTest(
+    NumericTestCase, common.SingleDataFailMixin, common.UnivariateMixin
+    ):
     def __init__(self, *args, **kwargs):
-        NumericTestCase.__init__(self, *args, **kwargs)
-        self.func = stats.hinges
-
-    def testNoSorting(self):
-        # hinges() does not sort in place.
-        data = [2, 4, 1, 3, 0, 5]
-        save = data[:]
-        assert save is not data
-        assert data != sorted(data)
-        _ = self.func(data)
-        self.assertEqual(data, save)
-
-    def testTooFewItems(self):
-        for data in ([], [1], [1, 2]):
-            self.assertRaises(ValueError, self.func, data)
-
-    def testSorted(self):
-        # Test that sorted and unsorted data give the same results.
-        for n in (40, 41, 42, 43):  # n%4 -> 0...3
-            data = list(range(n))
-            result1 = self.func(data)
-            random.shuffle(data)
-            result2 = self.func(data)
-            self.assertEqual(result1, result2)
-
-    def testTypes(self):
-        # Test that iterators and sequences give the same result.
-        for n in (40, 41, 42, 43):
-            data = range(n)
-            result1 = self.func(data)
-            data = list(data)
-            result2 = self.func(data)
-            result3 = self.func(tuple(data))
-            result4 = self.func(iter(data))
-            self.assertEqual(result1, result2)
-            self.assertEqual(result1, result3)
-            self.assertEqual(result1, result4)
-
-    def testHinges(self):
-        f = self.func
-        for n in range(3, 25):
-            data = range(n)
-            self.assertEqual(f(data), stats.quartiles(data, 'hinges'))
-
-
-class QuantileBehaviourTest(NumericTestCase):
-    # Test behaviour of quantile function without caring about
-    # the actual values returned.
-
-    def __init__(self, *args, **kwargs):
-        NumericTestCase.__init__(self, *args, **kwargs)
-        self.func = stats.quantile
-
-    def testSorting(self):
-        # Test that quantile doesn't sort in place.
-        data = [2, 4, 1, 3, 0, 5]
-        assert data != sorted(data)
-        save = data[:]
-        assert save is not data
-        _ = self.func(data, 0.9)
-        self.assertEqual(data, save)
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.quantile
+        self.extras = [(f,) for f in (0.1, 0.2, 0.45, 0.5, 0.55, 0.7, 0.99)]
 
     def testQuantileArgOutOfRange(self):
         data = [1, 2, 3, 4]
         self.assertRaises(ValueError, self.func, data, -0.1)
         self.assertRaises(ValueError, self.func, data, 1.1)
 
-    def testTooFewItems(self):
-        self.assertRaises(ValueError, self.func, [], 0.1)
-        self.assertRaises(ValueError, self.func, [1], 0.1)
-
     def testDefaultScheme(self):
         data = list(range(51))
         random.shuffle(data)
         assert len(data) % 4 == 3
-        save_scheme = stats.QUANTILE_DEFAULT
+        save_scheme = stats.order.QUANTILE_DEFAULT
         schemes = [
             1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
             'excel', 'minitab',
@@ -678,21 +645,12 @@ class QuantileBehaviourTest(NumericTestCase):
         try:
             for scheme in schemes:
                 p = random.random()
-                stats.QUANTILE_DEFAULT = scheme
-                a = stats.quantile(data, p)
-                b = stats.quantile(data, p, scheme)
+                stats.order.QUANTILE_DEFAULT = scheme
+                a = self.func(data, p)
+                b = self.func(data, p, scheme)
                 self.assertEqual(a, b)
         finally:
-            stats.QUANTILE_DEFAULT = save_scheme
-
-
-class QuantileValueTest(NumericTestCase):
-    # Tests of quantile function where we do care about the actual
-    # values returned.
-
-    def __init__(self, *args, **kwargs):
-        NumericTestCase.__init__(self, *args, **kwargs)
-        self.func = stats.quantile
+            stats.order.QUANTILE_DEFAULT = save_scheme
 
     def testUnsorted(self):
         data = [3, 4, 2, 1, 0, 5]
@@ -718,7 +676,7 @@ class QuantileValueTest(NumericTestCase):
         ps = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         data = range(1, 21)
         for i, p in enumerate(ps):
-            result = stats.quantile(data, p, scheme=10)
+            result = self.func(data, p, scheme=10)
             self.assertApproxEqual(expected[i], result, tol=1e-12, rel=None)
 
 
@@ -728,13 +686,21 @@ class QuantilesCompareWithR(NumericTestCase):
     rel = None
 
     def __init__(self, *args, **kwargs):
-        NumericTestCase.__init__(self, *args, **kwargs)
-        self.read_data('quantiles.dat')
+        super().__init__(*args, **kwargs)
+        self.read_data('support/quantiles.dat')
+        self.func = stats.order.quantile
 
     def read_data(self, filename):
         # Read data from external test data file generated using R.
+        # First we have to find our location...
+        import os
+        import stats.tests
+        location = os.path.split(stats.tests.__file__)[0]
+        # Now add the location to it.
+        location = os.path.join(location, filename)
+        # Now read the data from that file.
         expected = {}
-        with open(filename, 'r') as data:
+        with open(location, 'r') as data:
             for line in data:
                 line = line.strip()
                 if not line or line.startswith("#"):
@@ -758,10 +724,10 @@ class QuantilesCompareWithR(NumericTestCase):
 
     def compare(self, scheme):
         fractiles = self.fractiles
-        a = [stats.quantile(self.data, p, scheme=scheme) for p in fractiles]
+        a = [self.func(self.data, p, scheme=scheme) for p in fractiles]
         b = self.expected[scheme]
-        for x,y in zip(a, b):
-            self.assertApproxEqual(x, y)
+        for actual, expected in zip(a, b):
+            self.assertApproxEqual(actual, expected)
 
     def testR1(self):  self.compare(1)
     def testR2(self):  self.compare(2)
@@ -775,22 +741,28 @@ class QuantilesCompareWithR(NumericTestCase):
 
 
 class CompareQuantileMethods(NumericTestCase):
-    data1 = list(range(1000, 2000, 100))
-    data2 = list(range(2000, 3001, 100))
-    assert len(data1)%2 == 0
-    assert len(data2)%2 == 1
-
-    fractions = [0.0, 0.01, 0.1, 0.2, 0.25, 0.31, 0.42, 0.5, 0.55,
-                0.62, 0.75, 0.83, 0.9, 0.95, 0.99, 1.0]
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.quantile
 
     def compareMethods(self, scheme, params):
-        for p in self.fractions:
-            a = stats.quantile(self.data1, p, scheme=scheme)
-            b = stats.quantile(self.data1, p, scheme=params)
-            self.assertEqual(a, b, "%s != %s; p=%f" % (a, b, p))
-            a = stats.quantile(self.data2, p, scheme=scheme)
-            b = stats.quantile(self.data2, p, scheme=params)
-            self.assertEqual(a, b, "%s != %s; p=%f" % (a, b, p))
+        fractions = [0.0, 0.01, 0.1, 0.2, 0.25, 0.31, 0.42, 0.5,
+                     0.55, 0.62, 0.75, 0.83, 0.9, 0.95, 0.99, 1.0]
+        data0 = list(range(2000, 2701, 100))
+        assert len(data0)%4 == 0
+        data1 = list(range(2000, 2801, 100))
+        assert len(data1)%4 == 1
+        data2 = list(range(2000, 2901, 100))
+        assert len(data2)%4 == 2
+        data3 = list(range(2000, 3001, 100))
+        assert len(data3)%4 == 3
+        for data in (data0, data1, data2, data3):
+            name = 'data%d' % (len(data) % 4)
+            for p in fractions:
+                a = self.func(data, p, scheme=scheme)
+                b = self.func(data, p, scheme=params)
+                self.assertEqual(a, b,
+                "Failed for %s with %s != %s; p=%f" % (name, a, b, p))
 
     def testR1(self):
         scheme = 1; params = (0, 0, 1, 0)
@@ -829,19 +801,34 @@ class CompareQuantileMethods(NumericTestCase):
         self.compareMethods(scheme, params)
 
 
-class DecileTest(NumericTestCase):
-    def testSimple(self):
+class DecileTest(
+    unittest.TestCase, common.SingleDataFailMixin, common.UnivariateMixin
+    ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.decile
+        self.extras = [(n,) for n in range(1, 11)]
+
+    def testExact(self):
         data = range(1, 11)
+        assert len(data) == 10
+        # No interpolation needed regardless of scheme.
         for i in range(1, 11):
-            self.assertEqual(stats.decile(data, i, scheme=1), i)
+            self.assertEqual(self.func(data, i, scheme=1), i)
 
 
-class PercentileTest(NumericTestCase):
-    def testSimple(self):
+class PercentileTest(
+    unittest.TestCase, common.SingleDataFailMixin, common.UnivariateMixin
+    ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.percentile
+        self.extras = [(n,) for n in range(3, 101, 7)]
+
+    def testExact(self):
         data = range(1, 101)
+        assert len(data) == 100
+        # No interpolation needed regardless of scheme.
         for i in range(1, 101):
-            self.assertEqual(stats.percentile(data, i, scheme=1), i)
-
-
-"""
+            self.assertEqual(self.func(data, i, scheme=1), i)
 
