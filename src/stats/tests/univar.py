@@ -466,6 +466,56 @@ class StErrMeanTest(NumericTestCase):
             self.func(2.5, 16, 20), 0.286769667338)
 
 
+class StErrSkewnessTest(NumericTestCase):
+    tol=1e-12
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.sterrskewness
+
+    def testFailures(self):
+        # Negative sample size is bad.
+        self.assertRaises(ValueError, self.func, -2)
+        # So is fractional sample size.
+        self.assertRaises(ValueError, self.func, 2.5)
+
+    def testZero(self):
+        x = self.func(0)
+        self.assertTrue(math.isinf(x))
+
+    def testResult(self):
+        self.assertEqual(self.func(6), 1.0)
+        self.assertApproxEqual(self.func(10), 0.774596669241)
+        self.assertApproxEqual(self.func(20), 0.547722557505)
+        self.assertEqual(self.func(24), 0.5)
+        self.assertApproxEqual(self.func(55), 0.330289129538)
+
+
+class StErrKurtosisTest(NumericTestCase):
+    tol=1e-12
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.sterrkurtosis
+
+    def testFailures(self):
+        # Negative sample size is bad.
+        self.assertRaises(ValueError, self.func, -2)
+        # So is fractional sample size.
+        self.assertRaises(ValueError, self.func, 2.5)
+
+    def testZero(self):
+        x = self.func(0)
+        self.assertTrue(math.isinf(x))
+
+    def testResult(self):
+        self.assertEqual(self.func(6), 2.0)
+        self.assertApproxEqual(self.func(10), 1.54919333848)
+        self.assertApproxEqual(self.func(20), 1.09544511501)
+        self.assertEqual(self.func(24), 1.0)
+        self.assertApproxEqual(self.func(55), 0.660578259076)
+
+
 class CircularMeanTest(NumericTestCase, common.UnivariateMixin):
     tol = 1e-12
 
