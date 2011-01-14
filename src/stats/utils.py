@@ -34,6 +34,20 @@ def sorted_data(func):
     return inner
 
 
+def count_elems(data):
+    """Count the elements of data, returning a Counter.
+
+    >>> d = count_elems([1.5, 2.5, 1.5, 0.5])
+    >>> sorted(d.items())
+    [(0.5, 1), (1.5, 2), (2.5, 1)]
+
+    """
+    D = {}
+    for element in data:
+        D[element] = D.get(element, 0) + 1
+    return D  #collections.Counter(data)
+
+
 def as_sequence(iterable):
     """Helper function to convert iterable arguments into sequences."""
     if isinstance(iterable, (list, tuple)): return iterable

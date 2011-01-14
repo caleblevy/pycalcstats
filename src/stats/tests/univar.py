@@ -424,12 +424,21 @@ class StErrMeanTest(NumericTestCase):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.sterrmean
 
-    def testFailures(self):
-        # Negative stdev or sample size is bad.
+    def testBadStdev(self):
+        # Negative stdev is bad.
         self.assertRaises(ValueError, self.func, -1, 2)
         self.assertRaises(ValueError, self.func, -1, 2, 3)
-        self.assertRaises(ValueError, self.func, 1, -2, 3)
+
+    def testBadSizes(self):
+        # Negative sample or population sizes are bad.
         self.assertRaises(ValueError, self.func, 1, -2)
+        self.assertRaises(ValueError, self.func, 1, -2, 3)
+        self.assertRaises(ValueError, self.func, 1, 2, -3)
+        # So are fractional sizes.
+        self.assertRaises(ValueError, self.func, 1, 2.5)
+        self.assertRaises(ValueError, self.func, 1, 2.5, 3)
+        self.assertRaises(ValueError, self.func, 1, 2.5, 3.5)
+        self.assertRaises(ValueError, self.func, 1, 2, 3.5)
 
     def testPopulationSize(self):
         # Population size must not be less than sample size.
@@ -473,7 +482,7 @@ class StErrSkewnessTest(NumericTestCase):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.sterrskewness
 
-    def testFailures(self):
+    def testBadSize(self):
         # Negative sample size is bad.
         self.assertRaises(ValueError, self.func, -2)
         # So is fractional sample size.
@@ -498,7 +507,7 @@ class StErrKurtosisTest(NumericTestCase):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.sterrkurtosis
 
-    def testFailures(self):
+    def testBadSize(self):
         # Negative sample size is bad.
         self.assertRaises(ValueError, self.func, -2)
         # So is fractional sample size.
