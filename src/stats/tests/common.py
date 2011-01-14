@@ -175,7 +175,7 @@ class UnivariateMixin:
 
     @handle_data_sets
     @handle_extra_arguments
-    def testTypeDoesntMatter(self, data, *args):
+    def testDataTypeDoesntMatter(self, data, *args):
         # Test that the type of iterable data doesn't effect the result.
         expected = self.func(data, *args)
         class MyList(list):
@@ -185,6 +185,17 @@ class UnivariateMixin:
         for kind in (list, tuple, iter, reversed, MyList, generator):
             result = self.func(kind(data), *args)
             self.assertEqual(expected, result)
+
+    @handle_data_sets
+    @handle_extra_arguments
+    def testNumericTypeDoesntMatter(self, data, *args):
+        # Test that the type of numeric data doesn't effect the result.
+        expected = self.func(data, *args)
+        class MyFloat(float):
+            pass
+        data = [MyFloat(x) for x in data]
+        result = self.func(data, *args)
+        self.assertEqual(expected, result)
 
 
 class SingleDataFailMixin:
