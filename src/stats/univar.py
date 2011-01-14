@@ -20,7 +20,7 @@ __all__ = [
     # Sums and products:
     'product',
     # Assorted others:
-    'sterrmean', 'stderrskewness', 'stderrkurtosis',
+    'sterrmean', 'sterrskewness', 'sterrkurtosis',
     # Statistics of circular quantities:
     'circular_mean',
     ]
@@ -113,8 +113,9 @@ def mode(data):
     The mode is commonly used as an average.
     """
     L = sorted(
-        [(count, value) for (value, count) in count_elems(data).items()],
-        reverse=True)
+        [(count, value) for (value, count) in
+         stats.utils.count_elems(data).items()],
+         reverse=True)
     if len(L) == 0:
         raise StatsError('no mode is defined for empty iterables')
     # Test if there are more than one modes.
@@ -366,26 +367,6 @@ def product(data, start=1):
         # This is FAR less accurate than the naive multiplication above.
 
 
-# === Partitioning, sorting and binning ===
-
-def count_elems(data):
-    """Count the elements of data, returning a Counter.
-
-    >>> d = count_elems([1.5, 2.5, 1.5, 0.5])
-    >>> sorted(d.items())
-    [(0.5, 1), (1.5, 2), (2.5, 1)]
-
-    """
-    D = {}
-    for element in data:
-        D[element] = D.get(element, 0) + 1
-    return D  #collections.Counter(data)
-
-
-# === Trimming of data ===
-
-"this section intentionally left blank"
-
 # === Other statistical formulae ===
 
 def sterrmean(s, n, N=None):
@@ -408,10 +389,13 @@ def sterrmean(s, n, N=None):
     0.25
 
     """
-    if N is not None and N < n:
-        raise StatsError('population size must be at least sample size')
+    stats.utils._validate_int(n)
     if n < 0:
         raise StatsError('cannot have negative sample size')
+    if N is not None:
+        stats.utils._validate_int(N)
+        if N < n:
+            raise StatsError('population size must be at least sample size')
     if s < 0.0:
         raise StatsError('cannot have negative standard deviation')
     if n == 0:
@@ -432,31 +416,33 @@ def sterrmean(s, n, N=None):
 # Presumably "Numerical Recipes in C" and "... Fortran" by the same authors
 # say the same thing.
 
-def stderrskewness(n):
-    """stderrskewness(n) -> float
+def sterrskewness(n):
+    """sterrskewness(n) -> float
 
     Return the approximate standard error of skewness for a sample of size
     n taken from an approximately normal distribution.
 
-    >>> stderrskewness(15)  #doctest: +ELLIPSIS
+    >>> sterrskewness(15)  #doctest: +ELLIPSIS
     0.63245553203...
 
     """
+    stats.utils._validate_int(n)
     if n == 0:
         return float('inf')
     return math.sqrt(6/n)
 
 
-def stderrkurtosis(n):
-    """stderrkurtosis(n) -> float
+def sterrkurtosis(n):
+    """sterrkurtosis(n) -> float
 
     Return the approximate standard error of kurtosis for a sample of size
     n taken from an approximately normal distribution.
 
-    >>> stderrkurtosis(15)  #doctest: +ELLIPSIS
+    >>> sterrkurtosis(15)  #doctest: +ELLIPSIS
     1.2649110640...
 
     """
+    stats.utils._validate_int(n)
     if n == 0:
         return float('inf')
     return math.sqrt(24/n)

@@ -8,8 +8,11 @@ Version 0.2a  2011-01-???
     * stats has now been split up into a package with separate sub-modules.
     * Single-pass versions of variance and friends have been re-written as
       coroutines.
-    * Running the package from the command line runs all doctests. See 
+    * Running the package from the command line runs all doctests. See
       `python3 -m stats --help` for further details.
+    * The test suite is runnable with `python3 -m stats.tests`.
+    * Renamed stderrskewness and stderrkurtosis to sterrskewness and
+      sterrkurtosis for consistancy with stdev and sterrmean.
 
     Known issues:
     * none yet :)
