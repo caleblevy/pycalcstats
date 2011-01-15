@@ -55,9 +55,9 @@ class NumericTestCase(unittest.TestCase):
                          '    by more than %s\n'
                 t = []
                 if tol is not None:
-                    t.append('tol=%f' % tol)
+                    t.append('tol=%r' % tol)
                 if rel is not None:
-                    t.append('rel=%f' % rel)
+                    t.append('rel=%r' % rel)
                 assert t
                 items = (actual, expected, ' and '.join(t), abs_err, rel_err)
             standardMsg = (header + err_msg) % items
