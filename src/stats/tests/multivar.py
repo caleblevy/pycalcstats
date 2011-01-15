@@ -450,44 +450,6 @@ class CorrExtrasTest(NumericTestCase):
             self.stress_test(xdata, ydata)
 
 
-class Corr1Test(CorrTest):
-    def __init__(self, *args, **kwargs):
-        CorrTest.__init__(self, *args, **kwargs)
-        self.func = stats.corr1
-
-    def testPerfectCorrelation(self):
-        xydata = [(x, 2.3*x - 0.8) for x in range(-17, 395, 3)]
-        self.assertApproxEqual(self.func(xydata), 1.0)
-
-    def testPerfectZeroCorrelation(self):
-        xydata = []
-        for x in range(1, 10):
-            for y in range(1, 10):
-                xydata.append((x, y))
-        self.assertApproxEqual(self.func(xydata), 0.0)
-
-    def testOrdered(self):
-        # Order shouldn't matter.
-        xydata = [(x, 2.7*x - 0.3) for x in range(-20, 30)]
-        a = self.func(xydata)
-        random.shuffle(xydata)
-        b = self.func(xydata)
-        self.assertApproxEqual(a, b)
-
-    def testStress(self):
-        # Stress the corr1() function looking for failures of the
-        # post-condition -1 <= r <= 1. We expect that there may be some,
-        # (but hope there won't be!) so don't stop on the first error.
-        failed = 0
-        it = self.generate_stress_data(5, 358, 11)
-        for count, (xdata, ydata) in enumerate(it, 1):
-            result = self.func(zip(xdata, ydata))
-            failed += not -1.0 <= result <= 1.0
-        assert count == 33*6*5
-        self.assertEqual(failed, 0,
-            "%d out of %d out of range errors" % (failed, count))
-
-
 class PCovTest(NumericTestCase):
     HP_TEST_NAME = 'PCOV'
     tol = 5e-12

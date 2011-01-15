@@ -13,7 +13,7 @@ import unittest
 
 # Tests to run:
 import stats.tests.basic
-#import stats.tests.co
+import stats.tests.co
 #import stats.tests.multivar
 import stats.tests.order
 import stats.tests.univar
@@ -23,7 +23,7 @@ import stats.tests.utils
 if __name__ == '__main__' and __package__ is not None:
     modules = (
         stats.tests.basic,
-        # stats.tests.co,
+        stats.tests.co,
         # stats.tests.multivar,
         stats.tests.order,
         stats.tests.univar,
