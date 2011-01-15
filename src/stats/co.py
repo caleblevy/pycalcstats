@@ -435,7 +435,7 @@ def corr():
     >>> rr = corr()
     >>> for x,y in zip(xdata, ydata):
     ...     print(rr.send((x, y)))
-    ...     #doctest: +ELLIPSIS
+    ...
     nan
     1.0
     0.618589574132
