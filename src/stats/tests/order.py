@@ -31,7 +31,7 @@ class GlobalsTest(unittest.TestCase, common.GlobalsMixin):
 
 
 
-class MedianTest(unittest.TestCase, common.UnivariateMixin):
+class MedianTest(NumericTestCase, common.UnivariateMixin):
     tol = rel = None  # Default to expect exact equality.
 
     def __init__(self, *args, **kwargs):
@@ -149,7 +149,7 @@ class MidhingeTest(common.DoubleDataFailMixin, MedianTest):
 
 
 class TrimeanTest(
-    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    NumericTestCase, common.DoubleDataFailMixin, common.UnivariateMixin
     ):
 
     def __init__(self, *args, **kwargs):
@@ -191,7 +191,7 @@ class TrimeanTest(
         self.assertEqual(self.func(iter(data)), expected)
 
 
-class RangeTest(unittest.TestCase, common.UnivariateMixin):
+class RangeTest(NumericTestCase, common.UnivariateMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.range
@@ -236,7 +236,7 @@ class RangeTest(unittest.TestCase, common.UnivariateMixin):
 
 
 class IQRTest(
-    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    NumericTestCase, common.DoubleDataFailMixin, common.UnivariateMixin
     ):
 
     def __init__(self, *args, **kwargs):
@@ -334,7 +334,7 @@ class QuartileSkewnessTest(unittest.TestCase):
 
 
 class HingesTest(
-    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    NumericTestCase, common.DoubleDataFailMixin, common.UnivariateMixin
     ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -458,7 +458,7 @@ class QuartileAliasesTest(unittest.TestCase):
 
 
 class QuartileTest(
-    unittest.TestCase, common.DoubleDataFailMixin, common.UnivariateMixin
+    NumericTestCase, common.DoubleDataFailMixin, common.UnivariateMixin
     ):
     # Each test must be run using each scheme, as well as no scheme.
     _schemes = [1, 2, 3, 4, 5, 6, 'excel', 'minitab', None]
@@ -802,7 +802,7 @@ class CompareQuantileMethods(NumericTestCase):
 
 
 class DecileTest(
-    unittest.TestCase, common.SingleDataFailMixin, common.UnivariateMixin
+    NumericTestCase, common.SingleDataFailMixin, common.UnivariateMixin
     ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -818,7 +818,7 @@ class DecileTest(
 
 
 class PercentileTest(
-    unittest.TestCase, common.SingleDataFailMixin, common.UnivariateMixin
+    NumericTestCase, common.SingleDataFailMixin, common.UnivariateMixin
     ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
