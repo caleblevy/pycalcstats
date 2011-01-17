@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 ##  Copyright (c) 2011 Steven D'Aprano.
 ##  See the file stats/__init__.py for the licence terms for this software.
@@ -9,6 +10,8 @@ Test suite for the stats.multivar module.
 """
 
 import collections
+import math
+import random
 
 from stats.tests import NumericTestCase
 import stats.tests.common as common
@@ -66,6 +69,49 @@ def hp_multivariate_test_data(switch):
 
 
 # === Test multivariate statistics ===
+
+class QCorrTest(NumericTestCase, common.MultivariateMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.multivar.qcorr
+
+    def testPerfectCorrelation(self):
+        xdata = range(-42, 1100, 7)
+        ydata = [3.5*x - 0.1 for x in xdata]
+        self.assertEqual(self.func(zip(xdata, ydata)), 1.0)
+
+    def testPerfectAntiCorrelation(self):
+        xydata = [(1, 10), (2, 8), (3, 6), (4, 4), (5, 2)]
+        self.assertEqual(self.func(xydata), -1.0)
+        xdata = range(-23, 1000, 3)
+        ydata = [875.1 - 4.2*x for x in xdata]
+        self.assertEqual(self.func(zip(xdata, ydata)), -1.0)
+
+    def testPerfectZeroCorrelation(self):
+        data = []
+        for x in range(1, 10):
+            for y in range(1, 10):
+                data.append((x, y))
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 0)
+
+    def testNan(self):
+        # Vertical line:
+        xdata = [1 for _ in range(50)]
+        ydata = [random.random() for _ in range(50)]
+        result = self.func(xdata, ydata)
+        self.assertTrue(math.isnan(result))
+        # Horizontal line:
+        xdata = [random.random() for _ in range(50)]
+        ydata = [1 for _ in range(50)]
+        result = self.func(xdata, ydata)
+        self.assertTrue(math.isnan(result))
+        # Neither horizontal nor vertical:
+        # Take x-values and y-values both = (1, 2, 2, 3) with median = 2.
+        xydata = [(1, 2), (2, 3), (2, 1), (3, 2)]
+        result = self.func(xydata)
+        self.assertTrue(math.isnan(result))
+
 
 """
 
@@ -194,68 +240,6 @@ class SplitTest(NumericTestCase):
 
 
 
-
-
-class QCorrTest(NumericTestCase):
-    def testPerfectCorrelation(self):
-        xdata = range(-42, 1100, 7)
-        ydata = [3.5*x - 0.1 for x in xdata]
-        self.assertEqual(stats.qcorr(xdata, ydata), 1.0)
-
-    def testPerfectAntiCorrelation(self):
-        xydata = [(1, 10), (2, 8), (3, 6), (4, 4), (5, 2)]
-        self.assertEqual(stats.qcorr(xydata), -1.0)
-        xdata = range(-23, 1000, 3)
-        ydata = [875.1 - 4.2*x for x in xdata]
-        self.assertEqual(stats.qcorr(xdata, ydata), -1.0)
-
-    def testPerfectZeroCorrelation(self):
-        data = []
-        for x in range(1, 10):
-            for y in range(1, 10):
-                data.append((x, y))
-        random.shuffle(data)
-        self.assertEqual(stats.qcorr(data), 0)
-
-    def testCompareAlternateInput(self):
-        # Compare the xydata vs. xdata, ydata input arguments.
-        xdata = [random.random() for _ in range(1000)]
-        ydata = [random.random() for _ in range(1000)]
-        a = stats.qcorr(xdata, ydata)
-        b = stats.qcorr(list(zip(xdata, ydata)))
-        self.assertEqual(a, b)
-
-    def testNan(self):
-        # Vertical line:
-        xdata = [1 for _ in range(50)]
-        ydata = [random.random() for _ in range(50)]
-        result = stats.qcorr(xdata, ydata)
-        self.assertTrue(math.isnan(result))
-        # Horizontal line:
-        xdata = [random.random() for _ in range(50)]
-        ydata = [1 for _ in range(50)]
-        result = stats.qcorr(xdata, ydata)
-        self.assertTrue(math.isnan(result))
-        # Neither horizontal nor vertical:
-        # Take x-values and y-values both = (1, 2, 2, 3) with median = 2.
-        xydata = [(1, 2), (2, 3), (2, 1), (3, 2)]
-        result = stats.qcorr(xydata)
-        self.assertTrue(math.isnan(result))
-
-    def testEmpty(self):
-        self.assertRaises(ValueError, stats.qcorr, [])
-        self.assertRaises(ValueError, stats.qcorr, [], [])
-
-    def testTypes(self):
-        xdata = [random.random() for _ in range(20)]
-        ydata = [random.random() for _ in range(20)]
-        a = stats.qcorr(xdata, ydata)
-        b = stats.qcorr(tuple(xdata), tuple(ydata))
-        c = stats.qcorr(iter(xdata), iter(ydata))
-        d = stats.qcorr(zip(xdata, ydata))
-        self.assertEqual(a, b)
-        self.assertEqual(a, c)
-        self.assertEqual(a, d)
 
 
 class CorrTest(NumericTestCase):

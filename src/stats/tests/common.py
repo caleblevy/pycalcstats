@@ -242,6 +242,20 @@ class UnivariateMixin:
         self.assertEqual(expected, result)
 
 
+class MultivariateMixin(UnivariateMixin):
+    def make_data(self, num_points):
+        data = super().make_data(num_points)
+        # Now transform data like this:
+        #   [ [x11, x12, x13, ...], [x21, x22, x23, ...], ... ]
+        # into this:
+        #   [ [(x11, 1), (x12, 2), (x13, 3), ...], ... ]
+        for i in range(len(data)):
+            d = data[i]
+            d = [(x, j+1) for j,x in enumerate(d)]
+            data[i] = d
+        return data
+
+
 class SingleDataFailMixin:
     # Test that the test function fails with a single data point.
     # This class overrides the method with the same name in
