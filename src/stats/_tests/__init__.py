@@ -6,6 +6,14 @@
 """
 Test suite for the stats package.
 
+
+WARNING
+-------
+
+Unless otherwise stated, this test suite is *not* part of the
+stats package public API and is subject to change without notice.
+
+
 """
 
 # Note: do not use self.fail... unit tests, as they are deprecated in

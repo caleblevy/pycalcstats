@@ -13,7 +13,7 @@ import unittest
 
 # Modules and functions being tested:
 import stats.utils
-from stats.tests import approx_equal
+from stats._tests import approx_equal
 
 
 class ApproxTest(unittest.TestCase):

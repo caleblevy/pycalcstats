@@ -13,8 +13,8 @@ import math
 import random
 import unittest
 
-from stats.tests import NumericTestCase
-import stats.tests.common as common
+from stats._tests import NumericTestCase
+import stats._tests.common as common
 
 # The module to be tested:
 import stats.co

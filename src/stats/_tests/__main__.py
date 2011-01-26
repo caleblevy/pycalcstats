@@ -12,22 +12,24 @@ import unittest
 
 
 # Tests to run:
-import stats.tests.basic
-import stats.tests.co
-import stats.tests.multivar
-import stats.tests.order
-import stats.tests.univar
-import stats.tests.utils
+import stats._tests.basic
+import stats._tests.co
+import stats._tests.general
+import stats._tests.multivar
+import stats._tests.order
+import stats._tests.univar
+import stats._tests.utils
 
 
 if __name__ == '__main__' and __package__ is not None:
     modules = (
-        stats.tests.basic,
-        stats.tests.co,
-        stats.tests.multivar,
-        stats.tests.order,
-        stats.tests.univar,
-        stats.tests.utils,
+        stats._tests.basic,
+        stats._tests.co,
+        stats._tests.general,
+        stats._tests.multivar,
+        stats._tests.order,
+        stats._tests.univar,
+        stats._tests.utils,
         )
     total = failures = errors = skipped = 0
     for module in modules:

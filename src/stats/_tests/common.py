@@ -255,6 +255,18 @@ class MultivariateMixin(UnivariateMixin):
             data[i] = d
         return data
 
+    @handle_data_sets(None)
+    @handle_extra_arguments
+    def testNumericTypeDoesntMatter(self, data, *args):
+        # Test that the type of numeric data shouldn't effect the result.
+        expected = self.func(data, *args)
+        class MyFloat(float):
+            pass
+        data = [tuple(map(MyFloat, t)) for t in data]
+        result = self.func(data, *args)
+        # self.assertApproxEqual(data, saved_data, tol=1e-13, rel=None)
+        self.assertEqual(expected, result)
+
 
 class SingleDataFailMixin:
     # Test that the test function fails with a single data point.
