@@ -12,16 +12,16 @@ import math
 import random
 import unittest
 
-from stats.tests import NumericTestCase
-import stats.tests.common as common
-import stats.tests.basic
+from stats._tests import NumericTestCase
+import stats._tests.common as common
+import stats._tests.basic
 
 # The module to be tested:
 import stats.univar
 
 
 @unittest.skip('geometric mean currently too inaccurate')
-class GeometricMeanTest(stats.tests.basic.MeanTest):
+class GeometricMeanTest(stats._tests.basic.MeanTest):
     rel = 1e-11
 
     def __init__(self, *args, **kwargs):
@@ -40,7 +40,7 @@ class GeometricMeanTest(stats.tests.basic.MeanTest):
         self.assertEqual(self.func(data), 0.0)
 
 
-class HarmonicMeanTest(stats.tests.basic.MeanTest):
+class HarmonicMeanTest(stats._tests.basic.MeanTest):
     rel = 1e-8
 
     def __init__(self, *args, **kwargs):
@@ -62,7 +62,7 @@ class HarmonicMeanTest(stats.tests.basic.MeanTest):
         # FIX ME test for signed zeroes?
 
 
-class QuadraticMeanTest(stats.tests.basic.MeanTest):
+class QuadraticMeanTest(stats._tests.basic.MeanTest):
     rel = 1e-8
 
     def __init__(self, *args, **kwargs):

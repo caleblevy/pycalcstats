@@ -13,8 +13,8 @@ import collections
 import math
 import random
 
-from stats.tests import NumericTestCase
-import stats.tests.common as common
+from stats._tests import NumericTestCase
+import stats._tests.common as common
 
 # The module to be tested:
 import stats.multivar

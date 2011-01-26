@@ -14,8 +14,8 @@ import math
 import random
 import unittest
 
-from stats.tests import NumericTestCase
-import stats.tests.common as common
+from stats._tests import NumericTestCase
+import stats._tests.common as common
 
 # The module to be tested:
 import stats.order
@@ -694,8 +694,8 @@ class QuantilesCompareWithR(NumericTestCase):
         # Read data from external test data file generated using R.
         # First we have to find our location...
         import os
-        import stats.tests
-        location = os.path.split(stats.tests.__file__)[0]
+        import stats._tests
+        location = os.path.split(stats._tests.__file__)[0]
         # Now add the location to it.
         location = os.path.join(location, filename)
         # Now read the data from that file.

@@ -10,7 +10,9 @@ Version 0.2a  2011-01-???
       coroutines.
     * Running the package from the command line runs all doctests. See
       `python3 -m stats --help` for further details.
-    * The test suite is runnable with `python3 -m stats.tests`.
+    * The test suite is now officially excluded from the public API.
+    * However, and subject to change, you can run the full test suite
+      with `python3 -m stats._tests`.
     * Renamed stderrskewness and stderrkurtosis to sterrskewness and
       sterrkurtosis for consistancy with stdev and sterrmean.
 
