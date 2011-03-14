@@ -46,22 +46,22 @@ def median(data, sign=0):
     >>> median([3.0, 5.0, 2.0])
     3.0
 
-    The median is the middle data point in a sorted sequence of values. If
-    the argument to median is a list, it will be sorted in place, otherwise
-    the values will be collected into a sorted list.
+    The median is the middle data point in a sorted sequence of values, and
+    is commonly used as an average. It is more robust than the mean for data
+    that contains outliers -- if your data contains a few items that are
+    extremely small, or extremely large, compared to the rest of the data,
+    the median will be more representative of the data than the mean.
 
-    The median is commonly used as an average. It is more robust than the
-    mean for data that contains outliers. The median is equivalent to the
-    second quartile or the 50th percentile.
+    The median is equivalent to the second quartile or the 50th percentile.
 
     Optional numeric argument sign specifies the behaviour of median in the
     case where there is an even number of elements:
 
     sign  value returned as median
     ----  ------------------------------------------------------
-    = 0   The mean of the elements on either side of the middle
-    < 0   The element just below the middle ("low median")
-    > 0   The element just above the middle ("high median")
+    = 0   The mean of the elements on either side of the middle.
+    < 0   The element just below the middle ("low median").
+    > 0   The element just above the middle ("high median").
 
     The default is 0. Except for certain specialist applications, this is
     normally what is expected for the median.
@@ -122,7 +122,6 @@ def midhinge(data):
     return (H1 + H2)/2
 
 
-@sorted_data
 def trimean(data):
     """Return Tukey's trimean = (H1 + 2*M + H2)/4 of data
 
