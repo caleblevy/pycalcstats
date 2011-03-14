@@ -8,7 +8,7 @@ General utilities used by the stats package.
 """
 
 
-__all__ = ['minmax', 'add_partial', 'coroutine']
+__all__ = ['add_partial', 'coroutine','minmax']
 
 
 import collections
@@ -152,11 +152,15 @@ def _sum_prod_deviations(xydata, mx, my):
         # Two pass algorithm.
         xydata = as_sequence(xydata)
         nx, sumx = _generalised_sum((t[0] for t in xydata), None)
+        if nx == 0:
+            raise StatsError('no data items')
         mx = sumx/nx
     if my is None:
         # Two pass algorithm.
         xydata = as_sequence(xydata)
         ny, sumy = _generalised_sum((t[1] for t in xydata), None)
+        if ny == 0:
+            raise StatsError('no data items')
         my = sumy/ny
     return _generalised_sum(xydata, lambda t: (t[0]-mx)*(t[1]-my))
 
@@ -245,8 +249,11 @@ def minmax(*values, **kw):
         # data is a sequence and can be safely iterated over twice.
         minimum = min(values, **kw)
         maximum = max(values, **kw)
+        # The number of comparisons is N-1 for both min() and max(), so the
+        # total used here is 2N-2, but performed in fast C.
     else:
         # Iterator argument, so fall back on a slow pure-Python solution.
+        # The number of comparisons is 3*ceil(N/2).
         if key is not None:
             it = ((key(value), value) for value in values)
         else:
