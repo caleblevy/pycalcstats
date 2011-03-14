@@ -370,18 +370,16 @@ class CorrTest(
             self.assertApproxEqual(a, b, tol=tol)
 
 
-"""
-class PCovTest(NumericTestCase):
+class PCovTest(
+    NumericTestCase, common.SingleDataFailMixin, common.MultivariateMixin
+    ):
     HP_TEST_NAME = 'PCOV'
     tol = 5e-12
     rel = 1e-8
 
     def __init__(self, *args, **kwargs):
-        NumericTestCase.__init__(self, *args, **kwargs)
-        self.func = stats.pcov
-
-    def testEmpty(self):
-        self.assertRaises(ValueError, self.func, [])
+        super().__init__(*args, **kwargs)
+        self.func = stats.multivar.pcov
 
     def testSingleton(self):
         self.assertEqual(self.func([(1, 2)]), 0.0)
@@ -439,11 +437,8 @@ class CovTest(PCovTest):
     HP_TEST_NAME = 'COV'
 
     def __init__(self, *args, **kwargs):
-        PCovTest.__init__(self, *args, **kwargs)
-        self.func = stats.cov
-
-    def testSingleton(self):
-        self.assertRaises(ValueError, self.func, [(1, 2)])
+        super().__init__(*args, **kwargs)
+        self.func = stats.multivar.cov
 
     def testReduce(self):
         # Covariance reduces to variance if X == Y.
@@ -453,19 +448,12 @@ class CovTest(PCovTest):
         self.assertApproxEqual(a, b)
 
 
-class ErrSumSqTest(NumericTestCase):
-
-    @unittest.skip('not yet implemented')
-    def testErrSumSq(self):
-        self.fail()
-
-
 class LinrTest(NumericTestCase):
     HP_TEST_NAME = 'LINFIT'
 
     def __init__(self, *args, **kwargs):
-        NumericTestCase.__init__(self, *args, **kwargs)
-        self.func = stats.linr
+        super().__init__(*args, **kwargs)
+        self.func = stats.multivar.linr
 
     def testTwoTuple(self):
         # Test that linear regression returns a two tuple.
@@ -488,7 +476,4 @@ class LinrTest(NumericTestCase):
 
     def testSingleton(self):
         self.assertRaises(ValueError, self.func, [(1, 2)])
-
-
-"""
 
