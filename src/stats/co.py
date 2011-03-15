@@ -375,6 +375,7 @@ def stdev():
 
 # === Other moments of the data ===
 
+# FIX ME
 def _terriberry(data):
     """Terriberry's algorithm for a single pass estimate of skew and kurtosis.
 
