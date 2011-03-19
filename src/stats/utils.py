@@ -220,9 +220,11 @@ def minmax(*values, **kw):
     """minmax(iterable [, key=func]) -> (minimum, maximum)
     minmax(a, b, c, ... [, key=func]) -> (minimum, maximum)
 
-    With a single iterable argument, return a two-tuple of its smallest
-    item and largest item. With two or more arguments, return the smallest
-    and largest arguments.
+    With a single iterable argument, return a two-tuple of its smallest and
+    largest items. With two or more arguments, return the smallest and
+    largest arguments. minmax is similar to the built-ins min and max, but
+    can return the two items with a single pass over the data, allowing it
+    to work with iterators.
 
     >>> minmax([3, 2, 1, 6, 5, 4])
     (1, 6)
@@ -234,8 +236,6 @@ def minmax(*values, **kw):
     >>> minmax('aaa', 'bbbb', 'c', 'dd', key=len)
     ('c', 'bbbb')
 
-    minmax is equivalent to the builtins min and max except it only requires
-    a single pass over the values.
     """
     if len(values) == 0:
         raise TypeError('minmax expected at least one argument, but got none')
@@ -243,7 +243,6 @@ def minmax(*values, **kw):
         values = values[0]
     if list(kw.keys()) not in ([], ['key']):
         raise TypeError('minmax received an unexpected keyword argument')
-    key = kw.get('key')
     if isinstance(values, collections.Sequence):
         # For speed, fall back on built-in min and max functions when
         # data is a sequence and can be safely iterated over twice.
@@ -254,6 +253,7 @@ def minmax(*values, **kw):
     else:
         # Iterator argument, so fall back on a slow pure-Python solution.
         # The number of comparisons is 3*ceil(N/2).
+        key = kw.get('key')
         if key is not None:
             it = ((key(value), value) for value in values)
         else:
@@ -261,6 +261,13 @@ def minmax(*values, **kw):
         try:
             keyed_min, minimum = next(it)
         except StopIteration:
+            # Don't directly raise an exception inside the except block,
+            # as that exposes the StopIteration to the caller. That's an
+            # implementation detail.
+            empty = True
+        else:
+            empty = False
+        if empty:
             raise ValueError('minmax argument is empty')
         keyed_max, maximum = keyed_min, minimum
         try:
