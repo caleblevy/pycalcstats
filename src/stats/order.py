@@ -12,19 +12,20 @@ __all__ = [
     'median', 'midrange', 'midhinge', 'trimean',
     'range', 'iqr', 
     'quartile_skewness',
-    'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
     'hinges', 'quartiles', 'quantile', 'decile', 'percentile',
+    'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
     ]
-
-
 
 
 import functools
 import math
 
+from stats import StatsError as _StatsError
+
 import stats.utils
-from stats.utils import sorted_data
+#from stats.utils import sorted_data
 #from stats.utils import StatsError, minmax, _round, _UP, _DOWN, _EVEN
+
 
 
 # === Global variables ===
@@ -32,6 +33,66 @@ from stats.utils import sorted_data
 # Default schemes to use for order statistics:
 QUARTILE_DEFAULT = 1
 QUANTILE_DEFAULT = 1
+
+
+
+# === Utilities ===
+
+def sorted_data(func):
+    """Decorator to sort data passed to stats functions."""
+    @functools.wraps(func)
+    def inner(data, *args, **kwargs):
+        data = sorted(data)
+        return func(data, *args, **kwargs)
+    return inner
+
+
+# === Private utilities ===
+
+def _interpolate(data, x):
+    i, f = math.floor(x), x%1
+    if f:
+        a, b = data[i], data[i+1]
+        return a + f*(b-a)
+    else:
+        return data[i]
+
+
+def _round_up(x):
+    """Round non-negative x, rounding ties up."""
+    assert x >= 0.0
+    n, f = int(x), x%1
+    if f >= 0.5:
+        return n+1
+    else:
+        return n
+
+
+def _round_down(x):
+    """Round non-negative x, rounding ties down."""
+    assert x >= 0.0
+    n, f = int(x), x%1
+    if f > 0.5:
+        return n+1
+    else:
+        return n
+
+
+def _round_even(x):
+    """Round non-negative x, using Banker's rounding to even for ties."""
+    assert x >= 0.0
+    n, f = int(x), x%1
+    if f > 0.5:
+        return n+1
+    elif f < 0.5:
+        return n
+    else:
+        if n%2:
+            # n is odd, so round up to even.
+            return n+1
+        else:
+            # n is even, so round down.
+            return n
 
 
 # === Order statistics ===
@@ -277,10 +338,10 @@ class _Quartiles:
         # Perform index calculations using 1-based counting, and adjust for
         # 0-based at the very end.
         n = len(data)
-        M = stats.utils._round((n+1)/2, stats.utils._EVEN)
-        L = stats.utils._round((n+1)/4, stats.utils._UP)
+        M = _round_even((n+1)/2)
+        L = _round_up((n+1)/4)
         U = n+1-L
-        assert U == stats.utils._round(3*(n+1)/4, stats.utils._DOWN)
+        assert U == _round_down(3*(n+1)/4)
         return (data[L-1], data[M-1], data[U-1])
 
     def minitab(data):
@@ -293,9 +354,9 @@ class _Quartiles:
         U = n+1-L
         assert U == 3*(n+1)/4
         return (
-                stats.utils._interpolate(data, L-1),
-                stats.utils._interpolate(data, M-1),
-                stats.utils._interpolate(data, U-1)
+                _interpolate(data, L-1),
+                _interpolate(data, M-1),
+                _interpolate(data, U-1)
                 )
 
     def excel(data):
@@ -310,9 +371,9 @@ class _Quartiles:
         L = (n+3)/4
         U = (3*n+1)/4
         return (
-                stats.utils._interpolate(data, L-1),
-                stats.utils._interpolate(data, M-1),
-                stats.utils._interpolate(data, U-1)
+                _interpolate(data, L-1),
+                _interpolate(data, M-1),
+                _interpolate(data, U-1)
                 )
 
     def langford(data):
@@ -364,7 +425,8 @@ class _Quartiles:
         'ti-85': 2,
         'tukey': 1,
         }
-# End of private _Quartiles namespace.
+    assert all(alias==alias.lower() for alias in QUARTILE_ALIASES)
+    # End of private _Quartiles namespace.
 
 
 class _Quantiles:
@@ -415,47 +477,49 @@ class _Quantiles:
         n = len(data)
         if p < 1/n: return data[0]
         elif p == 1.0: return data[-1]
-        else: return stats.utils._interpolate(data, n*p - 1)
+        else: return _interpolate(data, n*p - 1)
 
     def r5(data, p):
         n = len(data)
         if p < 1/(2*n): return data[0]
         elif p >= (n-0.5)/n: return data[-1]
         h = n*p + 0.5
-        return stats.utils._interpolate(data, h-1)
+        return _interpolate(data, h-1)
 
     def r6(data, p):
         n = len(data)
         if p < 1/(n+1): return data[0]
         elif p >= n/(n+1): return data[-1]
         h = (n+1)*p
-        return stats.utils._interpolate(data, h-1)
+        return _interpolate(data, h-1)
 
     def r7(data, p):
         n = len(data)
         if p == 1: return data[-1]
         h = (n-1)*p + 1
-        return stats.utils._interpolate(data, h-1)
+        return _interpolate(data, h-1)
 
     def r8(data, p):
         n = len(data)
         h = (n + 1/3)*p + 1/3
         h = max(1, min(h, n))
-        return stats.utils._interpolate(data, h-1)
+        return _interpolate(data, h-1)
 
     def r9(data, p):
         n = len(data)
         h = (n + 0.25)*p + 3/8
         h = max(1, min(h, n))
-        return stats.utils._interpolate(data, h-1)
+        return _interpolate(data, h-1)
 
-    def lqd(data, p):
+    def qlsd(data, p):
+        # This gives the quantile with the least expected square deviation.
+        # See http://en.wikipedia.org/wiki/Quantiles
         n = len(data)
         h = (n + 2)*p - 0.5
         h = max(1, min(h, n))
-        return stats.utils._interpolate(data, h-1)
+        return _interpolate(data, h-1)
 
-    # Numeric method selectors for quartiles. Numbers 1-9 MUST match the R
+    # Numeric method selectors for quantiles. Numbers 1-9 MUST match the R
     # calculation methods with the same number.
     QUANTILE_MAP = {
         1: r1,
@@ -467,7 +531,7 @@ class _Quantiles:
         7: r7,
         8: r8,
         9: r9,
-        10: lqd,
+        10: qlsd,
         }
         # Note: if you add any additional methods to this, you must also
         # update the docstring for the quantiles function.
@@ -486,6 +550,7 @@ class _Quantiles:
         'sas-4': 6,
         'sas-5': 2,
         }
+    assert all(alias==alias.lower() for alias in QUANTILE_ALIASES)
 # End of private _Quantiles namespace.
 
 
@@ -505,11 +570,12 @@ def _parametrized_quantile(parameters, data, p):
     >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
     6.5
 
-    WARNING: While this function will accept arbitrary numberic values for
-    the parameters, not all such combinations are meaningful:
+        WARNING: While this function will accept arbitrary numberic
+        values for the parameters, not all such combinations are
+        meaningful:
 
-    >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
-    2.9
+        >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
+        2.9
 
     """
     # More details here:
@@ -592,7 +658,7 @@ def quartiles(data, scheme=None):
     """
     n = len(data)
     if n < 3:
-        raise stats.utils.StatsError(
+        raise _StatsError(
         'need at least 3 items to split data into quartiles')
     # Select a method.
     if scheme is None: scheme = QUARTILE_DEFAULT
@@ -602,7 +668,7 @@ def quartiles(data, scheme=None):
         key = scheme
     func = _Quartiles.QUARTILE_MAP.get(key)
     if func is None:
-        raise stats.utils.StatsError('unrecognised scheme `%s`' % scheme)
+        raise _StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
 quartiles.aliases = _Quartiles.QUARTILE_ALIASES  # TO DO make this read-only?
@@ -642,10 +708,10 @@ def quantile(data, p, scheme=None):
     of these. You can examine quantiles.aliases for a mapping of names to
     scheme numbers or parameters.
 
-        WARNING:
-        The use of arbitrary values as a four-parameter scheme is not
-        recommended! Although quantile will calculate a result using them,
-        the result is unlikely to be meaningful or statistically useful.
+        WARNING: The use of arbitrary values as a four-parameter
+        scheme is not recommended! Although quantile will calculate
+        a result using them, the result is unlikely to be meaningful
+        or statistically useful.
 
     Integer schemes 1-9 are equivalent to R's quantile types with the same
     number. These are also equivalent to Mathematica's parameterized quartile
@@ -693,10 +759,10 @@ def quantile(data, p, scheme=None):
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
     # http://en.wikipedia.org/wiki/Quantile
     if not 0.0 <= p <= 1.0:
-        raise stats.utils.StatsError(
+        raise _StatsError(
         'quantile argument must be between 0.0 and 1.0')
     if len(data) < 2:
-        raise stats.utils.StatsError(
+        raise _StatsError(
         'need at least 2 items to split data into quantiles')
     # Select a scheme.
     if scheme is None: scheme = QUANTILE_DEFAULT
@@ -709,7 +775,7 @@ def quantile(data, p, scheme=None):
     else:
         func = _Quantiles.QUANTILE_MAP.get(key)
         if func is None:
-            raise stats.utils.StatsError('unrecognised scheme `%s`' % scheme)
+            raise _StatsError('unrecognised scheme `%s`' % scheme)
         return func(data, p)
 
 quantile.aliases = _Quantiles.QUANTILE_ALIASES  # TO DO make this read-only?
