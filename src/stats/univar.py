@@ -34,7 +34,7 @@ import collections
 
 import stats
 import stats.utils
-from stats import StatsError
+from stats import StatsError as _StatsError
 
 
 # Measures of central tendency (means and averages)
@@ -71,7 +71,7 @@ def geometric_mean(data):
     The geometric mean is the Nth root of the product of the data. It is
     best suited for averaging exponential growth rates.
     """
-    ap = stats.utils.add_partial
+    ap = stats.add_partial
     log = math.log
     partials = []
     count = 0
@@ -81,10 +81,10 @@ def geometric_mean(data):
             ap(log(x), partials)
     except ValueError:
         if x < 0:
-            raise StatsError('geometric mean of negative number')
+            raise _StatsError('geometric mean of negative number')
         return 0.0
     if count == 0:
-        raise StatsError('geometric mean of empty sequence is not defined')
+        raise _StatsError('geometric mean of empty sequence is not defined')
     p = math.exp(math.fsum(partials))
     return pow(p, 1.0/count)
 
@@ -117,10 +117,10 @@ def mode(data):
          stats.utils.count_elems(data).items()],
          reverse=True)
     if len(L) == 0:
-        raise StatsError('no mode is defined for empty iterables')
+        raise _StatsError('no mode is defined for empty iterables')
     # Test if there are more than one modes.
     if len(L) > 1 and L[0][0] == L[1][0]:
-        raise StatsError('no distinct mode')
+        raise _StatsError('no distinct mode')
     return L[0][1]
 
 
@@ -135,7 +135,7 @@ def moving_average(data, window=3):
     it = iter(data)
     d = collections.deque(itertools.islice(it, window))
     if len(d) != window:
-        raise StatsError('too few data points for given window size')
+        raise _StatsError('too few data points for given window size')
     s = sum(d)
     yield s/window
     for x in it:
@@ -170,9 +170,9 @@ def average_deviation(data, m=None):
     if m is None:
         data = stats.utils.as_sequence(data)
         m = stats.mean(data)
-    n, total = stats.utils._generalised_sum(data, lambda x: abs(x-m))
+    n, total = stats._generalised_sum(data, lambda x: abs(x-m))
     if n < 1:
-        raise StatsError('average deviation requires at least 1 data point')
+        raise _StatsError('average deviation requires at least 1 data point')
     return total/n
 
 
@@ -217,7 +217,7 @@ def median_average_deviation(data, m=None, sign=0, scale=1):
     if isinstance(scale, str):
         f = median_average_deviation.scaling.get(scale.lower())
         if f is None:
-            raise StatsError('unrecognised scale factor `%s`' % scale)
+            raise _StatsError('unrecognised scale factor `%s`' % scale)
         scale = f
     elif scale is None:
         scale = 1
@@ -254,7 +254,7 @@ def pearson_mode_skewness(mean, mode, stdev):
     elif stdev == 0:
         return float('nan') if mode == mean else float('inf')
     else:
-        raise StatsError("standard deviation cannot be negative")
+        raise _StatsError("standard deviation cannot be negative")
 
 
 def skewness(data, m=None, s=None):
@@ -297,7 +297,7 @@ def skewness(data, m=None, s=None):
         data = stats.utils.as_sequence(data)
         if m is None: m = stats.mean(data)
         if s is None: s = stats.stdev(data, m)
-    n, total = stats.utils._generalised_sum(data, lambda x: ((x-m)/s)**3)
+    n, total = stats._generalised_sum(data, lambda x: ((x-m)/s)**3)
     return total/n
 
 
@@ -343,7 +343,7 @@ def kurtosis(data, m=None, s=None):
         data = stats.utils.as_sequence(data)
         if m is None: m = stats.mean(data)
         if s is None: s = stats.stdev(data, m)
-    n, total = stats.utils._generalised_sum(data, lambda x: ((x-m)/s)**4)
+    n, total = stats._generalised_sum(data, lambda x: ((x-m)/s)**4)
     k = total/n - 3
     assert k >= -2
     return k
@@ -352,19 +352,7 @@ def kurtosis(data, m=None, s=None):
 # === Sums and products ===
 
 def product(data, start=1):
-    """Return the product of a sequence of numbers.
-
-    >>> product([1, 2, -3, 2, -1])
-    12
-
-    If optional argument start is given, it is multiplied to the sequence.
-    If the sequence is empty, start (defaults to 1) is returned.
-    """
-    # FIXME this doesn't seem to be numerically stable enough.
-    return functools.reduce(operator.mul, data, start)
-        # Note: do *not* be tempted to do something clever with logarithms:
-        # return math.exp(sum([math.log(x) for x in data], start))
-        # This is FAR less accurate than the naive multiplication above.
+    return stats.product(data, start)
 
 
 # === Other statistical formulae ===
@@ -391,13 +379,13 @@ def sterrmean(s, n, N=None):
     """
     stats.utils._validate_int(n)
     if n < 0:
-        raise StatsError('cannot have negative sample size')
+        raise _StatsError('cannot have negative sample size')
     if N is not None:
         stats.utils._validate_int(N)
         if N < n:
-            raise StatsError('population size must be at least sample size')
+            raise _StatsError('population size must be at least sample size')
     if s < 0.0:
-        raise StatsError('cannot have negative standard deviation')
+        raise _StatsError('cannot have negative standard deviation')
     if n == 0:
         if N == 0: return float('nan')
         else: return float('inf')
@@ -413,8 +401,6 @@ def sterrmean(s, n, N=None):
 # Tabachnick and Fidell (1996) appear to be the most commonly quoted
 # source for standard error of skewness and kurtosis; see also "Numerical
 # Recipes in Pascal", by William H. Press et al (Cambridge University Press).
-# Presumably "Numerical Recipes in C" and "... Fortran" by the same authors
-# say the same thing.
 
 def sterrskewness(n):
     """sterrskewness(n) -> float
@@ -472,7 +458,7 @@ def circular_mean(data, deg=True):
     0.261799387799...
 
     """
-    ap = stats.utils.add_partial
+    ap = stats.add_partial
     if deg:
         data = (math.radians(theta) for theta in data)
     n, cosines, sines = 0, [], []
@@ -480,7 +466,7 @@ def circular_mean(data, deg=True):
         ap(math.cos(theta), cosines)
         ap(math.sin(theta), sines)
     if n == 0:
-        raise StatsError('circular mean of empty sequence is not defined')
+        raise _StatsError('circular mean of empty sequence is not defined')
     x = math.fsum(cosines)/n
     y = math.fsum(sines)/n
     theta = math.atan2(y, x)  # Note the order is swapped.
