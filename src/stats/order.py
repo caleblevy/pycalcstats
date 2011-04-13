@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 
 ##  Copyright (c) 2011 Steven D'Aprano.
-##  See the file __init__.py for the licence terms for this software.
+##  See __init__.py for the licence terms for this software.
 
 """
 Order statistics.
 
 """
+# TODO: investigate finding median and other fractiles without sorting,
+# e.g. QuickSelect, ranking, etc. See:
+# http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00023.html
+# http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00041.html
+
 
 __all__ = [
     'median', 'midrange', 'midhinge', 'trimean',
@@ -100,9 +105,9 @@ def _round_even(x):
 # Measures of central tendency (averages)
 # ---------------------------------------
 
-@sorted_data
+
 def median(data, sign=0):
-    """Returns the median (middle) value of a sequence of numbers.
+    """Returns the median (middle) value of an iterable of numbers.
 
     >>> median([3.0, 5.0, 2.0])
     3.0
@@ -115,21 +120,23 @@ def median(data, sign=0):
 
     The median is equivalent to the second quartile or the 50th percentile.
 
-    Optional numeric argument sign specifies the behaviour of median in the
-    case where there is an even number of elements:
+    If there are an odd number of elements in the data, the median is
+    always the middle one. If there are an even number of elements, there
+    is no middle element, and the value returned by ``median`` depends on
+    the optional numeric argument ``sign``:
 
     sign  value returned as median
-    ----  ------------------------------------------------------
-    = 0   The mean of the elements on either side of the middle.
+    ----  -----------------------------------------------------------------
+    = 0   The mean of the elements on either side of the middle (default).
     < 0   The element just below the middle ("low median").
     > 0   The element just above the middle ("high median").
 
-    The default is 0. Except for certain specialist applications, this is
-    normally what is expected for the median.
+    Normally you will want to stick with the default.
     """
+    data = sorted(data)
     n = len(data)
     if n == 0:
-        raise stats.utils.StatsError('no median for empty iterable')
+        raise _StatsError('no median for empty iterable')
     m = n//2
     if n%2 == 1:
         # For an odd number of items, there is only one middle element, so
@@ -137,19 +144,19 @@ def median(data, sign=0):
         return data[m]
     else:
         # If there are an even number of items, we decide what to do
-        # according to sign:
+        # according to sign.
         if sign == 0:
             # Take the mean of the two middle elements.
             return (data[m-1] + data[m])/2
         elif sign < 0:
-            # Take the lower middle element.
+            # Low median: take the lower middle element.
             return data[m-1]
         elif sign > 0:
-            # Take the higher middle element.
+            # High median: take the higher middle element.
             return data[m]
         else:
-            # Probably a NAN. Something stupid, in any case.
-            raise TypeError('sign is not ordered with respect to zero')
+            # Unordered numeric value for sign. Probably a NAN.
+            raise ValueError('sign is not ordered with respect to zero')
 
 
 def midrange(data):
@@ -250,8 +257,7 @@ def quartile_skewness(q1, q2, q3):
 
     """
     if not q1 <= q2 <= q3:
-        raise stats.utils.StatsError(
-        'quartiles must be ordered q1 <= q2 <= q3')
+        raise _StatsError('quartiles must be ordered q1 <= q2 <= q3')
     if q1 == q2 == q3:
         return float('nan')
     skew = (q3 + q1 - 2*q2)/(q3 - q1)
@@ -266,15 +272,26 @@ def quartile_skewness(q1, q2, q3):
 # Langford (2006) finds no fewer than FIFTEEN methods for calculating
 # quartiles (although some are mathematically equivalent to others):
 #   http://www.amstat.org/publications/jse/v14n3/langford.html
+#
 # Mathword and Dr Math suggest five:
 #   http://mathforum.org/library/drmath/view/60969.html
 #   http://mathworld.wolfram.com/Quartile.html
+#
+# Even calculating the median is open to disagreement. There has also been
+# some discussion on the Gnumeric spreadsheet list:
+#   http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00041.html
+# with this quote from J Nash summarising the whole mess:
+#
+#       Ultimately, this question boils down to where to cut to
+#       divide 4 candies among 5 children. No matter what you do,
+#       things get ugly.
 #
 # Quantiles (fractiles) and percentiles also have a plethora of calculation
 # methods. R (and presumably S) include nine different methods for quantiles.
 # Mathematica uses a parameterized quantile function capable of matching
 # eight of those nine methods. Wikipedia lists a tenth method. There are
-# probably others I don't know of.
+# probably others I don't know of. And then there are grouped and weighted
+# data to deal with too :(
 
 
 # Private functions for fractiles:
@@ -282,11 +299,16 @@ def quartile_skewness(q1, q2, q3):
 class _Quartiles:
     """Private namespace for quartile calculation methods.
 
-    ALL methods and attributes in this namespace class are private and
+    ALL functions and attributes in this namespace class are private and
     subject to change without notice.
     """
     def __new__(cls):
         raise RuntimeError('namespace, do not initialise')
+
+    # Implementation notes
+    # --------------------
+    #
+    # All the following functions assume that data is a sorted list.
 
     def inclusive(data):
         """Return sample quartiles using Tukey's method.
@@ -426,13 +448,13 @@ class _Quartiles:
         'tukey': 1,
         }
     assert all(alias==alias.lower() for alias in QUARTILE_ALIASES)
-    # End of private _Quartiles namespace.
+# End of private _Quartiles namespace.
 
 
 class _Quantiles:
     """Private namespace for quantile calculation methods.
 
-    ALL methods and attributes in this namespace class are private and
+    ALL functions and attributes in this namespace class are private and
     subject to change without notice.
     """
     def __new__(cls):
@@ -616,13 +638,12 @@ def hinges(data):
     return quartiles(data, scheme=1)
 
 
-@sorted_data
 def quartiles(data, scheme=None):
     """quartiles(data [, scheme]) -> (Q1, Q2, Q3)
 
     Return the sample quartiles (Q1, Q2, Q3) for data, where one quarter of
     the data is below Q1, two quarters below Q2, and three quarters below Q3.
-    data must be an iterator of numeric values, with at least three items.
+    data must be an iterable of numeric values, with at least three items.
 
     >>> quartiles([0.5, 2.0, 3.0, 4.0, 5.0, 6.0])
     (2.0, 3.5, 5.0)
@@ -634,7 +655,7 @@ def quartiles(data, scheme=None):
 
     scheme  Description
     ======  =================================================================
-    1       Tukey's method; median is included in the two halves
+    1       Tukey's hinges method; median is included in the two halves
     2       Moore and McCabe's method; median is excluded from the two halves
     3       Method recommended by Mendenhall and Sincich
     4       Method used by Minitab software
@@ -643,18 +664,28 @@ def quartiles(data, scheme=None):
 
     Notes:
 
-        (1) If scheme is missing or None, the default is taken from the
+        (a) If scheme is missing or None, the default is taken from the
             global variable QUARTILE_DEFAULT (set to 1 by default).
-        (2) Scheme 1 is equivalent to Tukey's hinges (H1, M, H2).
-        (3) Scheme 2 is used by Texas Instruments calculators starting with
+        (b) Scheme 1 is equivalent to Tukey's hinges (H1, M, H2).
+        (c) Scheme 2 is used by Texas Instruments calculators starting with
             model TI-85.
-        (4) Scheme 3 ensures that the values returned are always data points.
-        (5) Schemes 4 and 5 use linear interpolation between items.
-        (6) For compatibility with Microsoft Excel and OpenOffice, use
+        (d) Scheme 3 ensures that the values returned are always data points.
+        (e) Schemes 4 and 5 use linear interpolation between items.
+        (f) For compatibility with Microsoft Excel and OpenOffice, use
             scheme 5.
 
     Case-insensitive named aliases are also supported: you can examine
     quartiles.aliases for a mapping of names to schemes.
+    """
+    d = sorted(data)
+    return _quartiles(d, scheme)
+
+
+# TODO make this a public function?
+def _quartiles(data, scheme=None):
+    """Return the quartiles of sorted data.
+
+    data must be sorted list. See ``quartiles`` for further details.
     """
     n = len(data)
     if n < 3:
@@ -671,7 +702,8 @@ def quartiles(data, scheme=None):
         raise _StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
-quartiles.aliases = _Quartiles.QUARTILE_ALIASES  # TO DO make this read-only?
+# TODO make this a read-only view of the dict?
+quartiles.aliases = _quartiles.aliases = _Quartiles.QUARTILE_ALIASES
 
 
 @sorted_data
@@ -679,7 +711,7 @@ def quantile(data, p, scheme=None):
     """quantile(data, p [, scheme]) -> value
 
     Return the value which is some fraction p of the way into data after
-    sorting. data must be an iterator of numeric values, with at least two
+    sorting. data must be an iterable of numeric values, with at least two
     items. p must be a number between 0 and 1 inclusive. The result returned
     by quantile is the data point, or the interpolated data point, such that
     a fraction p of the data is less than that value.
@@ -732,15 +764,15 @@ def quantile(data, p, scheme=None):
 
     Notes:
 
-        (1) If scheme is missing or None, the default is taken from the
+        (a) If scheme is missing or None, the default is taken from the
             global variable QUANTILE_DEFAULT (set to 1 by default).
-        (2) Scheme 1 ensures that the values returned are always data points,
+        (b) Scheme 1 ensures that the values returned are always data points,
             and is the default used by Mathematica.
-        (3) Scheme 5 is equivalent to Matlab's PRCTILE function.
-        (4) Scheme 6 is equivalent to the method used by Minitab.
-        (5) Scheme 7 is the default used by programming languages R and S,
+        (c) Scheme 5 is equivalent to Matlab's PRCTILE function.
+        (d) Scheme 6 is equivalent to the method used by Minitab.
+        (e) Scheme 7 is the default used by programming languages R and S,
             and is the method used by Microsoft Excel and OpenOffice.
-        (6) Scheme 8 is recommended by Hyndman and Fan (1996).
+        (f) Scheme 8 is recommended by Hyndman and Fan (1996).
 
     Example of using a scheme written in the parameterized form used by
     Mathematica:
@@ -754,6 +786,16 @@ def quantile(data, p, scheme=None):
     >>> quantile(data, 0.2, scheme='excel')
     2.8
 
+    """
+    d = sorted(data)
+    return _quantile(d, p, scheme)
+
+
+# TODO make this a public function?
+def _quantile(data, p, scheme=None):
+    """Return the quantile from sorted data.
+
+    data must be a sorted list. For additional details, see ``quantile``.
     """
     # More details here:
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
@@ -778,7 +820,8 @@ def quantile(data, p, scheme=None):
             raise _StatsError('unrecognised scheme `%s`' % scheme)
         return func(data, p)
 
-quantile.aliases = _Quantiles.QUANTILE_ALIASES  # TO DO make this read-only?
+# TODO make this a read-only view of the dict?
+quantile.aliases = _quantile.aliases = _Quantiles.QUANTILE_ALIASES
 
 
 def decile(data, d, scheme=None):
