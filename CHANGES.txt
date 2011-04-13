@@ -3,7 +3,7 @@
 =====================================================================
 
 
-Version 0.2a  2011-01-???
+Version 0.2a  2011-03-???
     Major API changes:
     * stats has now been split up into a package with separate sub-modules.
     * Single-pass versions of variance and friends have been re-written as
@@ -15,6 +15,13 @@ Version 0.2a  2011-01-???
       with `python3 -m stats._tests`.
     * Renamed stderrskewness and stderrkurtosis to sterrskewness and
       sterrkurtosis for consistancy with stdev and sterrmean.
+
+    Performance improvements:
+    * Processing iterators are now about 25% faster.
+
+    New functionality:
+    * Many functions have been vectorized (will operate on columns of data
+      in a single function call).
 
     Known issues:
     * none yet :)

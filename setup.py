@@ -29,8 +29,9 @@ Basic calculator statistics:
   * arithmetic mean
   * variance (population and sample)
   * standard deviation (population and sample)
+  * sum, product and running sum
 
-Other univariate statistics:
+Extra univariate statistics:
   * harmonic, geometric and quadratic means
   * mode
   * mean of angular quantities
