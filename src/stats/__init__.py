@@ -29,44 +29,61 @@ Statistics package for Python 3.
 
 The statistics functions are divided up into separate modules:
 
-Module              Description
-==================  =============================================
-stats               Standard calculator statistics.
-stats.co            Coroutine versions of selected functions.
-stats.order         Order statistics.
-stats.multivar      Multivariate (multiple variable) statistics.
-stats.univar        Univariate (single variable) statistics.
+    Module              Description
+    ==================  =============================================
+    stats               Basic calculator statistics.
+    stats.co            Coroutine versions of selected functions.
+    stats.multivar      Multivariate (multiple variable) statistics.
+    stats.order         Order statistics.
+    stats.univar        Univariate (single variable) statistics.
 
 For further details, see the individual modules.
 
 
-The ``stats`` module provides eight statistics functions, plus one exception
-class and two public utility functions:
+The ``stats`` module provides nine statistics functions:
 
-Name                Description
-==================  =============================================
-sum                 High-precision sum of data.
-running_sum         High-precision running sum coroutine.
-product             Product of data.
-mean                Arithmetic mean (average) of data.
-variance            Sample variance of data (bias-corrected).
-stdev               Sample standard deviation of data.
-pvariance           Population variance of data.
-pstdev              Population standard deviation of data.
-StatsError          Subclass of ValueError.
-add_partial         Utility for performing high-precision sums.
-coroutine           Utility for initialising coroutines.
+    Function        Description
+    ==============  ==========================================
+    mean*           Arithmetic mean (average) of data.
+    minmax          Minimum and maximum of the arguments.
+    product*        Product of data.
+    pstdev*         Population standard deviation of data.
+    pvariance*      Population variance of data.
+    running_sum     High-precision running sum coroutine.
+    stdev*          Sample standard deviation of data.
+    sum*            High-precision sum of data.
+    variance*       Sample variance of data (bias-corrected).
+
+Functions marked with * are *vectorized* (see below).
+
+The module also includes two public utility functions plus an exception
+class used for some statistical errors:
+
+    Name                Description
+    ==================  =============================================
+    add_partial         Utility for performing high-precision sums.
+    coroutine           Utility for initialising coroutines.
+    StatsError          Subclass of ValueError.
 
 
-Examples of use:
+Examples
+--------
 
 >>> import stats
 >>> stats.mean([-1.0, 2.5, 3.25, 5.75])
 2.625
 >>> stats.stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
 4.38961843444...
+>>> stats.minmax(iter([19, 23, 15, 42, 31]))
+(15, 42)
 
-Most functions will accept columnar data:
+
+Vectorization
+-------------
+
+A vectorized function is one which can operate on multiple sets of data in
+one call. The functions listed above that are marked with * can operate on
+columnar data:
 
 >>> data = [[0, 1, 1, 2],  # row 1, 4 columns
 ...         [1, 1, 2, 4],  # row 2
@@ -77,6 +94,8 @@ Most functions will accept columnar data:
 >>> stats.variance(data)  #doctest: +ELLIPSIS
 [1.0, 0.0, 1.0, 9.333333333333...]
 
+For further details, see the individual functions.
+
 """
 
 # Package metadata.
@@ -86,13 +105,13 @@ __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
 
-__all__ = [
-            'sum', 'running_sum', 'product', 'mean',
-            'variance', 'stdev', 'pvariance', 'pstdev',
-            'StatsError', 'coroutine', 'add_partial',
+__all__ = [ 'add_partial', 'coroutine', 'mean', 'minmax', 'product',
+            'pstdev', 'pvariance', 'running_sum', 'StatsError', 'stdev',
+            'sum', 'variance',
           ]
 
 
+import collections
 import functools
 import itertools
 import math
@@ -723,4 +742,81 @@ def _variance(data, m, offset):
         assert v >= 0.0
     return v
 
+
+def minmax(*values, **kw):
+    """minmax(iterable [, key=func]) -> (minimum, maximum)
+    minmax(a, b, c, ... [, key=func]) -> (minimum, maximum)
+
+    With a single iterable argument, return a two-tuple of its smallest and
+    largest items. With two or more arguments, return the smallest and
+    largest arguments. ``minmax`` is similar to the built-ins ``min`` and
+    ``max``, but can return the two items with a single pass over the data,
+    allowing it to work with iterators.
+
+    >>> minmax([3, 2, 1, 6, 5, 4])
+    (1, 6)
+    >>> minmax(4, 5, 6, 1, 2, 3)
+    (1, 6)
+
+    The optional keyword-only argument ``key`` specifies a key function:
+
+    >>> minmax('aaa', 'bbbb', 'c', 'dd', key=len)
+    ('c', 'bbbb')
+
+    """
+    if len(values) == 0:
+        raise TypeError('minmax expected at least one argument, but got none')
+    elif len(values) == 1:
+        values = values[0]
+    if list(kw.keys()) not in ([], ['key']):
+        raise TypeError('minmax received an unexpected keyword argument')
+    if isinstance(values, collections.Sequence):
+        # For speed, fall back on built-in min and max functions when
+        # data is a sequence and can be safely iterated over twice.
+        # TODO this would be unnecessary if this were re-written in C.
+        minimum = min(values, **kw)
+        maximum = max(values, **kw)
+        # The number of comparisons is N-1 for both min() and max(), so the
+        # total used here is 2N-2, but performed in fast C.
+    else:
+        # Iterator argument, so fall back on a slow pure-Python solution
+        # that calculates the min and max lazily. Even if values is huge,
+        # this should work.
+        # Note that the number of comparisons is 3*ceil(N/2), which is
+        # approximately 50% fewer than used by separate calls to min & max.
+        key = kw.get('key')
+        if key is not None:
+            it = ((key(value), value) for value in values)
+        else:
+            it = ((value, value) for value in values)
+        try:
+            keyed_min, minimum = next(it)
+        except StopIteration:
+            # Don't directly raise an exception inside the except block,
+            # as that exposes the StopIteration to the caller. That's an
+            # implementation detail that should be avoided. See PEP 3134
+            # http://www.python.org/dev/peps/pep-3134/
+            # and specifically the open issue "Suppressing context".
+            empty = True
+        else:
+            empty = False
+        if empty:
+            raise ValueError('minmax argument is empty')
+        keyed_max, maximum = keyed_min, minimum
+        try:
+            while True:
+                a = next(it)
+                try:
+                    b = next(it)
+                except StopIteration:
+                    b = a
+                if a[0] > b[0]:
+                    a, b = b, a
+                if a[0] < keyed_min:
+                    keyed_min, minimum = a
+                if b[0] > keyed_max:
+                    keyed_max, maximum = b
+        except StopIteration:
+            pass
+    return (minimum, maximum)
 
