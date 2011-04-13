@@ -6,9 +6,8 @@
 
 """Test code for the top-level module of the stats package."""
 
-# FIXME Some tests use random data, but that data is not recorded anywhere.
-# Consequently if the test fails, there is no way to replicate it.
-# TODO Consider fuzz testing.
+# FIXME Tests with random data currently cannot be replicated if they fail.
+# Such failed tests should be recorded for retesting. (See also fuzz testing?)
 
 
 import collections
@@ -18,6 +17,9 @@ import math
 import operator
 import random
 import unittest
+
+from decimal import Decimal
+from fractions import Fraction
 
 # The module(s) to be tested:
 import stats
@@ -1156,6 +1158,82 @@ class MinmaxTest(unittest.TestCase):
         self.assertRaises(TypeError, self.minmax)
         self.assertRaises(ValueError, self.minmax, [])
         self.assertRaises(TypeError, self.minmax, 1)
+
+
+# -- Tests for private functions --
+
+class CountIterTest(unittest.TestCase):
+    # Test the _countiter utility class.
+
+    def test_is_iter(self):
+        it = stats._countiter('')
+        self.assertTrue(hasattr(it, '__next__'))
+        self.assertTrue(hasattr(it, '__iter__'))
+        self.assertTrue(it is iter(it))
+
+    def test_iteration(self):
+        it = stats._countiter('abcd')
+        self.assertEqual(next(it), 'a')
+        self.assertEqual(next(it), 'b')
+        self.assertEqual(list(it), list('cd'))
+        self.assertRaises(StopIteration, next, it)
+
+    def test_count(self):
+        it = stats._countiter(range(4))
+        self.assertEqual(it.count, 0)
+        next(it)
+        self.assertEqual(it.count, 1)
+        next(it)
+        self.assertEqual(it.count, 2)
+        list(it)
+        self.assertEqual(it.count, 4)
+
+
+class IsNumericTest(unittest.TestCase):
+    # Test the _is_numeric utility function.
+
+    def test_ints(self):
+        class MyInt(int): pass
+        for n in (-100, -1, 0, 1, 2, 99, 9999):
+            self.assertTrue(stats._is_numeric(n))
+            self.assertTrue(stats._is_numeric(MyInt(n)))
+
+    def test_bools(self):
+        assert isinstance(True, int)
+        self.assertTrue(stats._is_numeric(True))
+        self.assertTrue(stats._is_numeric(False))
+
+    def test_floats(self):
+        class MyFloat(float): pass
+        for x in (-123.456, -1.0, 0.0, 1.2e-20, 1.0, 2.5, 4.7e99):
+            self.assertTrue(stats._is_numeric(x))
+            self.assertTrue(stats._is_numeric(MyFloat(x)))
+
+    def test_complex(self):
+        class MyComplex(complex): pass
+        for z in (-1+2j, 1+3j, -1-1j):
+            self.assertTrue(stats._is_numeric(z))
+            self.assertTrue(stats._is_numeric(MyComplex(z)))
+
+    def test_fractions(self):
+        self.assertTrue(stats._is_numeric(Fraction(2, 3)))
+
+    def test_decimals(self):
+        self.assertTrue(stats._is_numeric(Decimal("2.3456")))
+
+    def test_inf(self):
+        self.assertTrue(stats._is_numeric(float('inf')))
+        self.assertTrue(stats._is_numeric(float('-inf')))
+        self.assertTrue(stats._is_numeric(Decimal('inf')))
+        self.assertTrue(stats._is_numeric(Decimal('-inf')))
+
+    def test_nan(self):
+        self.assertTrue(stats._is_numeric(float('nan')))
+        self.assertTrue(stats._is_numeric(Decimal('nan')))
+
+    def test_non_numbers(self):
+        for obj in (None, object(), set([4]), '1', '2.5', [3], (4,5), {2:3}):
+            self.assertFalse(stats._is_numeric(obj))
 
 
 
