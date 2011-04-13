@@ -6,18 +6,18 @@
 
 """Test code for the top-level module of the stats package."""
 
+# FIXME Some tests use random data, but that data is not recorded anywhere.
+# Consequently if the test fails, there is no way to replicate it.
+# TODO Consider fuzz testing.
+
+
 import collections
 import functools
-import inspect
 import itertools
 import math
 import operator
-import os
-import pickle
 import random
 import unittest
-import zipfile
-# from test import support
 
 # The module(s) to be tested:
 import stats
@@ -31,16 +31,32 @@ def approx_equal(x, y, tol=1e-12, rel=1e-7):
 
     Pass None as either tol or rel to ignore that test; if both are None,
     the test performed is an exact equality test.
+
+    tol and rel must be either None or a positive, finite number, otherwise
+    the behaviour is undefined.
     """
     # Note that the relative error is calculated relative to x only.
     if tol is rel is None:
         # Fall back on exact equality.
         return x == y
+    # Infinities and NANs are special.
+    if math.isnan(x) or math.isnan(y):
+        return False
+    delta = abs(x - y)
+    if math.isnan(delta):
+        # Only if both x and y are the same infinity.
+        assert x == y and math.isinf(x)
+        return True
+    if math.isinf(delta):
+        # Either x and y are both infinities with the opposite sign, or
+        # one is an infinity and the other is finite. Either way, they're
+        # not approximately equal.
+        return False
     tests = []
     if tol is not None: tests.append(tol)
     if rel is not None: tests.append(rel*abs(x))
     assert tests
-    return abs(x - y) <= max(tests)
+    return delta <= max(tests)
 
 
 # === Unit tests ===
@@ -67,9 +83,10 @@ class NumericTestCase(unittest.TestCase):
         if rel is USE_DEFAULT: rel = self.rel
         if (isinstance(actual, collections.Sequence) and
         isinstance(expected, collections.Sequence)):
-            result = self._check_approx_seq(actual, expected, tol, rel, msg)
+            checker = self._check_approx_seq
         else:
-            result = self._check_approx_num(actual, expected, tol, rel, msg)
+            checker = self._check_approx_num
+        result = checker(actual, expected, tol, rel, msg)
         if result:
             raise result
 
@@ -87,7 +104,7 @@ class NumericTestCase(unittest.TestCase):
                 return result
 
     def _check_approx_num(self, actual, expected, tol, rel, msg, idx=None):
-        # Note that we reverse the order of the arguments.
+        # Note that we reverse the order of the arguments here:
         if approx_equal(expected, actual, tol, rel):
             # Test passes. Return early, we are done.
             return None
@@ -132,46 +149,103 @@ class NumericTestCase(unittest.TestCase):
 class ApproxTest(unittest.TestCase):
     # Test the approx_equal test helper function.
 
-    def testEqual(self):
-        for x in (-123.456, -1.1, 0.0, 0.5, 1.9, 23.42, 1.2e68, -1, 0, 1):
-            self.assertTrue(approx_equal(x, x))
-            self.assertTrue(approx_equal(x, x, tol=None))
-            self.assertTrue(approx_equal(x, x, rel=None))
-            self.assertTrue(approx_equal(x, x, tol=None, rel=None))
+    def getvalues(self):
+        """Return a random set of values."""
+        values = [random.gauss(0, 1) for _ in range(50)]
+        values.extend([random.gauss(0, 10000) for _ in range(50)])
+        return values
+
+    def _equality_tests(self, x, y):
+        """Test approx_equal various ways."""
+        return (approx_equal(x, y),
+                approx_equal(x, y, tol=None),
+                approx_equal(x, y, rel=None),
+                approx_equal(x, y, tol=None, rel=None),
+                approx_equal(y, x),
+                approx_equal(y, x, tol=None),
+                approx_equal(y, x, rel=None),
+                approx_equal(y, x, tol=None, rel=None),
+                )
+
+    def testEqualFixed(self):
+        # Test equality with a fixed set of values.
+        values = [-42, -23, -2, -1, 0, 1, 2, 3, 17, 35,
+                  -1e145, -2e63, 4e58, 7e123,
+                  -123.456, -1.1, 0.5, 1.9, 23.42, 0.0]
+        values.append(math.copysign(0, -1))
+        for x in values:
+            # x should always equal x, for any finite x.
+            results = self._equality_tests(x, x)
+            self.assertTrue(all(results), 'equality failure for x=%r' % x)
+
+    def testEqualRandom(self):
+        # Test equality with a random set of values.
+        values = self.getvalues()
+        for x in values:
+            results = self._equality_tests(x, x)
+            self.assertTrue(all(results), 'equality failure for x=%r' % x)
 
     def testUnequal(self):
-        for _ in range(20):
-            a = b = random.uniform(-1000, 1000)
-            while b == a:
-                b = random.uniform(-1000, 1000)
-            assert a != b
-            self.assertFalse(approx_equal(a, b))
-            self.assertFalse(approx_equal(a, b, tol=None))
-            self.assertFalse(approx_equal(a, b, rel=None))
-            self.assertFalse(approx_equal(a, b, tol=None, rel=None))
+        values1 = self.getvalues()
+        values2 = self.getvalues()
+        for x, y in zip(values1, values2):
+            if x == y: # Not very likely, but it could happen.
+                continue
+            results = self._equality_tests(x, y)
+            self.assertFalse(any(results),
+                             'inequality failure for x=%r, y=%r' % (x,y))
+
+    def testSpecials(self):
+        # Test approx_equal behaviour with infinities and NANs.
+        inf = float('inf')
+        ninf = float('-inf')
+        nan = float('nan')
+        # +inf == +inf regardless of precision
+        # -inf == -inf regardless of precision
+        for x in (inf, ninf):
+            results = self._equality_tests(x, x)
+            self.assertTrue(all(results), 'equality failure for x=%r' % x)
+        # +inf != -inf regardless of precision
+        results = self._equality_tests(inf, ninf)
+        self.assertFalse(any(results),
+            'expected +inf != -inf but found equal')
+        # inf != finite regardless of precision
+        for x in (inf, ninf):
+            for y in (0.0, 1.0, 3.5, 7e125):
+                results = self._equality_tests(x, y)
+                self.assertFalse(any(results),
+                    'inequality failure for x=%r, y=%r' % (x,y))
+        # nan != anything regardless of precision
+        for x in (inf, ninf, nan, 0.0, 1.0, 3.5, 7e125):
+            results = self._equality_tests(nan, x)
+            self.assertFalse(any(results),
+                'nan inequality failure for x=%r' % x)
 
     def testAbsolute(self):
         x = random.uniform(-23, 42)
         for tol in (1e-13, 1e-12, 1e-10, 1e-5):
-            # Test error < tol.
-            self.assertTrue(approx_equal(x, x+tol/2, tol=tol, rel=None))
-            self.assertTrue(approx_equal(x, x-tol/2, tol=tol, rel=None))
-            # Test error > tol.
-            self.assertFalse(approx_equal(x, x+tol*2, tol=tol, rel=None))
-            self.assertFalse(approx_equal(x, x-tol*2, tol=tol, rel=None))
-            # error == tol exactly could go either way, due to rounding.
+            # Test delta < tol.
+            self.assertTrue(approx_equal(x, x+tol/2, tol, None))
+            self.assertTrue(approx_equal(x, x-tol/2, tol, None))
+            # Test delta > tol.
+            self.assertFalse(approx_equal(x, x+tol*2, tol, None))
+            self.assertFalse(approx_equal(x, x-tol*2, tol, None))
+            # With delta == tol exactly, rounding errors can make
+            # the test fail.
 
     def testRelative(self):
         for x in (1e-10, 1.1, 123.456, 1.23456e18, -17.98):
             for rel in (1e-2, 1e-4, 1e-7, 1e-9):
-                # Test error < rel.
+                # Test delta < rel.
                 delta = x*rel/2
-                self.assertTrue(approx_equal(x, x+delta, tol=None, rel=rel))
-                self.assertTrue(approx_equal(x, x+delta, tol=None, rel=rel))
-                # Test error > rel.
+                self.assertTrue(approx_equal(x, x+delta, None, rel))
+                self.assertTrue(approx_equal(x, x+delta, None, rel))
+                # Test delta > rel.
                 delta = x*rel*2
-                self.assertFalse(approx_equal(x, x+delta, tol=None, rel=rel))
-                self.assertFalse(approx_equal(x, x+delta, tol=None, rel=rel))
+                self.assertFalse(approx_equal(x, x+delta, None, rel))
+                self.assertFalse(approx_equal(x, x+delta, None, rel))
+                # With delta == rel exactly, rounding errors can make
+                # the test fail.
 
 
 class TestNumericTestCase(unittest.TestCase):
@@ -844,12 +918,13 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         columns = [[random.random() for _ in range(N)],
                    [random.uniform(-100, 100) for _ in range(N)],
                    [random.uniform(1, 1000) for _ in range(N)],
-                   [random.gauss(3, 2) for _ in range(N)]
+                   [random.gauss(3, 2) for _ in range(N)],
                    ]
         assert all(len(col) == N for col in columns)
         means = [stats.mean(col) for col in columns]
         expected = self.func(zip(*columns))
-        self.assertEqual(self.func(zip(*columns), means), expected)
+        actual = self.func(zip(*columns), means)
+        self.assertApproxEqual(actual, expected, tol=1e-14)
 
     def testMeanArgumentErrors(self):
         # Test optional mean argument failure modes.
@@ -868,16 +943,16 @@ class PVarianceDupsTest(NumericTestCase):
         # Start with 1000 normally distributed data points.
         data = [random.gauss(7.5, 5.5) for _ in range(1000)]
         expected = pvariance(data)
-        # We expect a to be close to the exact result for the variance,
-        # namely 5.5**2, but because the data was generated randomly, it
-        # might not be. Either way, it doesn't matter.
+        # We expect the calculated variance to be close to the exact result
+        # for the variance, namely 5.5**2, but because the data was
+        # generated randomly, it might not be. Either way, it doesn't matter.
         #
         # Duplicating the data points should keep the variance the same.
         for n in (3, 5, 10, 20, 30):
             d = data*n
             actual = pvariance(d)
             self.assertApproxEqual(actual, expected)
-        # Now try again with a lot of duplicates.
+        # Now try again with a *lot* of duplicates.
         def big_data():
             for _ in range(500):
                 for x in data:
@@ -944,18 +1019,21 @@ class StdevTest(VarianceTest):
         self.assertApproxEqual(self.func(data), expected, tol=1e-4)
 
 
-class VarianceMeanTest(NumericTestCase):
+class VarianceMeanScalarTest(NumericTestCase):
     # Additional variance calculations when the mean is explicitly supplied.
 
-    def compare_with_and_without_mean(self, func):
+    def make_data(self):
         mu = 100*random.random()
         sigma = 10*random.random()+1
-        for data in (
+        return (
             [-6, -2, 0, 3, 4, 5, 5, 5, 6, 7, 9, 11, 15, 25, 26, 27, 28, 42],
             [random.random() for _ in range(10)],
             [random.uniform(10000, 11000) for _ in range(50)],
             [random.gauss(mu, sigma) for _ in range(50)],
-            ):
+            )
+
+    def compare_with_and_without_mean(self, func):
+        for data in self.make_data():
             m = stats.mean(data)
             expected = func(data)
             actual = func(data, m)
@@ -972,6 +1050,113 @@ class VarianceMeanTest(NumericTestCase):
 
     def test_stdev(self):
         self.compare_with_and_without_mean(stats.stdev)
+
+
+class VarianceMeanVectorTest(VarianceMeanScalarTest):
+    # Test variance and friends with vectorized data.
+
+    def make_data(self):
+        return ([ [7.3409, 3.1025, 12, -3, -9.36, 2.6731],
+                  [6.0815, 2.4881, 15, +1, -7.84, 3.1852],
+                  ],
+                [ [2, 4], [9, 8], [1, 3], [3, 4], [5, 7], [2, 6],
+                  [0, 0], [1, 0], [5, 1], [7, 9], [3, 7], [8, 5],
+                  ],
+                [ [3.25e7, 5.93e-9, 2.04e10, 1.87e12],
+                  [5.01e7, 2.18e-8, 7.32e11, 1.44e12],
+                  [2.46e7, 4.29e-8, 9.99e11, 1.92e12],
+                  ],
+                [ [3, 5, 7, 2, 6, 2, 3, 9, 1, 4, 2, 0, 4, 9, 3, 4, 8, 1],
+                  [1, 7, 0, 8, 0, 5, 1, 3, 9, 4, 0, 5, 9, 1, 3, 7, 2, 6],
+                  [5, 1, 2, 0, 1, 8, 0, 5, 9, 9, 0, 8, 4, 1, 7, 1, 2, 3],
+                  [2, 1, 0, 5, 9, 2, 6, 7, 3, 9, 0, 8, 2, 5, 1, 7, 1, 0],
+                  ],
+                [ [1.0, 3.4, 5.1, 7.9, 9.8],
+                  [0.1, 2.6, 4.0, 6.3, 8.5],
+                  [2.5, 3.3, 4.5, 5.7, 6.0],
+                  [0.5, 1.5, 5.0, 3.1, 2.4],
+                  [3.0, 5.8, 9.1, 1.1, 2.8],
+                  [1.3, 3.0, 7.4, 9.1, 8.7],
+                  ],
+                [ [-3, 4, 5, 6, 7, 0, 1, 2, 8, 9],
+                  [-1, 3, 7, 2, 6, 0, 5, 1, 8, 2],
+                  [-4, 1, 2, 3, 6, 5, 0, 7, 9, 9],
+                  [-7, 0, 1, 5, 6, 4, 2, 9, 5, 3],
+                  [-5, 6, 3, 4, 9, 6, 4, 1, 7, 0],
+                  ],
+               )
+
+
+class MinmaxTest(unittest.TestCase):
+    """Tests for minmax function."""
+    data = list(range(100))
+    expected = (0, 99)
+
+    def key(self, n):
+        # This must be a monotomically increasing function.
+        return n*33 - 11
+
+    def setUp(self):
+        self.minmax = stats.minmax
+        random.shuffle(self.data)
+
+    def testArgsNoKey(self):
+        # Test minmax works with multiple arguments and no key.
+        self.assertEqual(self.minmax(*self.data), self.expected)
+
+    def testSequenceNoKey(self):
+        # Test minmax works with a single sequence argument and no key.
+        self.assertEqual(self.minmax(self.data), self.expected)
+
+    def testIterNoKey(self):
+        # Test minmax works with a single iterator argument and no key.
+        self.assertEqual(self.minmax(iter(self.data)), self.expected)
+
+    def testArgsKey(self):
+        # Test minmax works with multiple arguments and a key function.
+        result = self.minmax(*self.data, key=self.key)
+        self.assertEqual(result, self.expected)
+
+    def testSequenceKey(self):
+        # Test minmax works with a single sequence argument and a key.
+        result = self.minmax(self.data, key=self.key)
+        self.assertEqual(result, self.expected)
+
+    def testIterKey(self):
+        # Test minmax works with a single iterator argument and a key.
+        it = iter(self.data)
+        self.assertEqual(self.minmax(it, key=self.key), self.expected)
+
+    def testCompareNoKey(self):
+        # Test minmax directly against min and max built-ins.
+        data = random.sample(range(-5000, 5000), 300)
+        expected = (min(data), max(data))
+        result = self.minmax(data)
+        self.assertEqual(result, expected)
+        random.shuffle(data)
+        result = self.minmax(iter(data))
+        self.assertEqual(result, expected)
+
+    def testCompareKey(self):
+        # Test minmax directly against min and max built-ins with a key.
+        letters = list('abcdefghij')
+        random.shuffle(letters)
+        assert len(letters) == 10
+        data = [count*letter for (count, letter) in enumerate(letters)]
+        random.shuffle(data)
+        expected = (min(data, key=len), max(data, key=len))
+        result = self.minmax(data, key=len)
+        self.assertEqual(result, expected)
+        random.shuffle(data)
+        result = self.minmax(iter(data), key=len)
+        self.assertEqual(result, expected)
+
+    def testFailures(self):
+        """Test minmax failure modes."""
+        self.assertRaises(TypeError, self.minmax)
+        self.assertRaises(ValueError, self.minmax, [])
+        self.assertRaises(TypeError, self.minmax, 1)
+
 
 
 # === Run tests ===
