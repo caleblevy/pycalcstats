@@ -1236,6 +1236,29 @@ class IsNumericTest(unittest.TestCase):
             self.assertFalse(stats._is_numeric(obj))
 
 
+class VSMapTest(unittest.TestCase):
+    # Test private function _vsmap
+
+    def test_vmap(self):
+        class MyList(list): pass
+        data = [1, 2, 3]
+        expected = [2, 3, 4]
+        self.assertEqual(stats._vsmap(lambda x: x+1, data), expected)
+        self.assertEqual(stats._vsmap(lambda x: x+1, MyList(data)), expected)
+
+    def test_smap(self):
+        self.assertEqual(stats._vsmap(lambda x: x+1, 4), 5)
+        self.assertEqual(stats._vsmap(len, (1,1,1)), 3)
+        self.assertEqual(stats._vsmap(len, set([2,3,4])), 3)
+
+    def test_assertion(self):
+        vsmap = stats._vsmap
+        self.assertRaises(AssertionError, vsmap, len, 'a', lambda x: False)
+        self.assertRaises(AssertionError, vsmap, len, ['a'], lambda x: False)
+        self.assertEqual(vsmap(len, 'a', lambda x: True), 1)
+        self.assertEqual(vsmap(len, ['a'], lambda x: True), [1])
+
+
 
 # === Run tests ===
 
