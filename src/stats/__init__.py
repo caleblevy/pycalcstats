@@ -203,29 +203,43 @@ def _is_numeric(obj):
         return True
 
 
-def _vsmap(func, result, assertion=None):
-    """_vsmap(func, result [, assertion]) -> result
+def _vsmap(func, arg, assertion=None):
+    """_vsmap(func, arg [, assertion]) -> result
 
-    Vector/Scalar mapping of func to result, with an optional assertion.
-    If result is a list, func will be applied to each element of result,
-    otherwise func will be applied to result itself.
+    Vector/Scalar mapping of func to arg, with an optional assertion.
+    If result is a list, func will be applied to each element of arg,
+    otherwise func will be applied to arg itself.
 
-    >>> _vsmap(len, "spam")  # Normal (scalar) function call.
+    >>> _vsmap(str.upper, "spam")  # Normal (scalar) call.
+    'SPAM'
+    >>> _vsmap(str.upper, ["spam", "ham", "eggs"])  # Vectorized call.
+    ['SPAM', 'HAM', 'EGGS']
+
+    Note that the function call is only vectorized if arg is a list or
+    subclass of list. Any other sequence or iterable is treated as a scalar.
+
+    If optional argument assertion is not None, it should be a function
+    which takes a single argument. In the scalar form, the result is passed
+    to the assertion function and then asserted; in the vectorized form,
+    assertion is called with each element of result.
+
+    >>> small_enough = lambda n: n < 10  # Fail if n is too big.
+    >>> _vsmap(len, "spam", small_enough)
     4
-    >>> _vsmap(len, ["spam", "ham", "eggs"])  # Vectorized function call.
+    >>> _vsmap(len, ["spam", "ham", "eggs"], small_enough)
     [4, 3, 4]
+    >>> _vsmap(len, "Nobody expects the Spanish Inquisition!", small_enough)
+    Traceback (most recent call last):
+      ...
+    AssertionError
 
-    Note that the function call is only vectorized if result is a list or
-    subclass of list.
-
-    If optional argument assertion is not None, it will be called by assert.
     """
-    if isinstance(result, list):
-        result = list(map(func, result))
+    if isinstance(arg, list):
+        result = list(map(func, arg))
         if assertion is not None:
             assert all(assertion(x) for x in result)
     else:
-        result = func(result)
+        result = func(arg)
         if assertion is not None:
             assert assertion(result)
     return result
