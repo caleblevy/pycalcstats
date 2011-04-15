@@ -7,7 +7,9 @@
 """Test code for the top-level module of the stats package."""
 
 # FIXME Tests with random data currently cannot be replicated if they fail.
-# Such failed tests should be recorded for retesting. (See also fuzz testing?)
+# I'm not happy with this -- it means that a test may pass nearly always,
+# but occasionally fail. Because the data was random, it's near impossible
+# to replicate the failure.
 
 
 import collections
@@ -926,7 +928,7 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         means = [stats.mean(col) for col in columns]
         expected = self.func(zip(*columns))
         actual = self.func(zip(*columns), means)
-        self.assertApproxEqual(actual, expected, tol=1e-14)
+        self.assertApproxEqual(actual, expected, tol=1e-14, rel=1e-15)
 
     def testMeanArgumentErrors(self):
         # Test optional mean argument failure modes.
@@ -1165,6 +1167,11 @@ class MinmaxTest(unittest.TestCase):
 class CountIterTest(unittest.TestCase):
     # Test the _countiter utility class.
 
+    def test_has_count(self):
+        it = stats._countiter('')
+        self.assertTrue(hasattr(it, 'count'))
+        self.assertEqual(it.count, 0)
+
     def test_is_iter(self):
         it = stats._countiter('')
         self.assertTrue(hasattr(it, '__next__'))
@@ -1265,6 +1272,150 @@ class VSMapTest(unittest.TestCase):
         self.assertEqual(vsmap(len, 'a', lambda x: True), 1)
         self.assertEqual(vsmap(len, ['a'], lambda x: True), [1])
 
+
+class ScalarSumTest(unittest.TestCase):
+    # Tests for private function _scalar_sum.
+
+    def testNoFunc(self):
+        data = [random.random() for _ in range(10000)]
+        expected = math.fsum(data)
+        actual = stats._scalar_sum(data)
+        self.assertEqual(actual, expected)
+
+    def testWithFunc(self):
+        data = [random.random() for _ in range(10000)]
+        for func in (lambda x: x**2, math.sqrt, math.sin, lambda x: x+1000):
+            expected = math.fsum(func(x) for x in data)
+            actual = stats._scalar_sum(data, func)
+            self.assertEqual(actual, expected)
+
+
+class VectorSumTest(NumericTestCase):
+    # Tests for private function _vector_sum.
+
+    def testMismatchColumnCount(self):
+        self.assertRaises(ValueError, stats._vector_sum, 3, [[1,2], [1,2]])
+        self.assertRaises(ValueError, stats._vector_sum, 2, [[1,2], [1,2,3]])
+        self.assertRaises(ValueError, stats._vector_sum, 2, [[1,2,3], [1,2]])
+
+    def make_data(self):
+        n = 10
+        return [
+                [random.random() for _ in range(n)],
+                [random.uniform(100, 1000) for _ in range(n)],
+                [random.uniform(1e100, 1e102) for _ in range(n)],
+               ]
+
+    def testNoFunc(self):
+        columns = self.make_data()
+        n = len(columns)
+        expected = [math.fsum(col) for col in columns]
+        actual = stats._vector_sum(n, list(zip(*columns)))
+        self.assertApproxEqual(actual, expected, rel=1e-12)
+
+    def testSingleFunc(self):
+        columns = self.make_data()
+        n = len(columns)
+        for f in (lambda x: x+1, math.sqrt, math.cos, lambda x: x**2):
+            expected = [math.fsum(f(x) for x in col) for col in columns]
+            actual = stats._vector_sum(n, list(zip(*columns)), f)
+            self.assertApproxEqual(actual, expected, rel=1e-12)
+
+    def testMultipleFuncs(self):
+        columns = self.make_data()
+        n = len(columns)
+        funcs = [(lambda x, y=i: x+y) for i in range(n)]
+        expected = [math.fsum(f(x) for x in col)
+                    for f, col in zip(funcs, columns)]
+        actual = stats._vector_sum(n, list(zip(*columns)), funcs)
+        self.assertApproxEqual(actual, expected, rel=1e-12)
+
+    def testMismatchFuncCount(self):
+        vectorsum = stats._vector_sum
+        data = [[1, 2], [1, 2]]
+        funcs = (lambda x: x+1,)  # Tuple of a single function.
+        assert vectorsum(2, data, funcs*2) == [4, 6]
+        self.assertRaises(ValueError, vectorsum, 2, data, funcs)
+        self.assertRaises(ValueError, vectorsum, 2, data, funcs*3)
+
+
+class GeneralisedSumTest(unittest.TestCase):
+    # Test the _generalised_sum private function.
+
+    def test_empty(self):
+        class MyList(list): pass
+        for empty in ([], iter([]), (), range(0), MyList()):
+            self.assertEqual(stats._generalised_sum(empty), (0,0))
+
+    def test_scalar_sequence(self):
+        gs = stats._generalised_sum
+        self.assertEqual(gs([1, 2, 4, 8]), (4, 15))
+        self.assertEqual(gs([1, 2, 4], lambda x: -x), (3, -7))
+
+    def test_scalar_iterator(self):
+        gs = stats._generalised_sum
+        self.assertEqual(gs(iter([1, 2, 3, 4, 5])), (5, 15))
+        self.assertEqual(gs(iter([1, 3, 5]), lambda x: x+1), (3, 12))
+
+    def test_vector_sequence(self):
+        gs = stats._generalised_sum
+        data = [[1, 2, 3], [2, 4, 6]]
+        self.assertEqual(gs(data), (2, [3, 6, 9]))
+        # Test with a single function.
+        func = lambda x: -x
+        self.assertEqual(gs(data, func), (2, [-3, -6, -9]))
+        # Test with multiple functions.
+        funcs = (lambda x: x, lambda x: -x, lambda x: 2*x)
+        self.assertEqual(gs(data, funcs), (2, [3, -6, 18]))
+
+    def test_vector_iterator(self):
+        gs = stats._generalised_sum
+        data = [[1, 2, 3], [2, 4, 6], [0, 1, 1], [1, 1, 2]]
+        self.assertEqual(gs(iter(data)), (4, [4, 8, 12]))
+        # Test with a single function.
+        func = lambda x: -x
+        self.assertEqual(gs(iter(data), func), (4, [-4, -8, -12]))
+        # Test with multiple functions.
+        funcs = (lambda x: x, lambda x: -x, lambda x: 2*x)
+        self.assertEqual(gs(data, funcs), (4, [4, -8, 24]))
+
+
+class SqrDevTest(unittest.TestCase):
+    # Tests for the _sum_sq_deviations private function.
+
+    def test_empty(self):
+        class MyList(list): pass
+        for empty in ([], iter([]), (), range(0), MyList()):
+            self.assertEqual(stats._sum_sq_deviations(empty), (0,0))
+
+    def test_scalar_sequence(self):
+        ss = stats._sum_sq_deviations
+        data = [1, 1, 2, 3]
+        self.assertEqual(ss(data, m=0), (4, 15))
+        self.assertEqual(ss(data, m=1), (4, 5))
+        self.assertEqual(ss(data, m=2), (4, 3))
+        # Actual m = 7/4
+        expected = (3**2 + 3**2 + 1**2 +5**2)/16
+        self.assertEqual(ss(data), (4, expected))
+
+    def test_scalar_iterator(self):
+        ss = stats._sum_sq_deviations
+        data = [1, 1, 2, 3, 3]
+        self.assertEqual(ss(iter(data), m=0), (5, 24))
+        self.assertEqual(ss(data, m=3), (5, 9))
+        self.assertEqual(ss(data, m=2), (5, 4))
+        # Actual m = 2
+        self.assertEqual(ss(data), (5, 4))
+
+    def test_vector_sequence(self):
+        ss = stats._sum_sq_deviations
+        data = [[1, 1, 2], [3, 2, 3]]
+        self.assertEqual(ss(data, m=0), (2, [10, 5, 13]))
+        self.assertEqual(ss(data, m=1), (2, [4, 1, 5]))
+        self.assertEqual(ss(data, m=[0, 1, 2]), (2, [10, 1, 1]))
+        # Actual m = [2, 3/2, 5/2]
+        expected = [2, 1/2, 1/2]
+        self.assertEqual(ss(data), (2, expected))
 
 
 # === Run tests ===
