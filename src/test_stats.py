@@ -1240,18 +1240,25 @@ class VSMapTest(unittest.TestCase):
     # Test private function _vsmap
 
     def test_vmap(self):
+        # Test that "vector map" functionality applies to lists.
         class MyList(list): pass
         data = [1, 2, 3]
         expected = [2, 3, 4]
         self.assertEqual(stats._vsmap(lambda x: x+1, data), expected)
         self.assertEqual(stats._vsmap(lambda x: x+1, MyList(data)), expected)
+        self.assertEqual(stats._vsmap(len, 'a bb ccc'.split()), [1, 2, 3])
+        self.assertRaises(TypeError, stats._vsmap, len, [1, 2, 3])
+        # The above raises TypeError because len is applied to the *contents*
+        # of the list, not the list itself.
 
     def test_smap(self):
+        # Test that "scalar map" applies to everything except lists.
         self.assertEqual(stats._vsmap(lambda x: x+1, 4), 5)
         self.assertEqual(stats._vsmap(len, (1,1,1)), 3)
         self.assertEqual(stats._vsmap(len, set([2,3,4])), 3)
 
     def test_assertion(self):
+        # Test that assertions are applied correctly.
         vsmap = stats._vsmap
         self.assertRaises(AssertionError, vsmap, len, 'a', lambda x: False)
         self.assertRaises(AssertionError, vsmap, len, ['a'], lambda x: False)
