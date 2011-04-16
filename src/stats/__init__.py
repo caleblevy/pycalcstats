@@ -54,7 +54,7 @@ The ``stats`` module provides nine statistics functions:
     sum*            High-precision sum of data.
     variance*       Sample variance of data (bias-corrected).
 
-Functions marked with * are *vectorized* (see below).
+Functions marked with * can operate on columnar data (see below).
 
 The module also includes two public utility functions plus an exception
 class used for some statistical errors:
@@ -78,12 +78,11 @@ Examples
 (15, 42)
 
 
-Vectorization
+Columnar data
 -------------
 
-A vectorized function is one which can operate on multiple sets of data in
-one call. The functions listed above that are marked with * can operate on
-columnar data:
+As well as operating on a single row, as in the examples above, the functions
+marked with * can operate on data in columns:
 
 >>> data = [[0, 1, 1, 2],  # row 1, 4 columns
 ...         [1, 1, 2, 4],  # row 2
@@ -216,7 +215,8 @@ def _vsmap(func, arg, assertion=None):
     ['SPAM', 'HAM', 'EGGS']
 
     Note that the function call is only vectorized if arg is a list or
-    subclass of list. Any other sequence or iterable is treated as a scalar.
+    subclass of list. Any other sequence or iterable is treated as if it
+    were a scalar.
 
     If optional argument assertion is not None, it should be a function
     which takes a single argument. In the scalar form, the result is passed
@@ -463,7 +463,15 @@ def running_sum(start=None):
         total = []
     x = (yield None)
     while True:
-        add_partial(x, total)
+        try:
+            add_partial(x, total)
+        except TypeError:
+            if not _is_numeric(x):
+                raise
+            # Try downgrading to floats.
+            x = float(x)
+            total[:] = map(float, total)
+            add_partial(x, total)
         x = (yield _sum(total))
 
 
@@ -672,14 +680,15 @@ def pvariance(data, m=None):
     variance indicates it is clustered closely around the central location.
 
         WARNING: The mathematical terminology related to variance is
-        often inconsistent and confusing. This is the uncorrect variance,
+        often inconsistent and confusing. This is the uncorrected variance,
         also known as variance with N degrees of freedom. See Wolfram
         Mathworld for further details:
         http://mathworld.wolfram.com/Variance.html
 
-    Use this function when your data represents the entire population,
-    rather than just a sample. If used with a sample, the result will be
-    biased.
+    If your data represents the entire population, you should use this
+    function. If your data is a sample of the population, this function
+    returns a biased estimate of the variance. For an unbiased estimate,
+    use ``variance`` instead.
 
     Here we calculate the true variance of a population with exactly
     eight elements:
@@ -742,11 +751,11 @@ def _variance(data, m, offset):
     """Return an estimate of variance with N-offset degrees of freedom."""
     n, ss = _sum_sq_deviations(data, m)
     assert n >= 0
-    if n-offset <= 0:
+    if n - offset <= 0:
         required = max(0, offset+1)
         raise StatsError(
         'at least %d items are required but only got %d' % (required, n))
-    den = n-offset
+    den = n - offset
     return _vsmap(lambda x: x/den, ss, lambda v: v >= 0.0)
     if isinstance(ss, list):
         v = [x/den for x in ss]

@@ -628,6 +628,22 @@ class RunningSumTest(unittest.TestCase, TestConsumerMixin):
             self.assertEqual(cr.send(1), 1e100)
             self.assertEqual(cr.send(-1e100), 2*i+2)
 
+    def testFractions(self):
+        rs = self.func(Fraction(1, 2))
+        self.assertEqual(rs.send(1), Fraction(3, 2))
+        total = rs.send(Fraction(1, 2))
+        self.assertTrue(isinstance(total, Fraction))
+        self.assertEqual(total, Fraction(2, 1))
+        self.assertEqual(rs.send(0.5), 2.5)
+
+    def testDecimals(self):
+        rs = self.func(Decimal('0.5'))
+        self.assertEqual(rs.send(1), Decimal('1.5'))
+        total = rs.send(Decimal('0.5'))
+        self.assertTrue(isinstance(total, Decimal))
+        self.assertEqual(total, Decimal('2.0'))
+        self.assertEqual(rs.send(0.5), 2.5)
+
 
 class ProductTest(NumericTestCase, UnivariateMixin):
     rel = 1e-14
@@ -1418,10 +1434,88 @@ class SqrDevTest(unittest.TestCase):
         self.assertEqual(ss(data), (2, expected))
 
 
+class PrivateVarTest(unittest.TestCase):
+    # Test the _variance private function.
+
+    def test_degrees_of_freedom(self):
+        StatsError = stats.StatsError
+        var = stats._variance
+        for p in range(5):
+            # No errors with sufficient data points.
+            data = list(range(p+1))
+            _ = var(data, 2.5, p)
+            # But errors if too few.
+            for q in range(p):
+                data = list(range(q))
+                self.assertRaises(StatsError, var, data, 2.5, p)
+
+    def test_error_msg(self):
+        try:
+            stats._variance([4, 6, 8], 2.5, 3)
+        except stats.StatsError as e:
+            err = e
+        else:
+            self.fail('expected StatsError exception did not get raised')
+        self.assertEqual(err.args[0],
+                         'at least 4 items are required but only got 3')
+
+    def test_scalar_sequence(self):
+        data = [3.5, 4.5, 3.5, 2.5, 1.5]
+        actual = stats._variance(data, 1.5, 3)
+        expected = (2**2 + 3**2 + 2**2 + 1 +0)/2
+        self.assertEqual(actual, expected)
+
+    def test_scalar_iterator(self):
+        data = iter([3.5, 5.5, 1.5, 5.5, 6.5, 1.5])
+        actual = stats._variance(data, 3.5, 4)
+        expected = (0 + 2**2 + 2**2 + 2**2 + 3**2 +2**2)/2
+        self.assertEqual(actual, expected)
+
+    def test_vector_sequence(self):
+        data = [[3.5, 4.5, 3.5, 2.5],
+                [1.5, 5.5, 2.5, 0.5],
+                [4.5, 6.5, 5.5, 1.5],
+                [1.5, 2.5, 5.5, 2.5]]
+        # Try with a single value for m.
+        actual = stats._variance(data, 1.5, 2)
+        expected = [(2**2 + 0 + 3**2 + 0)/2,
+                    (3**2 + 4**2 + 5**2 + 1)/2,
+                    (2**2 + 1 + 4**2 + 4**2)/2,
+                    (1 + 1 + 0 + 1)/2]
+        self.assertEqual(actual, expected)
+        # Try with a vector for m.
+        actual = stats._variance(data, [2.5, 5.5, 4.5, 2.5], 2)
+        expected = [(1 + 1 + 2**2 + 1)/2,
+                    (1 + 0 + 1 + 3**2)/2,
+                    (1 + 2**2 + 1 + 1)/2,
+                    (0 + 2**2 + 1 + 0)/2]
+        self.assertEqual(actual, expected)
+
+    def test_vector_iterable(self):
+        data = [[4.5, 3.5, 1.5, 2.5],
+                [0.5, 4.5, 0.5, 4.5],
+                [3.5, 1.5, 2.5, 2.5],
+                [1.5, 3.5, 1.5, 2.5]]
+        # Try with a single value for m.
+        actual = stats._variance(iter(data), 1.5, 2)
+        expected = [(3**2 + 1 + 2**2 + 0)/2,
+                    (2**2 + 3**2 + 0 + 2**2)/2,
+                    (0 + 1 + 1 + 0)/2,
+                    (1 + 3**2 + 1 + 1)/2]
+        self.assertEqual(actual, expected)
+        # Try with a vector for m.
+        actual = stats._variance(iter(data), [2.5, 3.5, 0.5, 2.5], 2)
+        expected = [(2**2 + 2**2 + 1 + 1)/2,
+                    (0 + 1 + 2**2 + 0)/2,
+                    (1 + 0 + 2**2 + 1)/2,
+                    (0 + 2**2 + 0 + 0)/2]
+        self.assertEqual(actual, expected)
+
+
+
 # === Run tests ===
 
 def test_main():
-    # support.run_unittest(...list tests...)
     unittest.main()
 
 
