@@ -644,6 +644,26 @@ class RunningSumTest(unittest.TestCase, TestConsumerMixin):
         self.assertEqual(total, Decimal('2.0'))
         self.assertEqual(rs.send(0.5), 2.5)
 
+    def testMixedFracDec(self):
+        # Test mixed Fraction + Decimal sums.
+        rs = self.func(2)
+        total = rs.send(Fraction(1, 2))
+        self.assertTrue(isinstance(total, Fraction))
+        self.assertEqual(total, Fraction(5, 2))
+        total = rs.send(Decimal('0.5'))
+        self.assertTrue(isinstance(total, float))
+        self.assertEqual(total, 3.0)
+
+    def testMixedDecFrac(self):
+        # Test mixed Decimal + Fraction sums.
+        rs = self.func(2)
+        total = rs.send(Decimal('0.5'))
+        self.assertTrue(isinstance(total, Decimal))
+        self.assertEqual(total, Decimal('2.5'))
+        total = rs.send(Fraction(1, 2))
+        self.assertTrue(isinstance(total, float))
+        self.assertEqual(total, 3.0)
+
 
 class ProductTest(NumericTestCase, UnivariateMixin):
     rel = 1e-14
