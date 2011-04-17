@@ -43,7 +43,7 @@ For further details, see the individual modules.
 The ``stats`` module provides nine statistics functions:
 
     Function        Description
-    ==============  ==========================================
+    ==============  =============================================
     mean*           Arithmetic mean (average) of data.
     minmax          Minimum and maximum of the arguments.
     product*        Product of data.
@@ -59,11 +59,11 @@ Functions marked with * can operate on columnar data (see below).
 The module also includes two public utility functions plus an exception
 class used for some statistical errors:
 
-    Name                Description
-    ==================  =============================================
-    add_partial         Utility for performing high-precision sums.
-    coroutine           Utility for initialising coroutines.
-    StatsError          Subclass of ValueError.
+    Name            Description
+    ==============  =============================================
+    add_partial     Utility for performing high-precision sums.
+    coroutine       Utility for initialising coroutines.
+    StatsError      Subclass of ValueError.
 
 
 Examples
@@ -468,10 +468,10 @@ def running_sum(start=None):
         except TypeError:
             if not _is_numeric(x):
                 raise
-            # Try downgrading to floats.
+            # Downgrade to floats and try again.
             x = float(x)
             total[:] = map(float, total)
-            add_partial(x, total)
+            continue
         x = (yield _sum(total))
 
 
