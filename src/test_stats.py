@@ -458,9 +458,11 @@ class GlobalsTest(unittest.TestCase, MetadataMixin):
         module = self.module
         for name in module.__all__:
             # No private names in __all__:
-            self.assertFalse(name.startswith("_"))
+            self.assertFalse(name.startswith("_"),
+                             'private name "%s" in __all__' % name)
             # And anything in __all__ must exist:
-            self.assertTrue(hasattr(module, name))
+            self.assertTrue(hasattr(module, name),
+                            'missing name "%s" in __all__' % name)
 
 
 class ExtraMetadataTest(unittest.TestCase, MetadataMixin):
@@ -593,8 +595,7 @@ class SumTortureTest(NumericTestCase):
         self.assertEqual(func([1, 1e100, 1, -1e100]*10000), 20000.0)
         self.assertEqual(func([1e100, 1, 1, -1e100]*10000), 20000.0)
         self.assertApproxEqual(
-            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, tol=1e-15)
-            # *raises eyebrow* -- result = 2e-96, +/- 1e-15 ???
+            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=1e-15, tol=None)
 
 
 class RunningSumTest(unittest.TestCase, TestConsumerMixin):
