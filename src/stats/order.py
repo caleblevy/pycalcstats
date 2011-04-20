@@ -4,46 +4,82 @@
 ##  See __init__.py for the licence terms for this software.
 
 """
-Order statistics.
+=======================
+Order statistics module
+=======================
+
+The ``stats.order`` module calculates order statistics and related functions.
+
+FIXME Define order statistics. I know what they are, I just don't know how
+to explain them!
+
+This module provides the following order statistics and related functions:
+
+    Function            Description
+    ==================  ===============================================
+    decile              The specified 10-fractile of the data.
+    hinges              Tukey's hinges (related to quartiles).
+    iqr                 Inter-Quartile Range.
+    median              The middle of the data.
+    midhinge            The midpoint between the hinges.
+    midrange            The midpoint of the smallest and largest values.
+    minmax              Minimum and maximum of the arguments.
+    percentile          The specified 100-fractile of the data.
+    quantile            An arbitrary quantile.
+    quartile_skewness   Skewness of the data calculated from quartiles.
+    quartiles           The 4-fractiles of the data.
+    range               The difference between the smallest and largest values.
+    trimean             Tukey's trimean.
+
+
+``minmax`` is an alias to the function of the same name in the ``stats``
+module.
+
 
 """
 # TODO: investigate finding median and other fractiles without sorting,
 # e.g. QuickSelect, ranking, etc. See:
 # http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00023.html
 # http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00041.html
+#
+# Add support for fractiles (and median?) with in-place sorting.
+# Raymond Hettinger's running median recipe?
 
 
 __all__ = [
-    'median', 'midrange', 'midhinge', 'trimean',
-    'range', 'iqr', 
-    'quartile_skewness',
-    'hinges', 'quartiles', 'quantile', 'decile', 'percentile',
-    'QUARTILE_DEFAULT', 'QUANTILE_DEFAULT',
+    'decile', 'hinges', 'iqr', 'median', 'midhinge', 'midrange', 'minmax',
+    'percentile', 'quantile', 'QUANTILE_DEFAULT', 'quartile_skewness',
+    'quartiles', 'QUARTILES_DEFAULT','range', 'trimean',
     ]
 
 
 import functools
 import math
+import types
 
-from stats import StatsError as _StatsError
+from builtins import round as _round
 
-import stats.utils
-#from stats.utils import sorted_data
-#from stats.utils import StatsError, minmax, _round, _UP, _DOWN, _EVEN
+import stats
+# import stats.utils
 
+from stats import minmax
 
 
 # === Global variables ===
 
 # Default schemes to use for order statistics:
-QUARTILE_DEFAULT = 1
+QUARTILES_DEFAULT = 1
 QUANTILE_DEFAULT = 1
 
 
+# We need this to work around doctest cleverness.
+__test__ = {}
+    # See _namespace for more.
 
-# === Utilities ===
 
-def sorted_data(func):
+# === Private utilities ===
+
+def _sorted_data(func):
     """Decorator to sort data passed to stats functions."""
     @functools.wraps(func)
     def inner(data, *args, **kwargs):
@@ -52,10 +88,38 @@ def sorted_data(func):
     return inner
 
 
-# === Private utilities ===
+def _namespace(obj):
+    """Decorator to build a namespace."""
+    class Namespace(types.ModuleType):
+        def __repr__(self):
+            return "<namespace '%s'>" % self.__name__
+
+    ns = Namespace(obj.__name__)
+    ns.__doc__ = obj.__doc__
+    for name in dir(obj):
+        if not name.startswith('__'):
+            attr = getattr(obj, name)
+            if type(attr) is types.MethodType:
+                attr = attr.__func__
+            setattr(ns, name, attr)
+    __test__[ns.__name__] = ns
+    return ns
+
 
 def _interpolate(data, x):
-    i, f = math.floor(x), x%1
+    """Return the interpolated value of data at possibly fractional index x.
+
+    If x is an integer value, returns data[x]. If x is a non-integer, the
+    value returned is estimated between data[x] and data[x+1], using linear
+    interpolation.
+
+    >>> _interpolate([1, 2, 3, 4, 5], 3)
+    4
+    >>> _interpolate([1, 3, 5, 7, 9], 3.75)
+    8.5
+
+    """
+    i, f = round.floor(x), x%1
     if f:
         a, b = data[i], data[i+1]
         return a + f*(b-a)
@@ -63,41 +127,64 @@ def _interpolate(data, x):
         return data[i]
 
 
-def _round_up(x):
-    """Round non-negative x, rounding ties up."""
-    assert x >= 0.0
-    n, f = int(x), x%1
-    if f >= 0.5:
-        return n+1
-    else:
-        return n
+@_namespace
+class round:
+    """Namespace for rounding functions."""
+    from math import ceil, floor
 
+    def up(x):
+        """Round non-negative x, rounding ties up.
 
-def _round_down(x):
-    """Round non-negative x, rounding ties down."""
-    assert x >= 0.0
-    n, f = int(x), x%1
-    if f > 0.5:
-        return n+1
-    else:
-        return n
+        >>> round.up(101.5)
+        102
 
-
-def _round_even(x):
-    """Round non-negative x, using Banker's rounding to even for ties."""
-    assert x >= 0.0
-    n, f = int(x), x%1
-    if f > 0.5:
-        return n+1
-    elif f < 0.5:
-        return n
-    else:
-        if n%2:
-            # n is odd, so round up to even.
+        """
+        assert x >= 0.0
+        n, f = int(x), x%1
+        if f >= 0.5:
             return n+1
         else:
-            # n is even, so round down.
             return n
+
+    def down(x):
+        """Round non-negative x, rounding ties down.
+
+        >>> round.down(101.5)
+        101
+
+        """
+        assert x >= 0.0
+        n, f = int(x), x%1
+        if f > 0.5:
+            return n+1
+        else:
+            return n
+
+    def even(x):
+        """Round non-negative x, using Banker's rounding to even for ties.
+
+        >>> round.even(100.5)
+        100
+        >>> round.even(101.5)
+        102
+
+        """
+        assert x >= 0.0
+        n, f = int(x), x%1
+        if f > 0.5:
+            return n+1
+        elif f < 0.5:
+            return n
+        else:
+            if n%2:
+                # n is odd, so round up to even.
+                return n+1
+            else:
+                # n is even, so round down.
+                return n
+
+# Make round callable, delegating to the built-in round.
+round.__class__.__call__ = lambda self, *a, **kw: _round(*a, **kw)
 
 
 # === Order statistics ===
@@ -118,16 +205,14 @@ def median(data, sign=0):
     extremely small, or extremely large, compared to the rest of the data,
     the median will be more representative of the data than the mean.
 
-    The median is equivalent to the second quartile or the 50th percentile.
-
     If there are an odd number of elements in the data, the median is
     always the middle one. If there are an even number of elements, there
     is no middle element, and the value returned by ``median`` depends on
-    the optional numeric argument ``sign``:
+    the optional numeric argument ``sign`` (default is 0):
 
     sign  value returned as median
-    ----  -----------------------------------------------------------------
-    = 0   The mean of the elements on either side of the middle (default).
+    ----  -----------------------------------------------------------
+    0     The mean of the elements on either side of the middle.
     < 0   The element just below the middle ("low median").
     > 0   The element just above the middle ("high median").
 
@@ -136,7 +221,7 @@ def median(data, sign=0):
     data = sorted(data)
     n = len(data)
     if n == 0:
-        raise _StatsError('no median for empty iterable')
+        raise stats.StatsError('no median for empty iterable')
     m = n//2
     if n%2 == 1:
         # For an odd number of items, there is only one middle element, so
@@ -162,14 +247,14 @@ def median(data, sign=0):
 def midrange(data):
     """Returns the midrange of a sequence of numbers.
 
-    >>> midrange([2.0, 4.5, 7.5])
+    >>> midrange([2.0, 3.0, 3.5, 4.5, 7.5])
     4.75
 
     The midrange is halfway between the smallest and largest element. It is
     a weak measure of central tendency.
     """
     try:
-        L, H = stats.utils.minmax(data)
+        L, H = minmax(data)
     except ValueError as e:
         e.args = ('no midrange defined for empty iterables',)
         raise
@@ -219,7 +304,7 @@ def range(data):
     is a weak measure of statistical variability.
     """
     try:
-        a, b = stats.utils.minmax(data)
+        a, b = minmax(data)
     except ValueError as e:
         e.args = ('no range defined for empty iterables',)
         raise
@@ -257,7 +342,7 @@ def quartile_skewness(q1, q2, q3):
 
     """
     if not q1 <= q2 <= q3:
-        raise _StatsError('quartiles must be ordered q1 <= q2 <= q3')
+        raise stats.StatsError('quartiles must be ordered q1 <= q2 <= q3')
     if q1 == q2 == q3:
         return float('nan')
     skew = (q3 + q1 - 2*q2)/(q3 - q1)
@@ -294,21 +379,28 @@ def quartile_skewness(q1, q2, q3):
 # data to deal with too :(
 
 
-# Private functions for fractiles:
+# -- Private namespace for fractile calculations --
 
-class _Quartiles:
-    """Private namespace for quartile calculation methods.
+@_namespace
+class _Fractiles:
+    """Private namespace for quantile and quartile calculation methods.
 
-    ALL functions and attributes in this namespace class are private and
-    subject to change without notice.
+    ALL functions and attributes in this namespace are private and subject
+    to change without notice.
+
+    All functions assume that their data argument is a sorted list. If that
+    assumption is violated, behaviour is unspecified.
+
+    The quantile functions similarly assume that the p argument is a fraction
+    0 <= p <= 1.
+
+    Be aware that some functions may perform index calculations using 1-based
+    indexing, and adjust for Python's 0-based indexes at the end.
     """
-    def __new__(cls):
-        raise RuntimeError('namespace, do not initialise')
 
-    # Implementation notes
-    # --------------------
-    #
-    # All the following functions assume that data is a sorted list.
+    # ::::::::::::::::::::::::
+    # :: Quartile functions ::
+    # ::::::::::::::::::::::::
 
     def inclusive(data):
         """Return sample quartiles using Tukey's method.
@@ -357,19 +449,15 @@ class _Quartiles:
 
     def ms(data):
         """Return sample quartiles using Mendenhall and Sincich's method."""
-        # Perform index calculations using 1-based counting, and adjust for
-        # 0-based at the very end.
         n = len(data)
-        M = _round_even((n+1)/2)
-        L = _round_up((n+1)/4)
+        M = round.even((n+1)/2)
+        L = round.up((n+1)/4)
         U = n+1-L
-        assert U == _round_down(3*(n+1)/4)
+        assert U == round.down(3*(n+1)/4)
         return (data[L-1], data[M-1], data[U-1])
 
     def minitab(data):
         """Return sample quartiles using the method used by Minitab."""
-        # Perform index calculations using 1-based counting, and adjust for
-        # 0-based at the very end.
         n = len(data)
         M = (n+1)/2
         L = (n+1)/4
@@ -386,8 +474,6 @@ class _Quartiles:
 
         This is also the method used by Excel and OpenOffice.
         """
-        # Perform index calculations using 1-based counting, and adjust for
-        # 0-based at the very end.
         n = len(data)
         M = (n+1)/2
         L = (n+3)/4
@@ -419,7 +505,9 @@ class _Quartiles:
             q3 = data[-i-1]
         return (q1, q2, q3)
 
-    # Numeric method selectors for quartiles:
+    # Set up mappings for schemes and aliases for quartiles. Aliases MUST be
+    # in lowercase. If you modify either of these, you MUST likewise adjust
+    # the quartiles function docstring.
     QUARTILE_MAP = {
         1: inclusive,
         2: exclusive,
@@ -428,10 +516,6 @@ class _Quartiles:
         5: excel,
         6: langford,
         }
-        # Note: if you modify this, you must also update the docstring for
-        # the quartiles function.
-
-    # Lowercase aliases for the numeric method selectors for quartiles:
     QUARTILE_ALIASES = {
         'cdf': 6,
         'excel': 5,
@@ -448,32 +532,18 @@ class _Quartiles:
         'tukey': 1,
         }
     assert all(alias==alias.lower() for alias in QUARTILE_ALIASES)
-# End of private _Quartiles namespace.
 
+    # ::::::::::::::::::::::::
+    # :: Quantile functions ::
+    # ::::::::::::::::::::::::
 
-class _Quantiles:
-    """Private namespace for quantile calculation methods.
-
-    ALL functions and attributes in this namespace class are private and
-    subject to change without notice.
-    """
-    def __new__(cls):
-        raise RuntimeError('namespace, do not instantiate')
-
-    # The functions r1...r9 implement R's quartile types 1...9 respectively.
+    # The functions r1...r9 implement R's quantile types 1...9 respectively.
     # Except for r2, they are also equivalent to Mathematica's parametrized
     # quantile function: http://mathworld.wolfram.com/Quantile.html
 
-    # Implementation notes
-    # --------------------
-    #
-    # * The usual formulae for quartiles use 1-based indexes.
-    # * Each of the functions r1...r9 assume that data is a sorted sequence,
-    #   and that p is a fraction 0 <= p <= 1.
-
     def r1(data, p):
         h = len(data)*p + 0.5
-        i = max(1, math.ceil(h - 0.5))
+        i = max(1, round.ceil(h - 0.5))
         assert 1 <= i <= len(data)
         return data[i-1]
 
@@ -484,8 +554,8 @@ class _Quantiles:
         """
         n = len(data)
         h = n*p + 0.5
-        i = max(1, math.ceil(h - 0.5))
-        j = min(n, math.floor(h + 0.5))
+        i = max(1, round.ceil(h - 0.5))
+        j = min(n, round.floor(h + 0.5))
         assert 1 <= i <= j <= n
         return (data[i-1] + data[j-1])/2
 
@@ -541,24 +611,16 @@ class _Quantiles:
         h = max(1, min(h, n))
         return _interpolate(data, h-1)
 
-    # Numeric method selectors for quantiles. Numbers 1-9 MUST match the R
-    # calculation methods with the same number.
+    # Set up mappings for schemes and aliases for quantiles. Aliases MUST be
+    # in lowercase. If you modify either of these, you MUST likewise adjust
+    # the quantile function docstring.
+    #
+    # Schemes 1-9 MUST match the R calculation type with the same number. In
+    # other words, don't change schemes 1-9!
     QUANTILE_MAP = {
-        1: r1,
-        2: r2,
-        3: r3,
-        4: r4,
-        5: r5,
-        6: r6,
-        7: r7,
-        8: r8,
-        9: r9,
+        1: r1,  2: r2,  3: r3,  4: r4,  5: r5,  6: r6,  7: r7,  8: r8,  9: r9,
         10: qlsd,
         }
-        # Note: if you add any additional methods to this, you must also
-        # update the docstring for the quantiles function.
-
-    # Lowercase aliases for quantile schemes:
     QUANTILE_ALIASES = {
         'cdf': 2,
         'excel': 7,
@@ -573,46 +635,50 @@ class _Quantiles:
         'sas-5': 2,
         }
     assert all(alias==alias.lower() for alias in QUANTILE_ALIASES)
-# End of private _Quantiles namespace.
 
+    def _parametrized_quantile(parameters, data, p):
+        """_parameterized_quantile(parameters, data, p) -> value
 
-def _parametrized_quantile(parameters, data, p):
-    """_parameterized_quantile(parameters, data, p) -> value
+        Private function calculating a parameterized version of quantile,
+        equivalent to the Mathematica Quantile() function.
 
-    Private function calculating a parameterized version of quantile,
-    equivalent to the Mathematica Quantile() function.
+        data is assumed to be sorted and with at least two items; p is assumed
+        to be between 0 and 1 inclusive. If either of these assumptions are
+        violated, the behaviour of this function is undefined.
 
-    data is assumed to be sorted and with at least two items; p is assumed
-    to be between 0 and 1 inclusive. If either of these assumptions are
-    violated, the behaviour of this function is undefined.
+        >>> from builtins import range
+        >>> data = range(1, 21)
+        >>> _parametrized_quantile = _Fractiles._parametrized_quantile
+        >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
+        6.0
+        >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
+        6.5
 
-    >>> from builtins import range; data = range(1, 21)
-    >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
-    6.0
-    >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
-    6.5
+            WARNING: While this function will accept arbitrary numberic
+            values for the parameters, not all such combinations are
+            meaningful:
 
-        WARNING: While this function will accept arbitrary numberic
-        values for the parameters, not all such combinations are
-        meaningful:
+            >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
+            2.9
 
-        >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
-        2.9
+        !>> _parametrized_quantile("foo", [], 99)
+        "spam"
 
-    """
-    # More details here:
-    # http://reference.wolfram.com/mathematica/ref/Quantile.html
-    # http://mathworld.wolfram.com/Quantile.html
-    a, b, c, d = parameters
-    n = len(data)
-    h = a + (n+b)*p
-    f = h % 1
-    i = max(1, min(math.floor(h), n))
-    j = max(1, min(math.ceil(h), n))
-    x = data[i-1]
-    y = data[j-1]
-    return x + (y - x)*(c + d*f)
+        """
+        # More details here:
+        # http://reference.wolfram.com/mathematica/ref/Quantile.html
+        # http://mathworld.wolfram.com/Quantile.html
+        a, b, c, d = parameters
+        n = len(data)
+        h = a + (n+b)*p
+        f = h % 1
+        i = max(1, min(round.floor(h), n))
+        j = max(1, min(round.ceil(h), n))
+        x = data[i-1]
+        y = data[j-1]
+        return x + (y - x)*(c + d*f)
 
+# End of private _Fractiles namespace.
 
 # Public functions for fractiles:
 
@@ -689,24 +755,24 @@ def _quartiles(data, scheme=None):
     """
     n = len(data)
     if n < 3:
-        raise _StatsError(
+        raise stats.StatsError(
         'need at least 3 items to split data into quartiles')
     # Select a method.
-    if scheme is None: scheme = QUARTILE_DEFAULT
+    if scheme is None: scheme = QUARTILES_DEFAULT
     if isinstance(scheme, str):
         key = quartiles.aliases.get(scheme.lower())
     else:
         key = scheme
-    func = _Quartiles.QUARTILE_MAP.get(key)
+    func = _Fractiles.QUARTILE_MAP.get(key)
     if func is None:
-        raise _StatsError('unrecognised scheme `%s`' % scheme)
+        raise stats.StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
 # TODO make this a read-only view of the dict?
-quartiles.aliases = _quartiles.aliases = _Quartiles.QUARTILE_ALIASES
+quartiles.aliases = _quartiles.aliases = _Fractiles.QUARTILE_ALIASES
 
 
-@sorted_data
+@_sorted_data
 def quantile(data, p, scheme=None):
     """quantile(data, p [, scheme]) -> value
 
@@ -726,9 +792,9 @@ def quantile(data, p, scheme=None):
 
     In general the quantile will not fall exactly on a data point. When that
     happens, the value returned is interpolated from the data points nearest
-    the calculated position. There are a wide variety of interpolation methods
-    used in the statistics literature, and quantile() allows you to choose
-    between them using the optional argument scheme.
+    the calculated position. There are a wide variety of interpolation
+    methods used in the statistics literature, and quantile() allows you to
+    choose between them using the optional argument scheme.
 
     >>> quantile(data, 0.75, scheme=4)
     4.5
@@ -801,10 +867,10 @@ def _quantile(data, p, scheme=None):
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
     # http://en.wikipedia.org/wiki/Quantile
     if not 0.0 <= p <= 1.0:
-        raise _StatsError(
+        raise stats.StatsError(
         'quantile argument must be between 0.0 and 1.0')
     if len(data) < 2:
-        raise _StatsError(
+        raise stats.StatsError(
         'need at least 2 items to split data into quantiles')
     # Select a scheme.
     if scheme is None: scheme = QUANTILE_DEFAULT
@@ -813,15 +879,15 @@ def _quantile(data, p, scheme=None):
     else:
         key = scheme
     if isinstance(key, tuple) and len(key) == 4:
-        return _parametrized_quantile(key, data, p)
+        return _Fractiles._parametrized_quantile(key, data, p)
     else:
-        func = _Quantiles.QUANTILE_MAP.get(key)
+        func = _Fractiles.QUANTILE_MAP.get(key)
         if func is None:
-            raise _StatsError('unrecognised scheme `%s`' % scheme)
+            raise stats.StatsError('unrecognised scheme `%s`' % scheme)
         return func(data, p)
 
 # TODO make this a read-only view of the dict?
-quantile.aliases = _quantile.aliases = _Quantiles.QUANTILE_ALIASES
+quantile.aliases = _quantile.aliases = _Fractiles.QUANTILE_ALIASES
 
 
 def decile(data, d, scheme=None):
