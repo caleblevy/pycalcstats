@@ -7,7 +7,7 @@
 The ``stats.co`` module provides eight coroutine based statistics functions:
 
     Function        Description
-    ==============  ==========================================
+    ==============  =============================================
     corr            Correlation coefficient of (X, Y) data.
     ewma            Exponentially weighted moving average.
     mean            Running arithmetic mean (average).
@@ -21,9 +21,9 @@ The function ``stats.co.sum`` is an alias to ``stats.running_sum``.
 
 The module also includes one public utility function:
 
-    Name                Description
-    ==================  =============================================
-    feed                Convert coroutines into iterators.
+    Name            Description
+    ==============  =============================================
+    feed            Convert coroutines into iterators.
 
 
 

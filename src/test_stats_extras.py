@@ -95,6 +95,12 @@ class CoSumTest(unittest.TestCase, TestConsumerMixin):
         super().__init__(*args, **kwargs)
         self.func = stats.co.sum
 
+    def testAlias(self):
+        # stats.co.sum is documented as an alias (otherwise we would have
+        # to modify the docstring to hide the fact, and that's a PITA). So
+        # test for it here.
+        self.assertTrue(self.func is stats.running_sum)
+
     def testSum(self):
         cr = self.func()
         self.assertEqual(cr.send(3), 3)
