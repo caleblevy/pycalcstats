@@ -17,7 +17,7 @@ Options:
 
 With no options, perform a self-test of the stats package by running all
 doctests in the package. By default, failed tests will be printed. If all
-tests pass, a count of how tests were performed is printed.
+tests pass, a count of how many tests were performed is printed.
 
 To print details of all tests regardless of whether they succeed or fail,
 pass the verbose flag after the package name:
