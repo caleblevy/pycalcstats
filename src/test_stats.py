@@ -340,7 +340,8 @@ class UnivariateMixin:
     def testSingleData(self):
         # Pass when the first argument has a single data point.
         for x in self.make_random_data(size=1, count=4):
-            _ = self.func([x])
+            assert len(x) == 1
+            _ = self.func(x)
 
     def testDoubleData(self):
         # Pass when the first argument has two data points.
@@ -442,10 +443,37 @@ class UnivariateMixin:
                 result = self.func(data)
                 self.assertEqual(result, expected)
 
-    def testBadArgType(self):
-        # Test failures with bad argument types.
-        for d in (None, 23, object(), "spam"):
-            self.assertRaises(TypeError, self.func, d)
+    def testBadArgEmptyStr(self):
+        self.assertRaises((TypeError, ValueError), self.func, "")
+
+    # Do NOT roll these testBadArgType* tests into a single test with a
+    # loop. This protects against a regression in stats.order.quantile
+    # which was painful to debug, i.e. don't do this:
+    #   def testBadArgType(self):
+    #       for arg in bad_types:
+    #           self.assertRaises(TypeError, self.func, arg)
+    # because it is hard to debug test failures. Trust me on this!
+
+    def check_for_type_error(self, *args):
+        # assertRaises doesn't take a custom error message, so as the next
+        # best thing we always call it exactly once per test, and not from
+        # inside a loop.
+        self.assertRaises(TypeError, self.func, *args)
+
+    def testBadArgTypeInt(self):
+        self.check_for_type_error(23)
+
+    def testBadArgTypeInstance(self):
+        self.check_for_type_error(object())
+
+    def testBadArgTypeNone(self):
+        self.check_for_type_error(None)
+
+    def testBadArgTypeStr(self):
+        self.check_for_type_error("spam")  # len % 4 => 0
+        self.check_for_type_error("spam*spam")  # len % 4 => 1
+        self.check_for_type_error("spam*spam*spam")  # len % 4 => 2
+        self.check_for_type_error("spam*spam*spam*spam")  # len % 4 => 3
 
 
 # -- Tests for the stats module --
@@ -1532,6 +1560,13 @@ class PrivateVarTest(unittest.TestCase):
                     (0 + 2**2 + 0 + 0)/2]
         self.assertEqual(actual, expected)
 
+
+class DocTests(unittest.TestCase):
+    def testDocTests(self):
+        import doctest
+        failed, tried = doctest.testmod(stats)
+        self.assertTrue(tried > 0)
+        self.assertTrue(failed == 0)
 
 
 # === Run tests ===

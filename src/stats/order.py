@@ -10,8 +10,10 @@ Order statistics module
 
 The ``stats.order`` module calculates order statistics and related functions.
 
-FIXME Define order statistics. I know what they are, I just don't know how
-to explain them!
+The kth order statistic of sample data is the kth smallest value in the
+sample. For example, you might ask "what is the highest income of the
+poorest 10% of workers?" -- that would be equivalent to asking for the 1st
+decile (or the 10th percentile, or just the 0.1 quantile).
 
 This module provides the following order statistics and related functions:
 
@@ -28,12 +30,11 @@ This module provides the following order statistics and related functions:
     quantile            An arbitrary quantile.
     quartile_skewness   Skewness of the data calculated from quartiles.
     quartiles           The 4-fractiles of the data.
-    range               The difference between the smallest and largest values.
+    range               The largest value minus the smallest value.
     trimean             Tukey's trimean.
 
-
-``minmax`` is an alias to the function of the same name in the ``stats``
-module.
+The ``minmax`` function is an alias to the function of the same name in
+the ``stats`` module.
 
 
 """
@@ -42,14 +43,14 @@ module.
 # http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00023.html
 # http://mail.gnome.org/archives/gnumeric-list/2007-February/msg00041.html
 #
-# Add support for fractiles (and median?) with in-place sorting.
-# Raymond Hettinger's running median recipe?
+# Add support for fractiles (and median?) withour sorting each time.
+# Add Raymond Hettinger's running median recipe?
 
 
 __all__ = [
     'decile', 'hinges', 'iqr', 'median', 'midhinge', 'midrange', 'minmax',
-    'percentile', 'quantile', 'QUANTILE_DEFAULT', 'quartile_skewness',
-    'quartiles', 'QUARTILES_DEFAULT','range', 'trimean',
+    'percentile', 'quantile', 'quartile_skewness', 'quartiles', 'range',
+    'trimean',
     ]
 
 
@@ -57,36 +58,19 @@ import functools
 import math
 import types
 
-from builtins import round as _round
-
 import stats
-# import stats.utils
 
 from stats import minmax
 
 
 # === Global variables ===
 
-# Default schemes to use for order statistics:
-QUARTILES_DEFAULT = 1
-QUANTILE_DEFAULT = 1
-
-
-# We need this to work around doctest cleverness.
+# We need this to work around doctest cleverness, since otherwise it won't
+# look inside namespace objects for tests.
 __test__ = {}
-    # See _namespace for more.
 
 
 # === Private utilities ===
-
-def _sorted_data(func):
-    """Decorator to sort data passed to stats functions."""
-    @functools.wraps(func)
-    def inner(data, *args, **kwargs):
-        data = sorted(data)
-        return func(data, *args, **kwargs)
-    return inner
-
 
 def _namespace(obj):
     """Decorator to build a namespace."""
@@ -107,19 +91,23 @@ def _namespace(obj):
 
 
 def _interpolate(data, x):
-    """Return the interpolated value of data at possibly fractional index x.
+    """Return the interpolated value of data at possibly fractional
+    non-negative index x.
 
     If x is an integer value, returns data[x]. If x is a non-integer, the
     value returned is estimated between data[x] and data[x+1], using linear
     interpolation.
 
-    >>> _interpolate([1, 2, 3, 4, 5], 3)
-    4
+    >>> _interpolate([1, 3, 5, 7, 9], 3)
+    7
     >>> _interpolate([1, 3, 5, 7, 9], 3.75)
     8.5
 
+    Only non-negative indices are supported. Behaviour for negative x is
+    unspecified.
     """
-    i, f = round.floor(x), x%1
+    assert x >= 0
+    i, f = int(x), x%1
     if f:
         a, b = data[i], data[i+1]
         return a + f*(b-a)
@@ -127,232 +115,73 @@ def _interpolate(data, x):
         return data[i]
 
 
-@_namespace
-class round:
-    """Namespace for rounding functions."""
-    from math import ceil, floor
+def _round_halfeven(x):
+    """Round non-negative float x to the nearest integer value, with ties
+    rounded to an even value. Also known as Banker's rounding.
 
-    def up(x):
-        """Round non-negative x, rounding ties up.
+    >>> [_round_halfeven(x) for x in (2.0, 2.1, 2.5, 2.9, 3.5)]
+    [2, 2, 2, 3, 4]
 
-        >>> round.up(101.5)
-        102
+    Only non-negative x values are supported. Behaviour for negative x is
+    unspecified.
+    """
+    assert x >= 0
+    n, f = int(x), x%1
+    if f > 0.5:
+        return n+1
+    elif f < 0.5:
+        return n
+    else:
+        return n+1 if n%2 else n
 
-        """
-        assert x >= 0.0
-        n, f = int(x), x%1
-        if f >= 0.5:
-            return n+1
-        else:
-            return n
 
-    def down(x):
-        """Round non-negative x, rounding ties down.
+def _round_halfup(x):
+    """Round non-negative float x to the nearest integer value, with ties
+    rounded up.
 
-        >>> round.down(101.5)
-        101
+    >>> [_round_halfup(x) for x in (2.0, 2.1, 2.5, 2.9, 3.5)]
+    [2, 2, 3, 3, 4]
 
-        """
-        assert x >= 0.0
-        n, f = int(x), x%1
-        if f > 0.5:
-            return n+1
-        else:
-            return n
+    Only non-negative x values are supported. Behaviour for negative x is
+    unspecified.
+    """
+    assert x >= 0
+    return math.floor(x + 0.5)
 
-    def even(x):
-        """Round non-negative x, using Banker's rounding to even for ties.
 
-        >>> round.even(100.5)
-        100
-        >>> round.even(101.5)
-        102
+def _inject_aliases(ns):
+    """Decorator that adds a reference to ns.ALIASES_MAP to the decorated
+    function.
 
-        """
-        assert x >= 0.0
-        n, f = int(x), x%1
-        if f > 0.5:
-            return n+1
-        elif f < 0.5:
-            return n
-        else:
-            if n%2:
-                # n is odd, so round up to even.
-                return n+1
-            else:
-                # n is even, so round down.
-                return n
+    >>> c = type('C', (object,), {})()
+    >>> c.ALIASES_MAP = {}
+    >>> @_inject_aliases(c)
+    ... def f():
+    ...     pass
+    ...
+    >>> f.aliases is c.ALIASES_MAP
+    True
 
-# Make round callable, delegating to the built-in round.
-round.__class__.__call__ = lambda self, *a, **kw: _round(*a, **kw)
+    """
+    def decorator(func):
+        func.aliases = ns.ALIASES_MAP
+        return func
+    return decorator
+
+
+def _get_scheme_func(ns, scheme):
+    """Return a function specified by the given scheme."""
+    if isinstance(scheme, str):
+        scheme = ns.ALIASES_MAP[scheme.lower()]
+    return ns.FUNC_MAP[scheme]
 
 
 # === Order statistics ===
 
-# Measures of central tendency (averages)
-# ---------------------------------------
 
-
-def median(data, sign=0):
-    """Returns the median (middle) value of an iterable of numbers.
-
-    >>> median([3.0, 5.0, 2.0])
-    3.0
-
-    The median is the middle data point in a sorted sequence of values, and
-    is commonly used as an average. It is more robust than the mean for data
-    that contains outliers -- if your data contains a few items that are
-    extremely small, or extremely large, compared to the rest of the data,
-    the median will be more representative of the data than the mean.
-
-    If there are an odd number of elements in the data, the median is
-    always the middle one. If there are an even number of elements, there
-    is no middle element, and the value returned by ``median`` depends on
-    the optional numeric argument ``sign`` (default is 0):
-
-    sign  value returned as median
-    ----  -----------------------------------------------------------
-    0     The mean of the elements on either side of the middle.
-    < 0   The element just below the middle ("low median").
-    > 0   The element just above the middle ("high median").
-
-    Normally you will want to stick with the default.
-    """
-    data = sorted(data)
-    n = len(data)
-    if n == 0:
-        raise stats.StatsError('no median for empty iterable')
-    m = n//2
-    if n%2 == 1:
-        # For an odd number of items, there is only one middle element, so
-        # we always take that.
-        return data[m]
-    else:
-        # If there are an even number of items, we decide what to do
-        # according to sign.
-        if sign == 0:
-            # Take the mean of the two middle elements.
-            return (data[m-1] + data[m])/2
-        elif sign < 0:
-            # Low median: take the lower middle element.
-            return data[m-1]
-        elif sign > 0:
-            # High median: take the higher middle element.
-            return data[m]
-        else:
-            # Unordered numeric value for sign. Probably a NAN.
-            raise ValueError('sign is not ordered with respect to zero')
-
-
-def midrange(data):
-    """Returns the midrange of a sequence of numbers.
-
-    >>> midrange([2.0, 3.0, 3.5, 4.5, 7.5])
-    4.75
-
-    The midrange is halfway between the smallest and largest element. It is
-    a weak measure of central tendency.
-    """
-    try:
-        L, H = minmax(data)
-    except ValueError as e:
-        e.args = ('no midrange defined for empty iterables',)
-        raise
-    return (L + H)/2
-
-
-def midhinge(data):
-    """Return the midhinge of a sequence of numbers.
-
-    >>> midhinge([1, 1, 2, 3, 4, 5, 6, 7, 8, 8])
-    4.5
-
-    The midhinge is halfway between the first and second hinges. It is a
-    better measure of central tendency than the midrange, and more robust
-    than the sample mean (more resistant to outliers).
-    """
-    H1, _, H2 = hinges(data)
-    return (H1 + H2)/2
-
-
-def trimean(data):
-    """Return Tukey's trimean = (H1 + 2*M + H2)/4 of data
-
-
-    >>> trimean([1, 1, 3, 5, 7, 9, 10, 14, 18])
-    6.75
-    >>> trimean([0, 1, 2, 3, 4, 5, 6, 7, 8])
-    4.0
-
-    The trimean is equivalent to the average of the median and the midhinge,
-    and is considered a better measure of central tendancy than either alone.
-    """
-    H1, M, H2 = hinges(data)
-    return (H1 + 2*M + H2)/4
-
-
-# Measures of spread (dispersion or variability)
-# ----------------------------------------------
-
-def range(data):
-    """Return the statistical range of data.
-
-    >>> range([1.0, 3.5, 7.5, 2.0, 0.25])
-    7.25
-
-    The range is the difference between the smallest and largest element. It
-    is a weak measure of statistical variability.
-    """
-    try:
-        a, b = minmax(data)
-    except ValueError as e:
-        e.args = ('no range defined for empty iterables',)
-        raise
-    return b - a
-
-
-def iqr(data, scheme=None):
-    """Returns the Inter-Quartile Range of a sequence of numbers.
-
-    >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])
-    3.25
-
-    The IQR is the difference between the first and third quartile. The
-    optional argument scheme is used to select the algorithm for calculating
-    the quartiles. The default scheme is taken from the global variable
-    QUARTILE_DEFAULT. See the quartile function for further details.
-
-    The IQR with scheme 1 is equivalent to Tukey's H-spread.
-    """
-    q1, _, q3 = quartiles(data, scheme)
-    return q3 - q1
-
-
-# Other moments of the data
-# -------------------------
-
-def quartile_skewness(q1, q2, q3):
-    """Return the quartile skewness coefficient, or Bowley skewness, from
-    the three quartiles q1, q2, q3.
-
-    >>> quartile_skewness(1, 2, 5)
-    0.5
-    >>> quartile_skewness(1, 4, 5)
-    -0.5
-
-    """
-    if not q1 <= q2 <= q3:
-        raise stats.StatsError('quartiles must be ordered q1 <= q2 <= q3')
-    if q1 == q2 == q3:
-        return float('nan')
-    skew = (q3 + q1 - 2*q2)/(q3 - q1)
-    assert -1.0 <= skew <= 1.0
-    return skew
-
-
-# Fractiles: hinges, quartiles and quantiles
-# ------------------------------------------
-
+# Fractiles: medians, quartiles, quantiles and hinges
+# ---------------------------------------------------
+#
 # Grrr arggh!!! Nobody can agree on how to calculate order statistics.
 # Langford (2006) finds no fewer than FIFTEEN methods for calculating
 # quartiles (although some are mathematically equivalent to others):
@@ -371,36 +200,137 @@ def quartile_skewness(q1, q2, q3):
 #       divide 4 candies among 5 children. No matter what you do,
 #       things get ugly.
 #
-# Quantiles (fractiles) and percentiles also have a plethora of calculation
-# methods. R (and presumably S) include nine different methods for quantiles.
+# Quantiles and percentiles also have a plethora of calculation methods.
+# R (and presumably S) include nine different methods for quantiles.
 # Mathematica uses a parameterized quantile function capable of matching
 # eight of those nine methods. Wikipedia lists a tenth method. There are
 # probably others I don't know of. And then there are grouped and weighted
-# data to deal with too :(
+# data, all of which have their own methods too :(
+#
+# The most frustrating part of this is that most examples of fractile use
+# don't give any hint as to which calculation method is used, or even that
+# there is a choice to be made.
+#
+# R's approach is to specify the calculation "type" as an optional parameter
+# of the quantile function: quantile(x, probs ... type = 7, ...). I take a
+# similar approach. Notable differences are:
+#
+#   * I use the term "scheme" rather than "type" or "method";
+#   * I support user-extensible string aliases (names) as well as
+#     numeric codes;
+#   * Mathematica-style parameterized quantiles are also supported.
+#   * Each of the ``median``, ``quartiles`` and ``quantile`` functions
+#     have their own set of schemes. See each function's docstring for
+#     details.
 
 
-# -- Private namespace for fractile calculations --
+# -- Private fractile functions --
 
 @_namespace
-class _Fractiles:
-    """Private namespace for quantile and quartile calculation methods.
-
-    ALL functions and attributes in this namespace are private and subject
-    to change without notice.
+class _Median:
+    """Private namespace for median calculation methods. All functions and
+    attributes in this namespace are private and subject to change without
+    notice.
 
     All functions assume that their data argument is a sorted list. If that
     assumption is violated, behaviour is unspecified.
-
-    The quantile functions similarly assume that the p argument is a fraction
-    0 <= p <= 1.
-
-    Be aware that some functions may perform index calculations using 1-based
-    indexing, and adjust for Python's 0-based indexes at the end.
     """
 
-    # ::::::::::::::::::::::::
-    # :: Quartile functions ::
-    # ::::::::::::::::::::::::
+    def standard_median(data):
+        """Return median using the standard mean-of-middle-two method.
+
+        >>> _Median.standard_median([1, 3, 5])
+        3
+        >>> _Median.standard_median([1, 3, 5, 7])
+        4.0
+
+        """
+        n = len(data)
+        if n%2 == 1:
+            return data[n//2]
+        else:
+            m = n//2
+            return (data[m - 1] + data[m])/2
+
+    def low_median(data):
+        """Return the low median.
+
+        >>> _Median.low_median([1, 3, 5])
+        3
+        >>> _Median.low_median([1, 3, 5, 7])
+        3
+
+        """
+        n = len(data)
+        if n%2 == 1:
+            return data[n//2]
+        else:
+            return data[n//2 - 1]
+
+    def high_median(data):
+        """Return the high median.
+
+        >>> _Median.high_median([1, 3, 5])
+        3
+        >>> _Median.high_median([1, 3, 5, 7])
+        5
+
+        """
+        n = len(data)
+        return data[n//2]
+
+    def dup_median(data):
+        """"Median with adjustment for duplicate values.
+
+        >>> _Median.dup_median([2, 2, 3, 4])
+        2.3333333333333335
+        >>> _Median.dup_median([1, 3, 3, 5, 7])
+        3
+        >>> _Median.dup_median([1, 3, 3, 5, 7, 9])
+        3.6666666666666665
+        >>> _Median.dup_median([1, 3, 3, 3, 5, 5, 7, 9])
+        3.8
+
+        """
+        n = len(data)
+        m = n//2
+        if n%2 == 1:
+            return data[m]
+        a, b = data[m-1], data[m]
+        if a == b:
+            return a
+        ca = data.count(a)
+        cb = data.count(b)
+        return (ca*a + cb*b)/(ca + cb)
+
+    # Set up mappings for schemes and aliases. Canonical schemes are the
+    # numeric codes, mapped to a function in FUNC_MAP. Aliases are given as
+    # lowercase strings in ALIASES_MAP.
+    FUNC_MAP = {
+        1: standard_median,
+        2: low_median,
+        3: high_median,
+        4: dup_median,
+        }
+    ALIASES_MAP = {
+        'dup': 4,
+        'high': 3,
+        'low': 2,
+        'standard': 1,
+        'std': 1,
+        }
+    assert all(alias==alias.lower() for alias in ALIASES_MAP)
+
+
+@_namespace
+class _Quartiles:
+    """Private namespace for median calculation methods. All functions and
+    attributes in this namespace are private and subject to change without
+    notice.
+
+    All functions assume that their data argument is a sorted list. If that
+    assumption is violated, behaviour is unspecified.
+    """
 
     def inclusive(data):
         """Return sample quartiles using Tukey's method.
@@ -450,10 +380,10 @@ class _Fractiles:
     def ms(data):
         """Return sample quartiles using Mendenhall and Sincich's method."""
         n = len(data)
-        M = round.even((n+1)/2)
-        L = round.up((n+1)/4)
+        M = _round_halfeven((n+1)/2)
+        L = _round_halfup((n+1)/4)
         U = n+1-L
-        assert U == round.down(3*(n+1)/4)
+        assert U == math.ceil(3*(n+1)/4 - 0.5)  # Round half down.
         return (data[L-1], data[M-1], data[U-1])
 
     def minitab(data):
@@ -505,10 +435,10 @@ class _Fractiles:
             q3 = data[-i-1]
         return (q1, q2, q3)
 
-    # Set up mappings for schemes and aliases for quartiles. Aliases MUST be
-    # in lowercase. If you modify either of these, you MUST likewise adjust
-    # the quartiles function docstring.
-    QUARTILE_MAP = {
+    # Set up mappings for schemes and aliases. Canonical schemes are the
+    # numeric codes, mapped to a function in FUNC_MAP. Aliases are given as
+    # lowercase strings in ALIASES_MAP.
+    FUNC_MAP = {
         1: inclusive,
         2: exclusive,
         3: ms,
@@ -516,7 +446,7 @@ class _Fractiles:
         5: excel,
         6: langford,
         }
-    QUARTILE_ALIASES = {
+    ALIASES_MAP = {
         'cdf': 6,
         'excel': 5,
         'exclusive': 2,
@@ -531,11 +461,19 @@ class _Fractiles:
         'ti-85': 2,
         'tukey': 1,
         }
-    assert all(alias==alias.lower() for alias in QUARTILE_ALIASES)
+    assert all(alias==alias.lower() for alias in ALIASES_MAP)
 
-    # ::::::::::::::::::::::::
-    # :: Quantile functions ::
-    # ::::::::::::::::::::::::
+
+@_namespace
+class _Quantile:
+    """Private namespace for quantile calculation methods. All functions and
+    attributes in this namespace are private and subject to change without
+    notice.
+
+    All functions assume that their data argument is a sorted list, and that
+    the p argument is a fraction 0 <= p <= 1. If either assumption is
+    violated, behaviour is unspecified.
+    """
 
     # The functions r1...r9 implement R's quantile types 1...9 respectively.
     # Except for r2, they are also equivalent to Mathematica's parametrized
@@ -543,7 +481,7 @@ class _Fractiles:
 
     def r1(data, p):
         h = len(data)*p + 0.5
-        i = max(1, round.ceil(h - 0.5))
+        i = max(1, math.ceil(h - 0.5))
         assert 1 <= i <= len(data)
         return data[i-1]
 
@@ -554,12 +492,14 @@ class _Fractiles:
         """
         n = len(data)
         h = n*p + 0.5
-        i = max(1, round.ceil(h - 0.5))
-        j = min(n, round.floor(h + 0.5))
+        i = max(1, math.ceil(h - 0.5))
+        j = min(n, math.floor(h + 0.5))
         assert 1 <= i <= j <= n
+        if i == j:
+            return data[i-1]
         return (data[i-1] + data[j-1])/2
 
-    def r3(data, p):
+    def r3(data, p):  # FIXME
         h = len(data)*p
         i = max(1, round(h))
         assert 1 <= i <= len(data)
@@ -611,17 +551,71 @@ class _Fractiles:
         h = max(1, min(h, n))
         return _interpolate(data, h-1)
 
-    # Set up mappings for schemes and aliases for quantiles. Aliases MUST be
-    # in lowercase. If you modify either of these, you MUST likewise adjust
-    # the quantile function docstring.
-    #
-    # Schemes 1-9 MUST match the R calculation type with the same number. In
-    # other words, don't change schemes 1-9!
-    QUANTILE_MAP = {
-        1: r1,  2: r2,  3: r3,  4: r4,  5: r5,  6: r6,  7: r7,  8: r8,  9: r9,
+    class D(dict):
+        @staticmethod
+        def param_factory(parameters):
+            """Factory function returning a parameterized quantile function
+            similar to the Mathematica Quantile() function.
+
+            param_factory((a,b,c,d)) -> function
+            function(data, p) -> value
+
+            The returned function takes two arguments, a sorted list ``data``
+            and a fraction ``p`` between 0 and 1 inclusive, and returns the
+            pth quantile of data based on the parameters supplied to the
+            factory.
+
+            >>> from builtins import range
+            >>> data = list(range(1, 21))
+            >>> func = _Quantile.D.param_factory((0, 0, 1, 0))
+            >>> func(data, 0.3)
+            6.0
+            >>> func = _Quantile.D.param_factory((1/2, 0, 0, 1))
+            >>> func(data, 0.3)
+            6.5
+
+            WARNING: While this function will accept arbitrary numberic
+            values for the parameters, not all such combinations are
+            meaningful:
+
+            >>> bad_func = _Quantile.D.param_factory((1, 1, 1, 1))
+            >>> bad_func([1, 2], 0.3)
+            2.9
+
+            """
+            assert isinstance(parameters, tuple)
+            a, b, c, d = parameters
+            def func(data, p):
+                """Parameterized quantile function."""
+                # More details here:
+                # http://reference.wolfram.com/mathematica/ref/Quantile.html
+                # http://mathworld.wolfram.com/Quantile.html
+                assert isinstance(data, list)
+                assert 0 <= p <= 1
+                n = len(data)
+                h = a + (n+b)*p
+                i = max(1, min(math.floor(h), n))
+                j = max(1, min(math.ceil(h), n))
+                x = data[i-1]
+                y = data[j-1]
+                return x + (y - x)*(c + d*(h%1))
+            return func
+
+        def __missing__(self, key):
+            if isinstance(key, tuple) and len(key) == 4:
+                return self.param_factory(key)
+            raise KeyError('bad scheme')
+
+    # Set up mappings for schemes and aliases. Canonical schemes are the
+    # numeric codes, mapped to a function in FUNC_MAP. Aliases are given as
+    # lowercase strings in ALIASES_MAP.
+    FUNC_MAP = D({
+        # Schemes 1-9 must match the R calculation type with the same
+        # number. In other words, don't touch keys 1-9!
+        1:r1,  2:r2,  3:r3,  4:r4,  5:r5,  6:r6,  7:r7,  8:r8,  9:r9,
         10: qlsd,
-        }
-    QUANTILE_ALIASES = {
+        })
+    ALIASES_MAP = {
         'cdf': 2,
         'excel': 7,
         'h&f': 8,
@@ -634,77 +628,54 @@ class _Fractiles:
         'sas-4': 6,
         'sas-5': 2,
         }
-    assert all(alias==alias.lower() for alias in QUANTILE_ALIASES)
+    assert all(alias==alias.lower() for alias in ALIASES_MAP)
 
-    def _parametrized_quantile(parameters, data, p):
-        """_parameterized_quantile(parameters, data, p) -> value
 
-        Private function calculating a parameterized version of quantile,
-        equivalent to the Mathematica Quantile() function.
+# -- Public fractile functions --
 
-        data is assumed to be sorted and with at least two items; p is assumed
-        to be between 0 and 1 inclusive. If either of these assumptions are
-        violated, the behaviour of this function is undefined.
+@_inject_aliases(_Median)
+def median(data, scheme=1):
+    """Returns the median (middle) value of an iterable of numbers.
 
-        >>> from builtins import range
-        >>> data = range(1, 21)
-        >>> _parametrized_quantile = _Fractiles._parametrized_quantile
-        >>> _parametrized_quantile((0, 0, 1, 0), data, 0.3)
-        6.0
-        >>> _parametrized_quantile((1/2, 0, 0, 1), data, 0.3)
-        6.5
+    >>> median([3.0, 5.0, 2.0])
+    3.0
 
-            WARNING: While this function will accept arbitrary numberic
-            values for the parameters, not all such combinations are
-            meaningful:
+    The median is the middle data point in a sorted sequence of values, and
+    is commonly used as an average or estimate of central tendency. It is
+    more robust than the mean for data that contains outliers -- if your
+    data contains a few items that are extremely small, or extremely large,
+    compared to the rest of the data, the median will be more representative
+    of the data than the mean.
 
-            >>> _parametrized_quantile((1, 1, 1, 1), [1, 2], 0.3)
-            2.9
+    There are a number of alternative methods for calculating the median.
+    The optional argument ``scheme`` allows you to specify which calculation
+    method to use. In general, the median is always the middle value if
+    there are an odd number of points. For even number of points, the middle
+    falls between two values, and some form of interpolation is needed. The
+    supported schemes are:
 
-        !>> _parametrized_quantile("foo", [], 99)
-        "spam"
+    scheme  Description
+    ======  =================================================================
+    1       The mean of the two values straddling the middle (the default).
+    2       Low median: the element just below the middle.
+    3       High median: the element just above the middle.
+    4       Mean of central values with an adjustment for duplicates.
 
-        """
-        # More details here:
-        # http://reference.wolfram.com/mathematica/ref/Quantile.html
-        # http://mathworld.wolfram.com/Quantile.html
-        a, b, c, d = parameters
-        n = len(data)
-        h = a + (n+b)*p
-        f = h % 1
-        i = max(1, min(round.floor(h), n))
-        j = max(1, min(round.ceil(h), n))
-        x = data[i-1]
-        y = data[j-1]
-        return x + (y - x)*(c + d*f)
-
-# End of private _Fractiles namespace.
-
-# Public functions for fractiles:
-
-def hinges(data):
-    """Return Tukey's hinges H1, M, H2 from data.
-
-    >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
-    (6, 10, 14)
-
-    If the data has length N of the form 4n+5 (e.g. 5, 9, 13, 17...) then
-    the hinges can be visualised by writing out the ordered data in the
-    shape of a W, where each limb of the W is equal is length. For example,
-    the data (A,B,C,...) with N=9 would be written out like this:
-
-        A       E       I
-          B   D   F   H
-            C       G
-
-    and the hinges would be C, E and G.
-
-    This is equivalent to quartiles() called with scheme=1.
+    Case-insensitive named aliases are also supported: you can examine
+    median.aliases for a mapping of names to schemes.
     """
-    return quartiles(data, scheme=1)
+    func = _get_scheme_func(_Median, scheme)
+    if isinstance(data, str):
+        raise TypeError('data argument cannot be a string')
+    data = sorted(data)
+    if len(data) == 0:
+        raise stats.StatsError('no median for empty iterable')
+    else:
+        return func(data)
 
 
-def quartiles(data, scheme=None):
+@_inject_aliases(_Quartiles)
+def quartiles(data, scheme=1):
     """quartiles(data [, scheme]) -> (Q1, Q2, Q3)
 
     Return the sample quartiles (Q1, Q2, Q3) for data, where one quarter of
@@ -730,50 +701,30 @@ def quartiles(data, scheme=None):
 
     Notes:
 
-        (a) If scheme is missing or None, the default is taken from the
-            global variable QUARTILE_DEFAULT (set to 1 by default).
-        (b) Scheme 1 is equivalent to Tukey's hinges (H1, M, H2).
-        (c) Scheme 2 is used by Texas Instruments calculators starting with
+        (a) Scheme 1 (the default) is equivalent to Tukey's hinges
+            (H1, M, H2).
+        (b) Scheme 2 is used by Texas Instruments calculators starting with
             model TI-85.
-        (d) Scheme 3 ensures that the values returned are always data points.
-        (e) Schemes 4 and 5 use linear interpolation between items.
-        (f) For compatibility with Microsoft Excel and OpenOffice, use
+        (c) Scheme 3 ensures that the values returned are always data points.
+        (d) Schemes 4 and 5 use linear interpolation between items.
+        (e) For compatibility with Microsoft Excel and OpenOffice, use
             scheme 5.
 
     Case-insensitive named aliases are also supported: you can examine
     quartiles.aliases for a mapping of names to schemes.
     """
-    d = sorted(data)
-    return _quartiles(d, scheme)
-
-
-# TODO make this a public function?
-def _quartiles(data, scheme=None):
-    """Return the quartiles of sorted data.
-
-    data must be sorted list. See ``quartiles`` for further details.
-    """
-    n = len(data)
-    if n < 3:
+    func = _get_scheme_func(_Quartiles, scheme)
+    if isinstance(data, str):
+        raise TypeError('data argument cannot be a string')
+    data = sorted(data)
+    if len(data) < 3:
         raise stats.StatsError(
         'need at least 3 items to split data into quartiles')
-    # Select a method.
-    if scheme is None: scheme = QUARTILES_DEFAULT
-    if isinstance(scheme, str):
-        key = quartiles.aliases.get(scheme.lower())
-    else:
-        key = scheme
-    func = _Fractiles.QUARTILE_MAP.get(key)
-    if func is None:
-        raise stats.StatsError('unrecognised scheme `%s`' % scheme)
     return func(data)
 
-# TODO make this a read-only view of the dict?
-quartiles.aliases = _quartiles.aliases = _Fractiles.QUARTILE_ALIASES
 
-
-@_sorted_data
-def quantile(data, p, scheme=None):
+@_inject_aliases(_Median)
+def quantile(data, p, scheme=1):
     """quantile(data, p [, scheme]) -> value
 
     Return the value which is some fraction p of the way into data after
@@ -817,7 +768,7 @@ def quantile(data, p, scheme=None):
 
     scheme  parameters   Description
     ======  ===========  ====================================================
-    1       0,0,1,0      inverse of the empirical CDF
+    1       0,0,1,0      inverse of the empirical CDF (the default)
     2       n/a          inverse of empirical CDF with averaging
     3       1/2,0,0,0    closest actual observation
     4       0,0,0,1      linear interpolation of the empirical CDF
@@ -830,21 +781,19 @@ def quantile(data, p, scheme=None):
 
     Notes:
 
-        (a) If scheme is missing or None, the default is taken from the
-            global variable QUANTILE_DEFAULT (set to 1 by default).
-        (b) Scheme 1 ensures that the values returned are always data points,
+        (a) Scheme 1 ensures that the values returned are always data points,
             and is the default used by Mathematica.
-        (c) Scheme 5 is equivalent to Matlab's PRCTILE function.
-        (d) Scheme 6 is equivalent to the method used by Minitab.
-        (e) Scheme 7 is the default used by programming languages R and S,
+        (b) Scheme 5 is equivalent to Matlab's PRCTILE function.
+        (c) Scheme 6 is equivalent to the method used by Minitab.
+        (d) Scheme 7 is the default used by programming languages R and S,
             and is the method used by Microsoft Excel and OpenOffice.
-        (f) Scheme 8 is recommended by Hyndman and Fan (1996).
+        (e) Scheme 8 is recommended by Hyndman and Fan (1996).
 
     Example of using a scheme written in the parameterized form used by
     Mathematica:
 
     >>> data = [1, 2, 3, 3, 4, 5, 7, 9, 12, 12]
-    >>> quantile(data, 0.2, scheme=(1, -1, 0, 1))  # First quintile.
+    >>> quantile(data, 0.2, scheme=(1, -1, 0, 1))  # Get the first quintile.
     2.8
 
     This can also be written using an alias:
@@ -853,44 +802,48 @@ def quantile(data, p, scheme=None):
     2.8
 
     """
-    d = sorted(data)
-    return _quantile(d, p, scheme)
-
-
-# TODO make this a public function?
-def _quantile(data, p, scheme=None):
-    """Return the quantile from sorted data.
-
-    data must be a sorted list. For additional details, see ``quantile``.
-    """
     # More details here:
     # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/quantile.html
     # http://en.wikipedia.org/wiki/Quantile
+    func = _get_scheme_func(_Quantile, scheme)
+    if isinstance(data, str):
+        raise TypeError('data argument cannot be a string')
     if not 0.0 <= p <= 1.0:
         raise stats.StatsError(
         'quantile argument must be between 0.0 and 1.0')
+    data = sorted(data)
     if len(data) < 2:
         raise stats.StatsError(
         'need at least 2 items to split data into quantiles')
-    # Select a scheme.
-    if scheme is None: scheme = QUANTILE_DEFAULT
-    if isinstance(scheme, str):
-        key = quantile.aliases.get(scheme.lower())
-    else:
-        key = scheme
-    if isinstance(key, tuple) and len(key) == 4:
-        return _Fractiles._parametrized_quantile(key, data, p)
-    else:
-        func = _Fractiles.QUANTILE_MAP.get(key)
-        if func is None:
-            raise stats.StatsError('unrecognised scheme `%s`' % scheme)
-        return func(data, p)
-
-# TODO make this a read-only view of the dict?
-quantile.aliases = _quantile.aliases = _Fractiles.QUANTILE_ALIASES
+    return func(data, p)
 
 
-def decile(data, d, scheme=None):
+# -- Convenience functions for fractiles --
+
+def hinges(data):
+    """Return Tukey's hinges H1, M, H2 from data.
+
+    >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
+    (6, 10, 14)
+
+    If the data has length N of the form 4n+5 (e.g. 5, 9, 13, 17...) then
+    the hinges can be visualised by writing out the ordered data in the
+    shape of a W, where each limb of the W is equal is length. For example,
+    the data (A,B,C,...,I) has N=9 and would be written out like this:
+
+        A       E       I
+          B   D   F   H
+            C       G
+
+    The hinges would be C, E and G.
+
+    This is a convenience function equivalent to quartiles() called with
+    scheme=1.
+    """
+    return quartiles(data, scheme=1)
+
+
+def decile(data, d, scheme=1):
     """Return the dth decile of data, for integer d between 0 and 10.
 
     >>> data = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
@@ -906,7 +859,7 @@ def decile(data, d, scheme=None):
     return quantile(data, Fraction(d, 10), scheme)
 
 
-def percentile(data, p, scheme=None):
+def percentile(data, p, scheme=1):
     """Return the pth percentile of data, for integer p between 0 and 100.
 
     >>> import builtins; data = builtins.range(1, 201)
@@ -920,4 +873,155 @@ def percentile(data, p, scheme=None):
         raise ValueError('percentile argument p must be between 0 and 100')
     from fractions import Fraction
     return quantile(data, Fraction(p, 100), scheme)
+
+
+
+# Other measures of central tendency
+# ----------------------------------
+
+def midrange(data):
+    """Returns the midrange of a sequence of numbers.
+
+    >>> midrange([2.0, 3.0, 3.5, 4.5, 7.5])
+    4.75
+
+    The midrange is halfway between the smallest and largest element. It is
+    a weak measure of central tendency.
+    """
+    try:
+        L, H = minmax(data)
+    except ValueError as e:
+        e.args = ('no midrange defined for empty iterables',)
+        raise
+    return (L + H)/2
+
+
+def midhinge(data):
+    """Return the midhinge of a sequence of numbers.
+
+    >>> midhinge([1, 1, 2, 3, 4, 5, 6, 7, 8, 8])
+    4.5
+
+    The midhinge is halfway between the first and second hinges. It is a
+    better measure of central tendency than the midrange, and more robust
+    than the sample mean (more resistant to outliers).
+    """
+    H1, _, H2 = hinges(data)
+    return (H1 + H2)/2
+
+
+def trimean(data):
+    """Return Tukey's trimean = (H1 + 2*M + H2)/4 of data
+
+
+    >>> trimean([1, 1, 3, 5, 7, 9, 10, 14, 18])
+    6.75
+    >>> trimean([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    4.0
+
+    The trimean is equivalent to the average of the median and the midhinge,
+    and is considered a better measure of central tendancy than either alone.
+    """
+    H1, M, H2 = hinges(data)
+    return (H1 + 2*M + H2)/4
+
+
+# Measures of spread (dispersion or variability)
+# ----------------------------------------------
+
+def range(data, interval=0):
+    """range(iterable [, interval=0]) -> sample range R of data
+
+    The range R is the difference between the smallest and largest element
+    in the given sample. It is an unbiased but weak measure of variability,
+    and is frequently used in process control applications.
+
+    >>> range([1.0, 3.5, 7.5, 2.0, 0.25])
+    7.25
+
+    For N > 15, the sampling distribution of R becomes unstable and it is
+    wise to treat the sample range with caution.
+
+    An even better measure of variability is R/d2, where d2 is a value
+    that depends only on N. For samples taken from a normally-distributed
+    population, the d2 values are available by looking up N in the dict
+    ``range.d2``. For small N (say, up to about 10) R/d2 makes a good
+    estimator of the population standard deviation.
+
+
+    Correction for binned or rounded data
+    -------------------------------------
+
+    If the data points have been uniformly rounded (perhaps by binning, or
+    by rounding to a fixed number of decimal places, or simply due to
+    measurement error), the samples represent intervals rather than exact
+    values. E.g. if x=1.2 is given to one decimal place, x could actually
+    be any number between 1.15 and 1.25. In this case, it is appropriate to
+    make an adjustment to the sample range by taking into account the width
+    of the data interval:
+
+    >>> range([1.2, 3.0, 1.5, 2.4, 0.2], 0.1)
+    2.9
+
+    The ``interval`` argument is optional, with default value of 0. If
+    given, it must be a non-negative number.
+
+    No attempt is made to check that the data points actually are consistent
+    with the given interval.
+    """
+    if interval < 0:
+        raise ValueError('interval must be non-negative')
+    try:
+        a, b = minmax(data)
+    except ValueError as e:
+        e.args = ('no range defined for empty iterables',)
+        raise
+    return b - a + interval
+
+range.d2 = {
+    2: 1.128,   3: 1.693,   4: 2.059,   5: 2.326,   6: 2.534,   7: 2.704,
+    8: 2.847,   9: 2.970,   10: 3.078,  11: 3.173,  12: 3.258,  13: 3.336,
+    14: 3.407,  15: 3.472,
+    # Source: "Probability and Statistics for Engineers", Irwin Miller
+    # and John E. Freund, Prentice-Hall, third edition.
+    # See also http://www.itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm
+    }
+
+
+def iqr(data, scheme=1):
+    """Returns the Inter-Quartile Range of a sequence of numbers.
+
+    >>> iqr([0.5, 2.25, 3.0, 4.5, 5.5, 6.5])
+    3.25
+
+    The IQR is the difference between the first and third quartile. The
+    optional argument scheme is used to select the algorithm for calculating
+    the quartiles. See the quartile function for further details.
+
+    The IQR with scheme 1 (the default) is equivalent to Tukey's H-spread.
+    """
+    q1, _, q3 = quartiles(data, scheme)
+    return q3 - q1
+
+
+# Other moments of the data
+# -------------------------
+
+def quartile_skewness(q1, q2, q3):
+    """Return the quartile skewness coefficient, or Bowley skewness, from
+    the three quartiles q1, q2, q3.
+
+    >>> quartile_skewness(1, 2, 5)
+    0.5
+    >>> quartile_skewness(1, 4, 5)
+    -0.5
+
+    """
+    if not q1 <= q2 <= q3:
+        raise stats.StatsError('quartiles must be ordered q1 <= q2 <= q3')
+    if q1 == q2 == q3:
+        return float('nan')
+    skew = (q3 + q1 - 2*q2)/(q3 - q1)
+    assert -1.0 <= skew <= 1.0
+    return skew
 
