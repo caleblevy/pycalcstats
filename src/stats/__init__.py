@@ -419,6 +419,8 @@ def sum(data, start=0):
     20000.0
 
     """
+    if isinstance(data, str):
+        raise TypeError('data argument cannot be a string')
     count, total = _generalised_sum(data)
     if not count:
         return start
@@ -510,6 +512,8 @@ def product(data, start=1):
     [0, 6, 12.0, -13.5]
 
     """
+    if isinstance(data, str):
+        raise TypeError('data argument cannot be a string')
     if iter(data) is data:
         try:
             first = next(data)
