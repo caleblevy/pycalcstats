@@ -176,7 +176,8 @@ def average_deviation(data, m=None):
     return total/n
 
 
-def median_average_deviation(data, m=None, sign=0, scale=1):
+# FIXME -- sign should be documented as a scheme value.
+def median_average_deviation(data, m=None, sign=1, scale=1):
     """Return the median absolute deviation (MAD) of data.
 
     The MAD is the median of the absolute deviations from the median, and
@@ -327,7 +328,7 @@ def kurtosis(data, m=None, s=None):
     The kurtosis of a population is a measure of the peakedness and weight
     of the tails. The normal distribution has kurtosis of zero; positive
     kurtosis generally has heavier tails and a sharper peak than normal;
-    negative kurtosis generally has ligher tails and a flatter peak.
+    negative kurtosis generally has lighter tails and a flatter peak.
 
     There is no upper limit for kurtosis, and a lower limit of -2. Higher
     kurtosis means more of the variance is the result of infrequent extreme
