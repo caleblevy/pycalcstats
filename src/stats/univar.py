@@ -6,25 +6,33 @@
 """
 Univariate statistics.
 
+
+This module provides the following univariate statistics functions:
+
+    Function            Description
+    ==================  ===============================================
+    average_deviation       Average deviation from a central location.
+    circular_mean           Mean (average) of circular quantities.
+    geometric_mean          Mean of exponential growth rates.
+    harmonic_mean           Mean of rates or speeds.
+    kurtosis                Measure of shape of the data.
+    mode                    Most frequent value.
+    moving_average          Simple moving average over data.
+    pearson_mode_skewness   Measure of symmetry of the data.
+    quadratic_mean          Mean of quantities varying in sign.
+    skewness                Measure of the symmetry of the data
+    sterrkurtosis           Standard error of the kurtosis.
+    sterrmean               Standard error of the mean.
+    sterrskewness           Standard error of the skewness.
+
 """
 
 __all__ = [
-    # Means and averages:
-    'harmonic_mean', 'geometric_mean', 'quadratic_mean',
-    # Other measures of central tendancy:
-    'mode', 'moving_average',
-    # Measures of spread:
-    'average_deviation', 'median_average_deviation',
-    # Other moments:
-    'pearson_mode_skewness', 'skewness', 'kurtosis',
-    # Sums and products:
-    'product',
-    # Assorted others:
-    'sterrmean', 'sterrskewness', 'sterrkurtosis',
-    # Statistics of circular quantities:
-    'circular_mean',
+    'average_deviation', 'circular_mean', 'geometric_mean', 'harmonic_mean',
+    'kurtosis', 'mode', 'moving_average',
+    'pearson_mode_skewness', 'quadratic_mean', 'skewness', 'sterrkurtosis',
+    'sterrmean', 'sterrskewness',
     ]
-
 
 import math
 import operator
@@ -34,7 +42,6 @@ import collections
 
 import stats
 import stats.utils
-from stats import StatsError as _StatsError
 
 
 # Measures of central tendency (means and averages)
@@ -53,9 +60,9 @@ def harmonic_mean(data):
     try:
         m = stats.mean(1.0/x for x in data)
     except ZeroDivisionError:
-        # FIXME need to preserve the sign of the zero?
+        # FIXME do I need to preserve the sign of the zero?
         # FIXME is it safe to assume that if data contains 1 or more zeroes,
-        # the harmonic mean must itself be zero?
+        # the harmonic mean itself must be zero?
         return 0.0
     if m == 0.0:
         return math.copysign(float('inf'), m)
@@ -97,7 +104,11 @@ def quadratic_mean(data):
 
     The quadratic mean, or root-mean-square (RMS), is the square root of the
     arithmetic mean of the squares of the data. It is best used when
-    quantities vary from positive to negative.
+    quantities vary from positive to negative:
+
+    >>> quadratic_mean([-3, -2, 0, 2, 3])
+    2.280350850198276
+
     """
     return math.sqrt(stats.mean(x*x for x in data))
 
@@ -117,16 +128,19 @@ def mode(data):
          stats.utils.count_elems(data).items()],
          reverse=True)
     if len(L) == 0:
-        raise _StatsError('no mode is defined for empty iterables')
+        raise stats.StatsError('no mode is defined for empty iterables')
     # Test if there are more than one modes.
     if len(L) > 1 and L[0][0] == L[1][0]:
-        raise _StatsError('no distinct mode')
+        raise stats.StatsError('no distinct mode')
     return L[0][1]
 
 
 def moving_average(data, window=3):
     """Iterate over data, yielding the simple moving average with a fixed
-    window size (defaulting to three).
+    window size.
+
+    With a window size of N (defaulting to three), the simple moving average
+    yields the average of items data[0:N], data[1:N+1], data[2:N+2], ...
 
     >>> list(moving_average([40, 30, 50, 46, 39, 44]))
     [40.0, 42.0, 45.0, 43.0]
@@ -135,7 +149,7 @@ def moving_average(data, window=3):
     it = iter(data)
     d = collections.deque(itertools.islice(it, window))
     if len(d) != window:
-        raise _StatsError('too few data points for given window size')
+        raise stats.StatsError('too few data points for given window size')
     s = sum(d)
     yield s/window
     for x in it:
@@ -172,71 +186,9 @@ def average_deviation(data, m=None):
         m = stats.mean(data)
     n, total = stats._generalised_sum(data, lambda x: abs(x-m))
     if n < 1:
-        raise _StatsError('average deviation requires at least 1 data point')
+        raise stats.StatsError(
+        'average deviation requires at least 1 data point')
     return total/n
-
-
-# FIXME -- sign should be documented as a scheme value.
-def median_average_deviation(data, m=None, sign=1, scale=1):
-    """Return the median absolute deviation (MAD) of data.
-
-    The MAD is the median of the absolute deviations from the median, and
-    is approximately equivalent to half the IQR.
-
-    >>> median_average_deviation([1, 1, 2, 2, 4, 6, 9])
-    1
-
-    Arguments are:
-
-    data    Iterable of data values.
-    m       Optional centre location, nominally the median. If m is not
-            given, or is None, the median is calculated from data.
-    sign    If sign = 0 (the default), the ordinary median is used, otherwise
-            either the low-median or high-median are used. See the median()
-            function for further details.
-    scale   Optional scale factor, by default no scale factor is applied.
-
-    The MAD can be used as a robust estimate for the standard deviation by
-    multipying it by a scale factor. The scale factor can be passed directly
-    as a numeric value, which is assumed to be positive but no check is
-    applied. Other values accepted are:
-
-    'normal'    Apply a scale factor of 1.4826, applicable to data from a
-                normally distributed population.
-    'uniform'   Apply a scale factor of approximately 1.1547, applicable
-                to data from a uniform distribution.
-    None, 'none' or not supplied:
-                No scale factor is applied (the default).
-
-    The MAD is a more robust measurement of spread than either the IQR or
-    standard deviation, and is less affected by outliers. The MAD is also
-    defined for distributions such as the Cauchy distribution which don't
-    have a mean or standard deviation.
-    """
-    from stats.order import median
-    # Check for an appropriate scale factor.
-    if isinstance(scale, str):
-        f = median_average_deviation.scaling.get(scale.lower())
-        if f is None:
-            raise _StatsError('unrecognised scale factor `%s`' % scale)
-        scale = f
-    elif scale is None:
-        scale = 1
-    if m is None:
-        data = stats.utils.as_sequence(data)
-        m = median(data, sign)
-    med = median((abs(x - m) for x in data), sign)
-    return scale*med
-
-median_average_deviation.scaling = {
-    # R defaults to the normal scale factor:
-    # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/mad.html
-    'normal': 1.4826,
-    # Wikpedia has a derivation of that constant:
-    # http://en.wikipedia.org/wiki/Median_absolute_deviation
-    'uniform': math.sqrt(4/3),
-    'none': 1,
-    }
 
 
 # Other moments of the data
@@ -350,12 +302,6 @@ def kurtosis(data, m=None, s=None):
     return k
 
 
-# === Sums and products ===
-
-def product(data, start=1):
-    return stats.product(data, start)
-
-
 # === Other statistical formulae ===
 
 def sterrmean(s, n, N=None):
@@ -380,13 +326,13 @@ def sterrmean(s, n, N=None):
     """
     stats.utils._validate_int(n)
     if n < 0:
-        raise _StatsError('cannot have negative sample size')
+        raise stats.StatsError('cannot have negative sample size')
     if N is not None:
         stats.utils._validate_int(N)
         if N < n:
-            raise _StatsError('population size must be at least sample size')
+            raise stats.StatsError('population size must be at least sample size')
     if s < 0.0:
-        raise _StatsError('cannot have negative standard deviation')
+        raise stats.StatsError('cannot have negative standard deviation')
     if n == 0:
         if N == 0: return float('nan')
         else: return float('inf')

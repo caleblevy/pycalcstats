@@ -22,6 +22,7 @@ This module provides the following order statistics and related functions:
     decile              The specified 10-fractile of the data.
     hinges              Tukey's hinges (related to quartiles).
     iqr                 Inter-Quartile Range.
+    mad                 Median Average Deviation.
     median              The middle of the data.
     midhinge            The midpoint between the hinges.
     midrange            The midpoint of the smallest and largest values.
@@ -48,9 +49,9 @@ the ``stats`` module.
 
 
 __all__ = [
-    'decile', 'hinges', 'iqr', 'median', 'midhinge', 'midrange', 'minmax',
-    'percentile', 'quantile', 'quartile_skewness', 'quartiles', 'range',
-    'trimean',
+    'decile', 'hinges', 'iqr', 'mad', 'median', 'midhinge', 'midrange',
+    'minmax', 'percentile', 'quantile', 'quartile_skewness', 'quartiles',
+    'range', 'trimean',
     ]
 
 
@@ -1002,6 +1003,82 @@ def iqr(data, scheme=1):
     """
     q1, _, q3 = quartiles(data, scheme)
     return q3 - q1
+
+
+def mad(data, m=None, scheme=1, scale=1):
+    """mad(iterable [, m=None [, scheme=1 [, scale=1]]]) -> value
+
+    Returns the median absolute deviation (MAD) of data.
+
+    >>> mad([1, 1, 2, 2, 4, 6, 9])
+    1
+
+    The MAD is the median of the absolute deviations from the median. For
+    many sets of data, the MAD is close to half of the much simpler IQR,
+    however MAD is a more robust measurement of spread than either IQR or
+    standard deviation, and is less affected by outliers. MAD is also
+    defined for distributions such as the Cauchy distribution which don't
+    have either a mean or standard deviation.
+
+    Arguments are:
+
+    data    Iterable of data values.
+    m       Optional centre location, nominally the median. If m is not
+            given, or is None, the median is calculated from data.
+    scheme  Select a calculation method for the median. See the ``median``
+            function for further details.
+    scale   Optional scale factor, by default no scale factor is applied.
+
+    Common values used for ``scheme`` are 1 (the default) to use the standard
+    median definition, 2 to use the "low median", or 3 to use the "high
+    median".
+
+    >>> data = [1, 1, 2, 4, 6, 9]
+    >>> mad(data, scheme=1)
+    2.0
+    >>> mad(data, scheme=2)
+    1
+    >>> mad(data, scheme=3)
+    3
+
+    The MAD can also be used as a robust estimate for the standard deviation
+    by multipying it by a scale factor. The scale factor can be passed
+    directly as a numeric value, which is assumed to be positive but no check
+    is applied. Other values accepted are:
+
+    'normal'    Apply a scale factor of 1.4826, applicable to data from a
+                normally distributed population.
+    'uniform'   Apply a scale factor of approximately 1.1547, applicable
+                to data from a uniform distribution.
+    None, 'none' or not supplied:
+                No scale factor is applied (the default).
+
+    See ``mad.scaling`` for a mapping between scale factor names and values.
+    """
+    # Check for an appropriate scale factor.
+    if isinstance(scale, str):
+        f = mad.scaling.get(scale.lower())
+        if f is None:
+            raise stats.StatsError('unrecognised scale factor `%s`' % scale)
+        scale = f
+    elif scale is None:
+        scale = 1
+    if m is None:
+        if not isinstance(data, (list, tuple)):
+            data = list(data)
+        m = median(data, scheme)
+    med = median((abs(x - m) for x in data), scheme)
+    return scale*med
+
+mad.scaling = {
+    # R defaults to the normal scale factor:
+    # http://stat.ethz.ch/R-manual/R-devel/library/stats/html/mad.html
+    'normal': 1.4826,
+    # Wikpedia has a derivation of that constant:
+    # http://en.wikipedia.org/wiki/Median_absolute_deviation
+    'uniform': math.sqrt(4/3),
+    'none': 1,
+    }
 
 
 # Other moments of the data
