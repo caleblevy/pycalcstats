@@ -785,6 +785,82 @@ class IQRTest(
                 self.same_result(range(size), scheme)
 
 
+class MAD_Test(test_stats.NumericTestCase, test_stats.UnivariateMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.order.mad
+
+    def testSuppliedMedian(self):
+        # Test that pre-calculating the median gives the same result.
+        import stats.order
+        for data in (range(35), range(-17, 53, 7), range(11, 79, 3)):
+            result1 = self.func(data)
+            m = stats.order.median(data)
+            data = list(data)
+            random.shuffle(data)
+            result2 = self.func(data, m)
+            self.assertEqual(result1, result2)
+
+    def testMain(self):
+        data = [-1.25, 0.5, 0.5, 1.75, 3.25, 4.5, 4.5, 6.25, 6.75, 9.75]
+        expected = 2.625
+        for delta in (0, 100, 1e6, 1e9):
+            self.assertEqual(self.func(x+delta for x in data), expected)
+
+    def testHasScaling(self):
+        self.assertTrue(hasattr(self.func, 'scaling'))
+
+    def testNoScaling(self):
+        # Test alternative ways of spelling no scaling factor.
+        data = [random.random()+23 for _ in range(100)]
+        expected = self.func(data)
+        for scale in (1, None, 'none'):
+            self.assertEqual(self.func(data, scale=scale), expected)
+
+    def testScales(self):
+        data = [100*random.random()+42 for _ in range(100)]
+        expected = self.func(data)
+        self.assertEqual(self.func(data, scale='normal'), expected*1.4826)
+        self.assertApproxEqual(
+            self.func(data, scale='uniform'),
+            expected*1.1547, # Documented value in docstring.
+            tol=0.0001, rel=None)
+        self.assertEqual(self.func(data, scale='uniform'),
+            expected*math.sqrt(4/3))  # Exact value.
+        for x in (-1.25, 0.0, 1.25, 4.5, 9.75):
+            self.assertEqual(self.func(data, scale=x), expected*x)
+
+    def testCaseInsensitiveScaling(self):
+        for scale in ('normal', 'uniform', 'none'):
+            data = [67*random.random()+19 for _ in range(100)]
+            a = self.func(data, scale=scale.lower())
+            b = self.func(data, scale=scale.upper())
+            c = self.func(data, scale=scale.title())
+            self.assertEqual(a, b)
+            self.assertEqual(a, c)
+
+    def testSchemeOdd(self):
+        # Test scheme argument with odd number of data points.
+        data = [23*random.random()+42 for _ in range(55)]
+        assert len(data)%2 == 1
+        a = self.func(data, scheme=1)
+        b = self.func(data, scheme=2)
+        c = self.func(data, scheme=3)
+        d = self.func(data)
+        self.assertEqual(a, b)
+        self.assertEqual(a, c)
+        self.assertEqual(a, d)
+
+    def testSignEven(self):
+        # Test scheme argument with even number of data points.
+        data = [0.5, 1.5, 3.25, 4.25, 6.25, 6.75]
+        assert len(data)%2 == 0
+        self.assertEqual(self.func(data), 2.375)
+        self.assertEqual(self.func(data, scheme=1), 2.375)
+        self.assertEqual(self.func(data, scheme=2), 1.75)
+        self.assertEqual(self.func(data, scheme=3), 2.5)
+
+
 class HingesTest(
     DoubleDataFailMixin,
     test_stats.NumericTestCase,
