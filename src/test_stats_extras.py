@@ -861,14 +861,14 @@ class MAD_Test(test_stats.NumericTestCase, test_stats.UnivariateMixin):
         self.assertEqual(self.func(data, scheme=3), 2.5)
 
 
-class HingesTest(
+class FiveNumTest(
     DoubleDataFailMixin,
     test_stats.NumericTestCase,
     test_stats.UnivariateMixin
     ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.func = stats.order.hinges
+        self.func = stats.order.fivenum
 
     def testCompareWithQuartiles(self):
         # Compare results with those from the quartiles function using
@@ -877,15 +877,31 @@ class HingesTest(
         for n in range(3, 25):
             data = list(range(n))
             random.shuffle(data)
-            self.assertEqual(self.func(data), quartiles(data, 'hinges'))
+            self.assertEqual(self.func(data)[1:-1], quartiles(data, 'hinges'))
 
-    def testHinges(self):
+    def testCompareWithMinMax(self):
+        # Compare results with the min and max.
+        for n in range(3, 25):
+            data = list(range(n))
+            random.shuffle(data)
+            t = self.func(data)
+            self.assertEqual(t[0], min(data))
+            self.assertEqual(t[-1], max(data))
+
+    def testSummary(self):
         # Compare results with those calculated by hand.
-        self.assertEqual(self.func([0, 1, 2, 3, 4]), (1, 2, 3))
-        self.assertEqual(self.func(range(100, 109)), (102, 104, 106))
-        self.assertEqual(self.func(range(100, 110)), (102, 104.5, 107))
-        self.assertEqual(self.func(range(100, 111)), (102.5, 105, 107.5))
-        self.assertEqual(self.func(range(100, 112)), (102.5, 105.5, 108.5))
+        f = self.func
+        self.assertEqual(f([0, 1, 2, 3, 4]), (0, 1, 2, 3, 4))
+        self.assertEqual(f(range(100, 109)), (100, 102, 104, 106, 108))
+        self.assertEqual(f(range(100, 110)), (100, 102, 104.5, 107, 109))
+        self.assertEqual(f(range(100, 111)), (100, 102.5, 105, 107.5, 110))
+        self.assertEqual(f(range(100, 112)), (100, 102.5, 105.5, 108.5, 111))
+
+    def testFields(self):
+        # Test that the summary result has named fields.
+        names = ('minimum', 'lower_hinge', 'median', 'upper_hinge', 'maximum')
+        t = self.func([1, 3, 5, 7, 9])
+        self.assertEqual(t._fields, names)
 
 
 class QuartileSkewnessTest(unittest.TestCase):
