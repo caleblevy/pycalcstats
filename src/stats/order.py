@@ -20,7 +20,7 @@ This module provides the following order statistics and related functions:
     Function            Description
     ==================  ===============================================
     decile              The specified 10-fractile of the data.
-    hinges              Tukey's hinges (related to quartiles).
+    fivenum             Tukey's five number summary.
     iqr                 Inter-Quartile Range.
     mad                 Median Average Deviation.
     median              The middle of the data.
@@ -49,12 +49,13 @@ the ``stats`` module.
 
 
 __all__ = [
-    'decile', 'hinges', 'iqr', 'mad', 'median', 'midhinge', 'midrange',
+    'decile', 'fivenum', 'iqr', 'mad', 'median', 'midhinge', 'midrange',
     'minmax', 'percentile', 'quantile', 'quartile_skewness', 'quartiles',
     'range', 'trimean',
     ]
 
 
+import collections
 import functools
 import math
 import types
@@ -821,27 +822,48 @@ def quantile(data, p, scheme=1):
 
 # -- Convenience functions for fractiles --
 
-def hinges(data):
-    """Return Tukey's hinges H1, M, H2 from data.
+def fivenum(data):
+    """Return Tukey's five number summary from data.
 
-    >>> hinges([2, 4, 6, 8, 10, 12, 14, 16, 18])
-    (6, 10, 14)
+    The five summary numbers are:
 
-    If the data has length N of the form 4n+5 (e.g. 5, 9, 13, 17...) then
-    the hinges can be visualised by writing out the ordered data in the
+        minimum, lower-hinge, median, upper-hinge, maximum
+
+
+    >>> tuple(fivenum([2, 4, 6, 8, 10, 12, 14, 16, 18]))
+    (2, 6, 10, 14, 18)
+
+    The summary is a namedtuple with the following fields:
+
+        minimum
+        lower_hinge
+        median
+        upper_hinge
+        maximum
+
+    If the data has length N of the form ``4n+5`` (e.g. 5, 9, 13, 17...)
+    then the hinges can be visualised by writing out the sorted data in the
     shape of a W, where each limb of the W is equal is length. For example,
-    the data (A,B,C,...,I) has N=9 and would be written out like this:
+    the data (A,B,C,...,M) has N=13 and would be written out like this:
 
-        A       E       I
-          B   D   F   H
-            C       G
+        A           G           M
+          B       F   H       L
+            C   E       I   K
+              D           J
 
-    The hinges would be C, E and G.
+    The hinges are D, G and J and the fivenum summary is (A, D, G, J, M).
 
-    This is a convenience function equivalent to quartiles() called with
-    scheme=1.
+    For data with length that doesn't match ``4n+5``, the three hinges are
+    interpolated. They are equivalent to ``quartiles`` called with scheme=1.
     """
-    return quartiles(data, scheme=1)
+    if isinstance(data, str):
+        raise TypeError('data argument cannot be a string')
+    data = sorted(data)
+    a, b = minmax(data)
+    h1, m, h2 = quartiles(data, scheme=1)
+    summary = collections.namedtuple('fivenum',
+                'minimum lower_hinge median upper_hinge maximum')
+    return summary(a, h1, m, h2, b)
 
 
 def decile(data, d, scheme=1):
@@ -907,7 +929,7 @@ def midhinge(data):
     better measure of central tendency than the midrange, and more robust
     than the sample mean (more resistant to outliers).
     """
-    H1, _, H2 = hinges(data)
+    H1, _, H2 = quartiles(data, scheme=1)
     return (H1 + H2)/2
 
 
@@ -923,7 +945,7 @@ def trimean(data):
     The trimean is equivalent to the average of the median and the midhinge,
     and is considered a better measure of central tendancy than either alone.
     """
-    H1, M, H2 = hinges(data)
+    H1, M, H2 = quartiles(data, scheme=1)
     return (H1 + 2*M + H2)/4
 
 
