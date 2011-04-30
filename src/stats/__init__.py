@@ -555,8 +555,8 @@ def product(data, start=1):
 # === Basic univariate statistics ===
 
 def mean(data):
-    """mean(iterable_of_numbers) -> sum of numbers
-    mean(iterable_of_rows) -> sums of columns
+    """mean(iterable_of_numbers) -> arithmetic mean of numbers
+    mean(iterable_of_rows) -> arithmetic means of columns
 
     Return the arithmetic mean of the given numbers or columns.
 
