@@ -54,41 +54,6 @@ def as_sequence(iterable):
     else: return list(iterable)
 
 
-def coroutine(func):
-    """Decorator to prime coroutines when they are initialised."""
-    @functools.wraps(func)
-    def started(*args, **kwargs):
-        cr = func(*args,**kwargs)
-        cr.send(None)
-        return cr
-    return started
-
-
-# Modified from http://code.activestate.com/recipes/393090/
-# Thanks to Raymond Hettinger.
-def add_partial(x, partials):
-    """Helper function for full-precision summation of binary floats.
-
-    Adds x in place to the list partials.
-    """
-    # Rounded x+y stored in hi with the round-off stored in lo.  Together
-    # hi+lo are exactly equal to x+y.  The inner loop applies hi/lo summation
-    # to each partial so that the list of partial sums remains exact.
-    # Depends on IEEE-754 arithmetic guarantees.  See proof of correctness at:
-    # www-2.cs.cmu.edu/afs/cs/project/quake/public/papers/robust-arithmetic.ps
-    i = 0
-    for y in partials:
-        if abs(x) < abs(y):
-            x, y = y, x
-        hi = x + y
-        lo = y - (hi - x)
-        if lo:
-            partials[i] = lo
-            i += 1
-        x = hi
-    partials[i:] = [x]
-
-
 def _generalised_sum(data, func):
     """_generalised_sum(data, func) -> len(data), sum(func(items of data))
 
@@ -172,48 +137,7 @@ def _validate_int(n):
         raise ValueError('requires integer value')
 
 
-# Rounding modes.
-_UP, _DOWN, _EVEN = 0, 1, 2
-
-def _round(x, rounding_mode):
-    """Round non-negative x, with ties rounding according to rounding_mode."""
-    assert rounding_mode in (_UP, _DOWN, _EVEN)
-    assert x >= 0.0
-    n, f = int(x), x%1
-    if rounding_mode == _UP:
-        if f >= 0.5:
-            return n+1
-        else:
-            return n
-    elif rounding_mode == _DOWN:
-        if f > 0.5:
-            return n+1
-        else:
-            return n
-    else:
-        # Banker's rounding to EVEN.
-        if f > 0.5:
-            return n+1
-        elif f < 0.5:
-            return n
-        else:
-            if n%2:
-                # n is odd, so round up to even.
-                return n+1
-            else:
-                # n is even, so round down.
-                return n
-
-
-def _interpolate(data, x):
-    i, f = math.floor(x), x%1
-    if f:
-        a, b = data[i], data[i+1]
-        return a + f*(b-a)
-    else:
-        return data[i]
-
 
 # === Generic utilities ===
 
-from stats import minmax
+from stats import minmax, add_partial
