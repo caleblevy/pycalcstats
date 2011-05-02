@@ -422,10 +422,10 @@ def _calc_r(sumsqx, sumsqy, sumco):
        return float('nan')
     r = sumco/den
     # -1 <= r <= +1 should hold, but due to rounding errors sometimes the
-    # absolute value of r can exceed 1 by up to 2**-50. We accept this
+    # absolute value of r can exceed 1 by up to 2**-49. We accept this
     # without comment.
     excess = max(abs(r) - 1.0, 0.0)
-    if 0 < excess <= 2**-50:
+    if 0 < excess <= 2**-49:
         r = math.copysign(1, r)
     assert -1.0 <= r <= 1.0, "expected -1.0 <= r <= 1.0 but got r = %r" % r
     return r
