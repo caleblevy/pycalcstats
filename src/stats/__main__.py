@@ -29,9 +29,9 @@ To suppress output if all tests pass, pass the quiet flag:
     $ python3 -m stats -q
 
 """
+import sys
 
 def process_options():
-    import sys
     argv = sys.argv[1:]
     if '-h' in argv or '--help' in argv:
         print(__doc__)
@@ -64,8 +64,10 @@ def self_test(verbose, quiet):
     if failed == 0 and not quiet:
         print("Successfully run %d doctests from %d files."
               % (tried, len(modules)))
+    return failed
 
 
 if __name__ == '__main__' and __package__ is not None:
     verbose, quiet = process_options()
-    self_test(verbose, quiet)
+    sys.exit(self_test(verbose, quiet))
+
