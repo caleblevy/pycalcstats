@@ -1751,6 +1751,37 @@ class UnivarAverageDeviationTest(
             self.assertEqual(self.func(x+delta for x in data), expected)
 
 
+class UnivarPearsonSkewnessTest(test_stats.NumericTestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.pearson_skewness
+
+    def testFailure(self):
+        # Test that stdev must be positive.
+        self.assertRaises(ValueError, self.func, 2, 3, -1)
+        self.assertRaises(ValueError, self.func, 3, 2, -5)
+
+    def testNan(self):
+        # Test that a numerator and denominator of zero returns NAN.
+        self.assertTrue(math.isnan(self.func(5, 5, 0)))
+        self.assertTrue(math.isnan(self.func(42, 42, 0)))
+
+    def testInf(self):
+        # Test that a non-zero numerator and zero denominator returns INF.
+        self.assertTrue(math.isinf(self.func(3, 2, 0)))
+        self.assertTrue(math.isinf(self.func(2, 3, 0)))
+
+    def testZero(self):
+        # Test that a zero numerator and non-zero denominator returns zero.
+        self.assertEqual(self.func(3, 3, 1), 0)
+        self.assertEqual(self.func(42, 42, 7), 0)
+
+    def testSkew(self):
+        # Test skew calculations.
+        self.assertEqual(self.func(2.5, 2.25, 2.5), 0.1)
+        self.assertEqual(self.func(225, 250, 25), -1.0)
+
+
 class UnivarStErrMeanTest(test_stats.NumericTestCase):
     tol=1e-11
     def __init__(self, *args, **kwargs):
