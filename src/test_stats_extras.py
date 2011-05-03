@@ -1528,7 +1528,7 @@ class UnivarGlobalsTest(test_stats.GlobalsTest):
     module = stats.univar
 
 
-class HarmonicMeanTest(test_stats.MeanTest):
+class UnivarHarmonicMeanTest(test_stats.MeanTest):
     rel = 1e-8
 
     def __init__(self, *args, **kwargs):
@@ -1556,13 +1556,13 @@ class HarmonicMeanTest(test_stats.MeanTest):
         # FIX ME test for signed zeroes?
 
 
-class HarmonicMeanColumnTest(test_stats.MeanColumnTest):
+class UnivarHarmonicMeanColumnTest(test_stats.MeanColumnTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.harmonic_mean
 
 
-class HarmonicMeanIEEEValues(test_stats.MeanIEEEValues):
+class UnivarHarmonicMeanIEEEValues(test_stats.MeanIEEEValues):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.harmonic_mean
@@ -1582,7 +1582,7 @@ class HarmonicMeanIEEEValues(test_stats.MeanIEEEValues):
         self.assertEqual(result, 2)
 
 
-class QuadraticMeanTest(test_stats.MeanTest):
+class UnivarQuadraticMeanTest(test_stats.MeanTest):
     rel = 1e-8
 
     def __init__(self, *args, **kwargs):
@@ -1602,13 +1602,13 @@ class QuadraticMeanTest(test_stats.MeanTest):
         self.assertEqual(self.func(data), math.sqrt(21/4))
 
 
-class QuadraticMeanColumnTest(test_stats.MeanColumnTest):
+class UnivarQuadraticMeanColumnTest(test_stats.MeanColumnTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.quadratic_mean
 
 
-class QuadraticMeanIEEEValues(test_stats.MeanIEEEValues):
+class UnivarQuadraticMeanIEEEValues(test_stats.MeanIEEEValues):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.quadratic_mean
@@ -1627,7 +1627,7 @@ class QuadraticMeanIEEEValues(test_stats.MeanIEEEValues):
         self.assertEqual(result, inf)
 
 
-class GeometricMeanTest(test_stats.MeanTest):
+class UnivarGeometricMeanTest(test_stats.MeanTest):
     rel = 1e-11
 
     def __init__(self, *args, **kwargs):
@@ -1658,13 +1658,13 @@ class GeometricMeanTest(test_stats.MeanTest):
         self.assertEqual(self.func(data), 0.0)
 
 
-class GeometricMeanColumnTest(test_stats.MeanColumnTest):
+class UnivarGeometricMeanColumnTest(test_stats.MeanColumnTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.quadratic_mean
 
 
-class GeometricMeanIEEEValues(test_stats.MeanIEEEValues):
+class UnivarGeometricMeanIEEEValues(test_stats.MeanIEEEValues):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.quadratic_mean
@@ -1686,7 +1686,7 @@ class GeometricMeanIEEEValues(test_stats.MeanIEEEValues):
         self.assertTrue(math.isnan(result), 'expected NAN but got %r' % result)
 
 
-class MovingAverageTest(test_stats.NumericTestCase):
+class UnivarMovingAverageTest(test_stats.NumericTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.univar.moving_average
@@ -1721,7 +1721,37 @@ class MovingAverageTest(test_stats.NumericTestCase):
         self.assertRaises(ValueError, next, it)
 
 
-class StErrMeanTest(test_stats.NumericTestCase):
+class UnivarAverageDeviationTest(
+    test_stats.UnivariateMixin,
+    test_stats.NumericTestCase
+    ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.average_deviation
+        self.extras = [(), (1,), (-2.5,), (None,)]
+
+    def testSuppliedMean(self):
+        # Test that pre-calculating the mean gives the same result.
+        for data in (range(35), range(-17, 53, 7), range(11, 79, 3)):
+            data = list(data)
+            random.shuffle(data)
+            m = stats.mean(data)
+            result1 = self.func(data)
+            result2 = self.func(data, m)
+            self.assertEqual(result1, result2)
+
+    def testSingleton(self):
+        self.assertEqual(self.func([42]), 0)
+        self.assertEqual(self.func([42], 40), 2)
+
+    def testMain(self):
+        data = [-1.25, 0.5, 0.5, 1.75, 3.25, 4.5, 4.5, 6.25, 6.75, 9.75]
+        expected = 2.7
+        for delta in (0, 100, 1e6, 1e9):
+            self.assertEqual(self.func(x+delta for x in data), expected)
+
+
+class UnivarStErrMeanTest(test_stats.NumericTestCase):
     tol=1e-11
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1778,7 +1808,7 @@ class StErrMeanTest(test_stats.NumericTestCase):
             self.func(2.5, 16, 20), 0.286769667338)
 
 
-class StErrSkewnessTest(test_stats.NumericTestCase):
+class UnivarStErrSkewnessTest(test_stats.NumericTestCase):
     tol=1e-12
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1802,7 +1832,7 @@ class StErrSkewnessTest(test_stats.NumericTestCase):
         self.assertApproxEqual(self.func(55), 0.330289129538)
 
 
-class StErrKurtosisTest(test_stats.NumericTestCase):
+class UnivarStErrKurtosisTest(test_stats.NumericTestCase):
     tol=1e-12
     rel=2e-12
     def __init__(self, *args, **kwargs):
@@ -1827,7 +1857,7 @@ class StErrKurtosisTest(test_stats.NumericTestCase):
         self.assertApproxEqual(self.func(55), 0.660578259076)
 
 
-class CircularMeanTest(
+class UnivarCircularMeanTest(
     test_stats.UnivariateMixin,
     test_stats.NumericTestCase
     ):
