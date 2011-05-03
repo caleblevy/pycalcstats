@@ -11,27 +11,30 @@ This module provides the following univariate statistics functions:
 
     Function            Description
     ==================  ===============================================
-    average_deviation       Average deviation from a central location.
-    circular_mean           Mean (average) of circular quantities.
-    geometric_mean          Mean of exponential growth rates.
-    harmonic_mean           Mean of rates or speeds.
-    kurtosis                Measure of shape of the data.
-    mode                    Most frequent value.
-    moving_average          Simple moving average over data.
-    pearson_mode_skewness   Measure of symmetry of the data.
-    quadratic_mean          Mean of quantities varying in sign.
-    skewness                Measure of the symmetry of the data
-    sterrkurtosis           Standard error of the kurtosis.
-    sterrmean               Standard error of the mean.
-    sterrskewness           Standard error of the skewness.
+    average_deviation   Average deviation from a central location.
+    circular_mean       Mean (average) of circular quantities.
+    geometric_mean*     Mean of exponential growth rates.
+    harmonic_mean*      Mean of rates or speeds.
+    kurtosis            Measure of shape of the data.
+    mode                Most frequent value.
+    moving_average      Simple moving average iterator.
+    pearson_skewness    Measure of symmetry of the data.
+    quadratic_mean*     Root-mean-square average.
+    skewness            Measure of the symmetry of the data
+    sterrkurtosis       Standard error of the kurtosis.
+    sterrmean           Standard error of the mean.
+    sterrskewness       Standard error of the skewness.
+
+Functions marked with * can operate on columnar data. See the documentation
+for the ``stats`` module, or the indiviual function, for further details.
 
 """
 
 __all__ = [
     'average_deviation', 'circular_mean', 'geometric_mean', 'harmonic_mean',
-    'kurtosis', 'mode', 'moving_average',
-    'pearson_mode_skewness', 'quadratic_mean', 'skewness', 'sterrkurtosis',
-    'sterrmean', 'sterrskewness',
+    'kurtosis', 'mode', 'moving_average', 'pearson_skewness',
+    'quadratic_mean', 'skewness', 'sterrkurtosis', 'sterrmean',
+    'sterrskewness',
     ]
 
 import math
@@ -44,88 +47,194 @@ import stats
 import stats.utils
 
 
+# Utility functions
+# -----------------
+
+def make_freq_table(data):
+    """Return a frequency table from the elements of data.
+
+    >>> d = make_freq_table([1.5, 2.5, 1.5, 0.5])
+    >>> sorted(d.items())
+    [(0.5, 1), (1.5, 2), (2.5, 1)]
+
+    """
+    D = {}
+    for element in data:
+        D[element] = D.get(element, 0) + 1
+    return D  #collections.Counter(data)
+
+
+def _divide(num, den):
+    """Return num/div without raising unnecessary exceptions.
+
+    >>> _divide(1, 0)
+    inf
+    >>> from decimal import Decimal
+    >>> _divide(Decimal(0), 0)
+    Decimal('NaN')
+
+    """
+    # Support Decimal, but only if necessary. Avoid importing such a
+    # heavyweight module if not needed.
+    if 'decimal' in (type(num).__module__, type(den).__module__):
+        import decimal
+        with decimal.localcontext() as ctx:
+            ctx.traps[decimal.DivisionByZero] = 0
+            ctx.traps[decimal.InvalidOperation] = 0
+            return num/den
+    # Support non-Decimal values.
+    try:
+        return num/den
+    except ZeroDivisionError:
+        if num:
+            result = math.copysign(float('inf'), den)
+            if num < 0:
+                result = -result
+        else:
+            result = float('nan')
+    for x in (num, den):
+        try:
+            return x.from_float(result)
+        except (AttributeError, ValueError, TypeError):
+            pass
+    return result
+
+
 # Measures of central tendency (means and averages)
 # -------------------------------------------------
 
 def harmonic_mean(data):
-    """Return the sample harmonic mean of a sequence of non-zero numbers.
+    """harmonic_mean(iterable_of_numbers) -> harmonic mean of numbers
+    harmonic_mean(iterable_of_rows) -> harmonic means of columns
+
+    Return the harmonic mean of the given numbers or columns.
+
+    The harmonic mean, or subcontrary mean, is the reciprocal of the
+    arithmetic mean of the reciprocals of the data. It is a type of average
+    best used for averaging rates or speeds.
 
     >>> harmonic_mean([0.25, 0.5, 1.0, 1.0])
     0.5
 
-    The harmonic mean, or subcontrary mean, is the reciprocal of the
-    arithmetic mean of the reciprocals of the data. It is best suited for
-    averaging rates.
+    If data includes one or more zero values, the result will be zero if the
+    zeroes are all the same sign, or an NAN if they are of opposite signs.
+
+    When passed an iterable of sequences, each inner sequence represents a
+    row of data, and ``harmonic_mean`` operates on each column. All rows
+    must have the same number of columns, or ValueError is raised.
+
+    >>> data = [[0, 1, 2, 4],
+    ...         [1, 2, 4, 8],
+    ...         [2, 4, 8, 8]]
+    ...
+    >>> harmonic_mean(data)  #doctest: +ELLIPSIS
+    [0.0, 1.71428..., 3.42857..., 6.0]
+
     """
-    try:
-        m = stats.mean(1.0/x for x in data)
-    except ZeroDivisionError:
-        # FIXME do I need to preserve the sign of the zero?
-        # FIXME is it safe to assume that if data contains 1 or more zeroes,
-        # the harmonic mean itself must be zero?
-        return 0.0
-    if m == 0.0:
-        return math.copysign(float('inf'), m)
-    return 1/m
+    # FIXME harmonic_mean([x]) should equal x exactly, but due to rounding
+    # errors in the 1/(1/x) round trip, sometimes it doesn't.
+    invert = functools.partial(_divide, 1)
+    count, total = stats._len_sum(data, invert)
+    if not count:
+        raise stats.StatsError('harmonic mean of empty sequence is not defined')
+    f = functools.partial(_divide, count)
+    return stats._vsmap(f, total)
 
 
 def geometric_mean(data):
-    """Return the sample geometric mean of a sequence of positive numbers.
+    """Return the sample geometric mean of a sequence of non-negative numbers.
 
     >>> geometric_mean([1.0, 2.0, 6.125, 12.25])
     3.5
 
-    The geometric mean is the Nth root of the product of the data. It is
-    best suited for averaging exponential growth rates.
+    The geometric mean of N items is the Nth root of the product of the
+    items. It is best suited for averaging exponential growth rates.
+
     """
-    ap = stats.add_partial
-    log = math.log
-    partials = []
-    count = 0
-    try:
-        for x in data:
-            count += 1
-            ap(log(x), partials)
-    except ValueError:
-        if x < 0:
-            raise _StatsError('geometric mean of negative number')
-        return 0.0
-    if count == 0:
-        raise _StatsError('geometric mean of empty sequence is not defined')
-    p = math.exp(math.fsum(partials))
-    return pow(p, 1.0/count)
+    # Calculate the length and product of data.
+    def safe_mul(a, b):
+        x = a*b
+        if x < 0: return float('nan')
+        return x
+    scalar_multiply = functools.partial(functools.reduce, safe_mul)
+    count, total = stats._generalised_reduce(
+                    scalar_multiply, stats.running_product, data)
+    if not count:
+        raise stats.StatsError(
+        'geometric mean of empty sequence is not defined')
+    return pow(total, 1.0/count)
 
 
 def quadratic_mean(data):
-    """Return the sample quadratic mean of a sequence of numbers.
+    """quadratic_mean(iterable_of_numbers) -> quadratic mean of numbers
+    quadratic_mean(iterable_of_rows) -> quadratic means of columns
+
+    Return the quadratic mean of the given numbers or columns.
 
     >>> quadratic_mean([2, 2, 4, 5])
     3.5
 
-    The quadratic mean, or root-mean-square (RMS), is the square root of the
-    arithmetic mean of the squares of the data. It is best used when
-    quantities vary from positive to negative:
+    The quadratic mean, or RMS (Root Mean Square), is the square root of the
+    arithmetic mean of the squares of the data. It is a type of average
+    best used to get an average absolute magnitude when quantities vary from
+    positive to negative:
 
     >>> quadratic_mean([-3, -2, 0, 2, 3])
     2.280350850198276
 
+    When passed an iterable of sequences, each inner sequence represents a
+    row of data, and ``quadratic_mean`` operates on each column. All rows
+    must have the same number of columns, or ValueError is raised.
+
+    >>> data = [[0, 1, 2, 4],
+    ...         [1, 2, 4, 6],
+    ...         [2, 4, 6, 6]]
+    ...
+    >>> quadratic_mean(data)  #doctest: +ELLIPSIS
+    [1.29099..., 2.64575..., 4.3204..., 5.41602...]
+
     """
-    return math.sqrt(stats.mean(x*x for x in data))
+    count, total = stats._len_sum(data, lambda x: x*x)
+    if not count:
+        raise stats.StatsError('quadratic mean of empty sequence is not defined')
+    return stats._vsmap(lambda x: math.sqrt(x/count), total)
 
 
-def mode(data):
-    """Returns the single most common element of a sequence of numbers.
+def mode(data, window=None):
+    """Returns the most common element of a sequence of numbers.
 
-    >>> mode([5.0, 7.0, 2.0, 3.0, 2.0, 2.0, 1.0, 3.0])
-    2.0
+    The mode is commonly used as an average. It is the "most typical"
+    value of a distribution or data set.
 
-    Raises StatsError if there is no mode, or if it is not unique.
+    >>> mode([5, 7, 2, 3, 2, 2, 1, 3])
+    2
 
-    The mode is commonly used as an average.
+    For discrete data, pass ``window=None`` (the default) to return the
+    element with the largest frequency. If there is no such element, or
+    it is not unique, ``StatsError`` is raised.
+
+    For continuous data, the mode is estimated using the technique described
+    as "estimating the rate of an inhomogeneous Poisson process by jth
+    waiting times" (Numerical Recipes in Pascal, Press et. al.) Choose a
+    positive integer as the "window size". A smaller window size gives better
+    resolution and a chance at finding a high but narrow peak, but is also
+    more likely to mistake a chance fluctuation in the data as the mode.
+
+    ``window`` should be as large as you can tolerate. If it is less than 1,
+    ValueError is raised. If it is 2 or 3, a warning is raised.
     """
+    if window is not None:
+        if window < 1:
+            raise ValueError('window size must be strictly positive and'
+            ' should be at least three')
+        if window < 3:
+            import warnings
+            warnings.warn('window size is recommended to be at least three')
+        raise NotImplementedError
+    assert window is None
     L = sorted(
         [(count, value) for (value, count) in
-         stats.utils.count_elems(data).items()],
+         make_freq_table(data).items()],
          reverse=True)
     if len(L) == 0:
         raise stats.StatsError('no mode is defined for empty iterables')
@@ -149,7 +258,7 @@ def moving_average(data, window=3):
     it = iter(data)
     d = collections.deque(itertools.islice(it, window))
     if len(d) != window:
-        raise stats.StatsError('too few data points for given window size')
+        raise ValueError('too few data points for given window size')
     s = sum(d)
     yield s/window
     for x in it:
@@ -165,8 +274,8 @@ def average_deviation(data, m=None):
     """average_deviation(data [, m]) -> average absolute deviation of data.
 
     Returns the average deviation of the sample data from the population
-    centre m (usually the mean, or the median). If you know the population
-    mean or median, pass it as the second element:
+    centre ``m`` (usually the mean, or the median). If you know the
+    population mean or median, pass it as the second element:
 
     >>> data = [2.0, 2.25, 2.5, 2.5, 3.25]  # A sample from a population
     >>> mu = 2.75                           # with a known mean.
@@ -174,17 +283,18 @@ def average_deviation(data, m=None):
     0.45
 
     If you don't know the centre location, you can estimate it by passing
-    the sample mean or median instead. If m is not None, or not given, the
-    sample mean is calculated from the data and used:
+    the sample mean or median instead. If ``m`` is not None, or not given,
+    the sample mean is calculated from the data and used:
 
     >>> average_deviation(data)
     0.3
 
     """
     if m is None:
-        data = stats.utils.as_sequence(data)
+        if not isinstance(data, (list, tuple)):
+            data = list(data)
         m = stats.mean(data)
-    n, total = stats._generalised_sum(data, lambda x: abs(x-m))
+    n, total = stats._len_sum(data, lambda x: abs(x-m))
     if n < 1:
         raise stats.StatsError(
         'average deviation requires at least 1 data point')
@@ -194,12 +304,14 @@ def average_deviation(data, m=None):
 # Other moments of the data
 # -------------------------
 
-def pearson_mode_skewness(mean, mode, stdev):
+def pearson_skewness(mean, mode, stdev):
     """Return the Pearson Mode Skewness from the mean, mode and standard
     deviation of a data set.
 
-    >>> pearson_mode_skewness(2.5, 2.25, 2.5)
+    >>> pearson_skewness(2.5, 2.25, 2.5)
     0.1
+    >>> pearson_skewness(2.5, 5.75, 0.5)
+    -6.5
 
     """
     if stdev > 0:
@@ -207,7 +319,7 @@ def pearson_mode_skewness(mean, mode, stdev):
     elif stdev == 0:
         return float('nan') if mode == mean else float('inf')
     else:
-        raise _StatsError("standard deviation cannot be negative")
+        raise stats.StatsError("standard deviation cannot be negative")
 
 
 def skewness(data, m=None, s=None):
@@ -247,10 +359,11 @@ def skewness(data, m=None, s=None):
 
     """
     if m is None or s is None:
-        data = stats.utils.as_sequence(data)
+        if not isinstance(data, (list, tuple)):
+            data = list(data)
         if m is None: m = stats.mean(data)
         if s is None: s = stats.stdev(data, m)
-    n, total = stats._generalised_sum(data, lambda x: ((x-m)/s)**3)
+    n, total = stats._len_sum(data, lambda x: ((x-m)/s)**3)
     return total/n
 
 
@@ -293,10 +406,11 @@ def kurtosis(data, m=None, s=None):
 
     """
     if m is None or s is None:
-        data = stats.utils.as_sequence(data)
+        if not isinstance(data, (list, tuple)):
+            data = list(data)
         if m is None: m = stats.mean(data)
         if s is None: s = stats.stdev(data, m)
-    n, total = stats._generalised_sum(data, lambda x: ((x-m)/s)**4)
+    n, total = stats._len_sum(data, lambda x: ((x-m)/s)**4)
     k = total/n - 3
     assert k >= -2
     return k
@@ -400,8 +514,8 @@ def circular_mean(data, deg=True):
     >>> pi = math.pi
     >>> circular_mean([pi/4, -pi/4], False)
     0.0
-    >>> theta = circular_mean([pi/3, 2*pi-pi/6], False)
-    >>> theta  # Exact value is pi/12  #doctest: +ELLIPSIS
+    >>> # Exact value of the following is pi/12
+    ... circular_mean([pi/3, 2*pi-pi/6], False)  #doctest: +ELLIPSIS
     0.261799387799...
 
     """
@@ -413,7 +527,8 @@ def circular_mean(data, deg=True):
         ap(math.cos(theta), cosines)
         ap(math.sin(theta), sines)
     if n == 0:
-        raise _StatsError('circular mean of empty sequence is not defined')
+        raise stats.StatsError(
+        'circular mean of empty sequence is not defined')
     x = math.fsum(cosines)/n
     y = math.fsum(sines)/n
     theta = math.atan2(y, x)  # Note the order is swapped.

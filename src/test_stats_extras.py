@@ -1528,6 +1528,381 @@ class UnivarGlobalsTest(test_stats.GlobalsTest):
     module = stats.univar
 
 
+class HarmonicMeanTest(test_stats.MeanTest):
+    rel = 1e-8
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.harmonic_mean
+        self.expected = 3.4995090404755
+
+    def testSingleton(self):
+        # Over-ride method. While exact equality should hold, due to
+        # rounding error, we have to accept a little less precision.
+        for x in self.data:
+            self.assertApproxEqual(self.func([x]), x, rel=1e-15)
+
+    def testNegative(self):
+        # The harmonic mean of negative numbers is allowed.
+        data = [1.0, -2.0, 4.0, -8.0]
+        assert any(x < 0.0 for x in data)
+        self.assertEqual(self.func(data), 4*8/5)
+
+    def testZero(self):
+        # The harmonic mean of anything with a zero in it should be zero.
+        data = [1.0, 2.0, 0.0, 4.0]
+        assert any(x == 0.0 for x in data)
+        self.assertEqual(self.func(data), 0.0)
+        # FIX ME test for signed zeroes?
+
+
+class HarmonicMeanColumnTest(test_stats.MeanColumnTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.harmonic_mean
+
+
+class HarmonicMeanIEEEValues(test_stats.MeanIEEEValues):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.harmonic_mean
+
+    def testMismatchedINFs(self):
+        # Harmonic mean laughs at INFs with opposite signs!!!
+        inf = float('inf')
+        result = self.func([1, inf, -inf, 1])
+        self.assertEqual(result, 2.0)
+
+    def testINF(self):
+        # Harmonic mean laughs at INFs!!!
+        inf = float('inf')
+        result = self.func([1, inf])
+        self.assertEqual(result, 2)
+        result = self.func([1, -inf])
+        self.assertEqual(result, 2)
+
+
+class QuadraticMeanTest(test_stats.MeanTest):
+    rel = 1e-8
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.quadratic_mean
+        self.expected = 6.19004577259
+
+    def testNegative(self):
+        data = [-x for x in self.data]
+        self.assertApproxEqual(self.func(data), self.expected)
+        data = [1.0, -2.0, -3.0, 4.0]
+        self.assertEqual(self.func(data), math.sqrt(30/4))
+
+    def testZero(self):
+        data = [1.0, 2.0, 0.0, 4.0]
+        assert any(x == 0.0 for x in data)
+        self.assertEqual(self.func(data), math.sqrt(21/4))
+
+
+class QuadraticMeanColumnTest(test_stats.MeanColumnTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.quadratic_mean
+
+
+class QuadraticMeanIEEEValues(test_stats.MeanIEEEValues):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.quadratic_mean
+
+    def testINF(self):
+        inf = float('inf')
+        # Quadratic mean of either + or -INF is +INF.
+        for x in (inf, -inf):
+            result = self.func([1, x])
+            self.assertEqual(result, inf)
+
+    def testMismatchedINFs(self):
+        # Quadratic mean of mixed INF is +INF.
+        inf = float('inf')
+        result = self.func([1, inf, -inf])
+        self.assertEqual(result, inf)
+
+
+class GeometricMeanTest(test_stats.MeanTest):
+    rel = 1e-11
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.geometric_mean
+        self.expected = 4.56188290183
+
+    def testBigData(self):
+        data = [x*1e9 for x in self.data]
+        expected = 1e9*self.expected
+        self.assertApproxEqual(self.func(data), expected)
+
+    def testNegative(self):
+        # A single -ve value leads to a NAN.
+        data = [1.0, 2.0, -3.0, 4.0]
+        assert any(x < 0.0 for x in data)
+        result = self.func(data)
+        self.assertTrue(math.isnan(result))
+        # Two -ve values also lead to a NAN, and do not cancel.
+        data = [1.0, 2.0, -3.0, -4.0]
+        assert any(x < 0.0 for x in data)
+        result = self.func(data)
+        self.assertTrue(math.isnan(result))
+
+    def testZero(self):
+        data = [1.0, 2.0, 0.0, 4.0]
+        assert any(x == 0.0 for x in data)
+        self.assertEqual(self.func(data), 0.0)
+
+
+class GeometricMeanColumnTest(test_stats.MeanColumnTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.quadratic_mean
+
+
+class GeometricMeanIEEEValues(test_stats.MeanIEEEValues):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.quadratic_mean
+
+    @ unittest.skip('getting inf')
+    def testINF(self):
+        inf = float('inf')
+        # Geometric mean of +INF is +INF.
+        self.assertEqual(self.func([1, inf]), inf)
+        # Geometric mean of -INF is NAN.
+        result = self.func([1, -inf])
+        self.assertTrue(math.isnan(result), 'expected NAN but got %r' % result)
+
+    @ unittest.skip('getting inf')
+    def testMismatchedINFs(self):
+        # Geometric mean of mixed INF is NAN.
+        inf = float('inf')
+        result = self.func([1, inf, -inf])
+        self.assertTrue(math.isnan(result), 'expected NAN but got %r' % result)
+
+
+class MovingAverageTest(test_stats.NumericTestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.moving_average
+
+    def testGenerator(self):
+        # Test that function is a generator.
+        self.assertTrue(inspect.isgeneratorfunction(self.func))
+
+    def testFinal(self):
+        # Test the final result has the expected value.
+        data = [1, 2, 3, 4, 5, 6, 7, 8]
+        results = list(self.func(data))
+        self.assertEqual(results[-1], 7.0)
+
+    def testResultsWithDefaultWindow(self):
+        data = [5, 8, 7, 11, 4, 10, 9]
+        results = list(self.func(data))
+        expected = map(lambda x: x/3, [20, 26, 22, 25, 23])
+        self.assertEqual(results, list(expected))
+
+    def testWindowSize(self):
+        data = [5, 7, 2, 8, 6, 7, 4, 5, 9, 7, 3]
+        results = list(self.func(data, 4))
+        expected = map(lambda x: x/4, [22, 23, 23, 25, 22, 25, 25, 24])
+        self.assertEqual(results, list(expected))
+        results = list(self.func(data, 5))
+        expected = map(lambda x: x/5, [28, 30, 27, 30, 31, 32, 28])
+        self.assertEqual(results, list(expected))
+
+    def testBadWindow(self):
+        it = self.func([5, 4, 3, 2, 1], 6)
+        self.assertRaises(ValueError, next, it)
+
+
+class StErrMeanTest(test_stats.NumericTestCase):
+    tol=1e-11
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.sterrmean
+
+    def testBadStdev(self):
+        # Negative stdev is bad.
+        self.assertRaises(ValueError, self.func, -1, 2)
+        self.assertRaises(ValueError, self.func, -1, 2, 3)
+
+    def testBadSizes(self):
+        # Negative sample or population sizes are bad.
+        self.assertRaises(ValueError, self.func, 1, -2)
+        self.assertRaises(ValueError, self.func, 1, -2, 3)
+        self.assertRaises(ValueError, self.func, 1, 2, -3)
+        # So are fractional sizes.
+        self.assertRaises(ValueError, self.func, 1, 2.5)
+        self.assertRaises(ValueError, self.func, 1, 2.5, 3)
+        self.assertRaises(ValueError, self.func, 1, 2.5, 3.5)
+        self.assertRaises(ValueError, self.func, 1, 2, 3.5)
+
+    def testPopulationSize(self):
+        # Population size must not be less than sample size.
+        self.assertRaises(ValueError, self.func, 1, 100, 99)
+        # But equal or greater is allowed.
+        self.assertEqual(self.func(1, 100, 100), 0.0)
+        self.assertTrue(self.func(1, 100, 101))
+
+    def testZeroStdev(self):
+        for n in (5, 10, 25, 100):
+            self.assertEqual(self.func(0.0, n), 0.0)
+            self.assertEqual(self.func(0.0, n, n*10), 0.0)
+
+    def testZeroSizes(self):
+        for s in (0.1, 1.0, 32.1):
+            x = self.func(s, 0)
+            self.assertTrue(math.isinf(x))
+            x = self.func(s, 0, 100)
+            self.assertTrue(math.isinf(x))
+            x = self.func(s, 0, 0)
+            self.assertTrue(math.isnan(x))
+
+    def testResult(self):
+        self.assertEqual(self.func(0.25, 25), 0.05)
+        self.assertEqual(self.func(1.0, 100), 0.1)
+        self.assertEqual(self.func(2.5, 16), 0.625)
+
+    def testFPC(self):
+        self.assertApproxEqual(
+            self.func(0.25, 25, 100), 0.043519413989)
+        self.assertApproxEqual(
+            self.func(1.0, 100, 150), 5.79284446364e-2)
+        self.assertApproxEqual(
+            self.func(2.5, 16, 20), 0.286769667338)
+
+
+class StErrSkewnessTest(test_stats.NumericTestCase):
+    tol=1e-12
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.sterrskewness
+
+    def testBadSize(self):
+        # Negative sample size is bad.
+        self.assertRaises(ValueError, self.func, -2)
+        # So is fractional sample size.
+        self.assertRaises(ValueError, self.func, 2.5)
+
+    def testZero(self):
+        x = self.func(0)
+        self.assertEqual(x, float('inf'))
+
+    def testResult(self):
+        self.assertEqual(self.func(6), 1.0)
+        self.assertApproxEqual(self.func(10), 0.774596669241)
+        self.assertApproxEqual(self.func(20), 0.547722557505)
+        self.assertEqual(self.func(24), 0.5)
+        self.assertApproxEqual(self.func(55), 0.330289129538)
+
+
+class StErrKurtosisTest(test_stats.NumericTestCase):
+    tol=1e-12
+    rel=2e-12
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.sterrkurtosis
+
+    def testBadSize(self):
+        # Negative sample size is bad.
+        self.assertRaises(ValueError, self.func, -2)
+        # So is fractional sample size.
+        self.assertRaises(ValueError, self.func, 2.5)
+
+    def testZero(self):
+        x = self.func(0)
+        self.assertEqual(x, float('inf'))
+
+    def testResult(self):
+        self.assertEqual(self.func(6), 2.0)
+        self.assertApproxEqual(self.func(10), 1.54919333848)
+        self.assertApproxEqual(self.func(20), 1.09544511501)
+        self.assertEqual(self.func(24), 1.0)
+        self.assertApproxEqual(self.func(55), 0.660578259076)
+
+
+class CircularMeanTest(
+    test_stats.UnivariateMixin,
+    test_stats.NumericTestCase
+    ):
+    tol = 1e-12
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.circular_mean
+
+    def testDefaultDegrees(self):
+        # Test that degrees are the default.
+        data = [355, 5, 15, 320, 45]
+        theta = self.func(data)
+        phi = self.func(data, True)
+        assert self.func(data, False) != theta
+        self.assertEqual(theta, phi)
+
+    def testRadians(self):
+        # Test that degrees and radians (usually) give different results.
+        data = [355, 5, 15, 320, 45]
+        a = self.func(data, True)
+        b = self.func(data, False)
+        self.assertNotEquals(a, b)
+
+    def testSingleton(self):
+        for x in (-1.0, 0.0, 1.0, 3.0):
+            self.assertEqual(self.func([x], False), x)
+            self.assertApproxEqual(self.func([x], True), x)
+
+    def testNegatives(self):
+        data1 = [355, 5, 15, 320, 45]
+        theta = self.func(data1)
+        data2 = [d-360 if d > 180 else d for d in data1]
+        phi = self.func(data2)
+        self.assertApproxEqual(theta, phi)
+
+    def testIter(self):
+        theta = self.func(iter([355, 5, 15]))
+        self.assertApproxEqual(theta, 5.0)
+
+    def testSmall(self):
+        t = self.func([0, 360])
+        self.assertApproxEqual(t, 0.0)
+        t = self.func([10, 20, 30])
+        self.assertApproxEqual(t, 20.0)
+        t = self.func([355, 5, 15])
+        self.assertApproxEqual(t, 5.0)
+
+    def testFullCircle(self):
+        # Test with angle > full circle.
+        theta = self.func([3, 363])
+        self.assertApproxEqual(theta, 3)
+
+    def testBig(self):
+        pi = math.pi
+        # Generate angles between pi/2 and 3*pi/2, with expected mean of pi.
+        delta = pi/1000
+        data = [pi/2 + i*delta for i in range(1000)]
+        data.append(3*pi/2)
+        assert data[0] == pi/2
+        assert len(data) == 1001
+        random.shuffle(data)
+        theta = self.func(data, False)
+        self.assertApproxEqual(theta, pi)
+        # Now try the same with angles in the first and fourth quadrants.
+        data = [0.0]
+        for i in range(1, 501):
+            data.append(i*delta)
+            data.append(2*pi - i*delta)
+        assert len(data) == 1001
+        random.shuffle(data)
+        theta = self.func(data, False)
+        self.assertApproxEqual(theta, 0.0)
+
+
 
 # === Run tests ===
 
