@@ -49,6 +49,7 @@ The ``stats`` module provides nine statistics functions:
     product*        Product of data.
     pstdev*         Population standard deviation of data.
     pvariance*      Population variance of data.
+    running_product Running product coroutine.
     running_sum     High-precision running sum coroutine.
     stdev*          Sample standard deviation of data.
     sum*            High-precision sum of data.
@@ -144,7 +145,37 @@ def add_partial(x, partials):
     """Helper function for full-precision summation of binary floats.
 
     Adds x in place to the list partials.
+
+    Usage
+    -----
+
+    Initialise partials to be a list containing at most one finite float
+    (i.e. no INFs or NANs). Then for each float you wish to add, call
+    ``add_partial(x, partials)``. The x values added can be INFs or NANs.
+
+    When you are done, call sum(partials) to round the summation to the
+    precision supported by float.
+
+    If you initialise partials with more than one value, or with a
+    non-finite value, results are undefined.
     """
+    # Special handling of IEEE-754 special values:
+    # Once a sum becomes NAN, it always stays NAN.
+    if partials and math.isnan(partials[0]):
+        return
+    if math.isnan(x):
+        partials[:] = [float('nan')]
+        return
+    # Once a sum becomes infinite, it stays infinite.
+    if partials and math.isinf(partials[0]):
+        # Unless you try subtracting infinity from it.
+        if math.isinf(x) and x != partials[0]:
+            partials[:] = [float('nan')]
+        return
+    if math.isinf(x):
+        partials[:] = [x]
+        return
+    # Otherwise we update the partial sums.
     # Rounded x+y stored in hi with the round-off stored in lo.  Together
     # hi+lo are exactly equal to x+y.  The inner loop applies hi/lo summation
     # to each partial so that the list of partial sums remains exact.
@@ -245,40 +276,46 @@ def _vsmap(func, arg, assertion=None):
     return result
 
 
-def _scalar_sum(data, func=None):
-    """_scalar_sum(data) -> sum(items of data)
-    _scalar_sum(data, func) -> sum(func(each item of data))
+def _scalar_reduce(accum, data, func=None):
+    """_scalar_reduce(accum, data) -> accumulate items of data
+    _scalar_reduce(accum, data, func) -> accumulate func(each item of data)
 
-    >>> _scalar_sum([1, 2, 3])
-    6.0
-    >>> _scalar_sum([1, 2, 3], lambda x: x**2)
-    14.0
+    >>> from builtins import sum
+    >>> _scalar_reduce(sum, [1, 2, 3])
+    6
+    >>> _scalar_reduce(sum, [1, 2, 3], lambda x: x**2)
+    14
 
     """
     if func is None:
-        return math.fsum(data)
+        return accum(data)
     else:
-        return math.fsum(func(x) for x in data)
+        return accum(func(x) for x in data)
 
 
-def _vector_sum(num_columns, data, func=None):
-    """_vector_sum(num_columns, data [, func]) -> sum(func(items of data))
+def _vector_reduce(num_columns, accum, data, func=None):
+    """_vector_reduce(num_columns, accum, data)
+        -> accumulate items of data
+    _vector_reduce(num_columns, accum, data, func)
+        -> accumulate func(each item of data)
 
-    Returns the column by column sum of items of data. Each row of data must
-    have exactly num_columns items, or ValueError will be raised.
+    accum should be a co-routine or other object with a send method.
 
-    If func is is None (the default), the items are summed as given.
+    Accumulate items of data column by column. Each row of data must have
+    exactly num_columns items, or ValueError will be raised.
+
+    If func is is None (the default), the items are accumulated as given.
 
     >>> data = [[0, 1, 2, 3],
     ...         [1, 2, 4, 6],
     ...         [2, 4, 6, 9]]
-    >>> _vector_sum(4, data)
+    >>> _vector_reduce(4, running_sum, data)
     [3, 7, 12, 18]
 
     If func is a single callable, then it is called with each item as
-    argument, and the results summed.
+    argument and the results passed to the accumulator.
 
-    >>> _vector_sum(4, data, lambda x: x**2)
+    >>> _vector_reduce(4, running_sum, data, lambda x: x**2)
     [5, 21, 56, 126]
 
     If func is a list or tuple of functions, it must have exactly num_columns
@@ -286,18 +323,18 @@ def _vector_sum(num_columns, data, func=None):
     appropriate column, and the results summed.
 
     >>> funcs = [lambda x: 2*x, lambda x: x**2, lambda x: x-1, lambda x: x]
-    >>> _vector_sum(4, data, funcs)
+    >>> _vector_reduce(4, running_sum, data, funcs)
     [6, 21, 9, 18]
 
     """
-    columns = [running_sum() for _ in range(num_columns)]
+    columns = [accum() for _ in range(num_columns)]
     result = [0.0]*num_columns
     if func is None:
         for row in data:
             if len(row) != num_columns:
                 raise ValueError('expected %d columns but found %d'
                 % (num_columns, len(row)))
-            result = [rs.send(col) for rs, col in zip(columns, row)]
+            result = [cr.send(col) for cr, col in zip(columns, row)]
     else:
         try:
             num_funcs = len(func)
@@ -314,17 +351,12 @@ def _vector_sum(num_columns, data, func=None):
                 raise ValueError('expected %d columns but found %d'
                 % (num_columns, len(row)))
             zipped = zip(columns, row, funcs)
-            result = [rs.send(f(col)) for rs, col, f in zipped]
+            result = [cr.send(f(col)) for cr, col, f in zipped]
     return result
 
 
-def _generalised_sum(data, func=None):
-    """_generalised_sum(data, func) -> len(data), sum(func(items of data))
-
-    Return a two-tuple of the length of data and the sum of func() of the
-    items of data. If func is None (the default)), use just the sum of items
-    of data.
-    """
+# FIXME needs documentation
+def _generalised_reduce(scalar_accum, vector_accum, data, func=None):
     # Determine whether we can use a fast sequence path or a slow
     # iterator path.
     is_iter = iter(data) is data
@@ -334,21 +366,41 @@ def _generalised_sum(data, func=None):
         try:
             first = next(data)
         except StopIteration:
-            return (0, 0)
+            return (0, None)
         data = itertools.chain([first], data)
         data = _countiter(data)
         assert data.count == 0
     else:
         # Sequence path. We can assume random access to the items.
         if not data:
-            return (0, 0)
+            return (0, None)
         first = data[0]
-    if _is_numeric(first):
-        total = _scalar_sum(data, func)
+    # Now determine whether we expect scalar or vector items. This is not
+    # entirely general, but for our purposes it is good enough to treat
+    # lists or tuples as vectors and anything else as (probably) scalars.
+    if isinstance(first, (list, tuple)):
+        total = _vector_reduce(len(first), vector_accum, data, func)
     else:
-        total = _vector_sum(len(first), data, func)
+        total = _scalar_reduce(scalar_accum, data, func)
     n = data.count if is_iter else len(data)
     return n, total
+
+
+def _len_sum(data, func=None):
+    """_len_sum(data, func) -> len(data), sum(func(items of data))
+
+    Return a two-tuple of the length of data and the sum of func() of the
+    items of data. If func is None (the default)), use just the sum of items
+    of data.
+    """
+    def scalar_sum(data):
+        try:
+            return math.fsum(data)
+        except ValueError:
+            # You get a ValueError if fsum tries to add +inf and -inf.
+            # FIXME Are there any other circumstances?
+            return float('nan')
+    return _generalised_reduce(scalar_sum, running_sum, data, func)
 
 
 def _sum_sq_deviations(data, m=None):
@@ -359,7 +411,7 @@ def _sum_sq_deviations(data, m=None):
         # Multi-pass algorithm.
         if not isinstance(data, (list, tuple)):
             data = list(data)
-        n, total = _generalised_sum(data)
+        n, total = _len_sum(data)
         if n == 0:
             return (0, total)
         if isinstance(total, list):
@@ -370,7 +422,7 @@ def _sum_sq_deviations(data, m=None):
         func = [lambda x, k=mm: (x-k)**2 for mm in m]
     else:
         func = lambda x: (x-m)**2
-    return _generalised_sum(data, func)
+    return _len_sum(data, func)
     # FIXME the above may not be accurate enough for 2nd moments (x-m)**2
     # A more accurate algorithm is the compensated version:
     #   sum2 = sum((x-m)**2) as above
@@ -421,9 +473,11 @@ def sum(data, start=0):
     """
     if isinstance(data, str):
         raise TypeError('data argument cannot be a string')
-    count, total = _generalised_sum(data)
+    # Calculate the length and sum of data.
+    count, total = _len_sum(data)
     if not count:
         return start
+    # Add start as needed.
     if isinstance(total, list):
         try:
             num_start = len(start)
@@ -477,6 +531,45 @@ def running_sum(start=None):
         x = (yield _sum(total))
 
 
+@coroutine
+def running_product(start=None):
+    """Running product co-routine.
+
+    With no arguments, ``running_product`` consumes values and returns the
+    running product of arguments sent to it:
+
+    >>> rp = running_product()
+    >>> rp.send(1)
+    1
+    >>> [rp.send(n) for n in (2, 3, 4)]
+    [2, 6, 24]
+
+    If optional argument ``start`` is given and is not None, it is used as
+    the initial value for the running product:
+
+    >>> rp = running_product(9)
+    >>> [rp.send(n) for n in (1, 2, 3)]
+    [9, 18, 54]
+
+    """
+    if start is not None:
+        total = start
+    else:
+        total = 1
+    x = (yield None)
+    while True:
+        try:
+            total *= x
+        except TypeError:
+            if not _is_numeric(x):
+                raise
+            # Downgrade to floats and try again.
+            x = float(x)
+            total = float(total)
+            continue
+        x = (yield total)
+
+
 def product(data, start=1):
     """product(iterable_of_numbers [, start]) -> product of numbers
     product(iterable_of_rows [, start]) -> product of columns
@@ -514,42 +607,29 @@ def product(data, start=1):
     """
     if isinstance(data, str):
         raise TypeError('data argument cannot be a string')
-    if iter(data) is data:
-        try:
-            first = next(data)
-        except StopIteration:
-            return start
-        data = itertools.chain([first], data)
-    else:
-        if not data:
-            return start
-        first = data[0]
-    if _is_numeric(first):
-        if not _is_numeric(start):
-            raise TypeError('start argument must be a number')
-        # FIXME is this accurate and stable enough?
-        return functools.reduce(operator.mul, data, start)
-        # Note: do *not* be tempted to do something clever with logarithms:
-        #   math.exp(sum([math.log(x) for x in data], start))
-        # is FAR less accurate than the naive multiplication above.
-    else:
-        n = len(first)
+    # Calculate the length and product of data.
+    scalar_multiply = functools.partial(functools.reduce, operator.mul)
+    # Note: do *not* be tempted to do something clever with logarithms:
+    #   math.exp(sum([math.log(x) for x in data], start))
+    # is FAR less accurate than the naive multiplication above.
+    count, total = _generalised_reduce(scalar_multiply, running_product, data)
+    if not count:
+        return start
+    # Multiply by start as needed.
+    if isinstance(total, list):
         try:
             num_start = len(start)
         except TypeError:
-            start = [start]*n
-            num_start = n
-        if num_start != n:
+            start = [start]*len(total)
+            num_start = len(total)
+        if num_start != len(total):
             raise ValueError('expected %d starting values but got %d'
-            % (n, num_start))
-        products = start[:]
-        for row in data:
-            if len(row) != n:
-                raise ValueError('expected %d columns but found %d'
-                % (n, len(row)))
-            for i,x in enumerate(row):
-                products[i] *= x
-        return products
+            % (len(total), num_start))
+        return [x*s for x,s in zip(total, start)]
+    else:
+        if _is_numeric(start):
+            return total * start
+        raise ValueError()  # FIXME
 
 
 # === Basic univariate statistics ===
@@ -587,7 +667,7 @@ def mean(data):
     estimator for central location: the mean is not necessarily a typical
     example of the data points.
     """
-    count, total = _generalised_sum(data)
+    count, total = _len_sum(data)
     if not count:
         raise StatsError('mean of empty sequence is not defined')
     return _vsmap(lambda x: x/count, total)

@@ -529,8 +529,97 @@ class AddPartialTest(unittest.TestCase):
         stats.add_partial(-4.5, L)
         self.assertEqual(sum(L), 1e-120)
 
+    def check_is_nan(self, L):
+        """Check that list L == [nan]."""
+        self.assertTrue(len(L) == 1)
+        self.assertTrue(math.isnan(L[0]))
 
-class SumTest(NumericTestCase, UnivariateMixin):
+    def testNAN(self):
+        # Test that add_partial does the right thing when adding NANs.
+        nan = float('nan')
+        # Test adding to an empty list.
+        L = []
+        stats.add_partial(nan, L)
+        self.check_is_nan(L)
+        # Adding more stuff doesn't change the list.
+        stats.add_partial(nan, L)
+        self.check_is_nan(L)
+        stats.add_partial(42, L)
+        stats.add_partial(float('inf'), L)
+        stats.add_partial(100, L)
+        self.check_is_nan(L)
+        # Test adding to a non-empty list.
+        L = [1]
+        stats.add_partial(1e-100, L)
+        stats.add_partial(1e100, L)
+        stats.add_partial(nan, L)
+        self.check_is_nan(L)
+
+    def testINF(self):
+        # Test that add_partial does the right thing when adding +INFs.
+        inf = float('inf')
+        # Test adding to an empty list.
+        L = []
+        stats.add_partial(inf, L)
+        self.assertEqual(L, [inf])
+        # Adding more non-NANs doesn't change the list.
+        stats.add_partial(inf, L)
+        self.assertEqual(L, [inf])
+        stats.add_partial(42, L)
+        stats.add_partial(100, L)
+        self.assertEqual(L, [inf])
+        # Test adding to a non-empty list.
+        L = [1]
+        stats.add_partial(1e-100, L)
+        stats.add_partial(1e100, L)
+        stats.add_partial(inf, L)
+        self.assertEqual(L, [inf])
+        # Adding a NAN turns it into a NAN.
+        stats.add_partial(float('nan'), L)
+        self.check_is_nan(L)
+
+    def testNINF(self):
+        # Test that add_partial does the right thing when adding -INFs.
+        inf = float('inf')
+        # Test adding to an empty list.
+        L = []
+        stats.add_partial(-inf, L)
+        self.assertEqual(L, [-inf])
+        # Adding more non-NANs doesn't change the list.
+        stats.add_partial(-inf, L)
+        self.assertEqual(L, [-inf])
+        stats.add_partial(23, L)
+        stats.add_partial(500, L)
+        self.assertEqual(L, [-inf])
+        # Test adding to a non-empty list.
+        L = [2]
+        stats.add_partial(3e-100, L)
+        stats.add_partial(3e100, L)
+        stats.add_partial(-inf, L)
+        self.assertEqual(L, [-inf])
+        # Adding a NAN turns it into a NAN.
+        stats.add_partial(float('nan'), L)
+        self.check_is_nan(L)
+
+    def testMismatchedINFs(self):
+        # Test that adding +INF and -INF produces a NAN.
+        nan = float('nan')
+        inf = float('inf')
+        # Test +INF + -INF.
+        L = []
+        stats.add_partial(inf, L)
+        self.assertEqual(L, [inf])
+        stats.add_partial(-inf, L)
+        self.check_is_nan(L)
+        # Test -INF + +INF.
+        L = []
+        stats.add_partial(-inf, L)
+        self.assertEqual(L, [-inf])
+        stats.add_partial(inf, L)
+        self.check_is_nan(L)
+
+
+class SumTest(UnivariateMixin, NumericTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.sum
@@ -616,6 +705,42 @@ class SumTest(NumericTestCase, UnivariateMixin):
         self.assertRaises(TypeError, self.func, data, [1, 2, 3, 4])
 
 
+class SumIEEEValues(NumericTestCase):
+    # Test that sum works correctly with IEEE-754 special values.
+
+    # See also MeanIEEEValues test for comment about negative zeroes.
+
+    def testNAN(self):
+        nan = float('nan')
+        result = stats.sum([1, nan])
+        self.assertTrue(math.isnan(result))
+
+    def testINF(self):
+        inf = float('inf')
+        # Single INFs add to the INF with the same sign.
+        result = stats.sum([1, inf])
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result > 0)
+        result = stats.sum([1, -inf])
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result < 0)
+        # So do multiple INFs, if they have the same sign.
+        result = stats.sum([1, inf, inf])
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result > 0)
+        result = stats.sum([1, -inf, -inf])
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result < 0)
+
+    def testMismatchedINFs(self):
+        # INFs with opposite signs add to a NAN.
+        inf = float('inf')
+        result = stats.sum([1, inf, -inf])
+        self.assertTrue(math.isnan(result))
+        result = stats.sum([1, -inf, +inf])
+        self.assertTrue(math.isnan(result))
+
+
 class SumTortureTest(NumericTestCase):
     def testTorture(self):
         # Tim Peters' torture test for sum, and variants of same.
@@ -692,6 +817,42 @@ class RunningSumTest(unittest.TestCase, TestConsumerMixin):
         total = rs.send(Fraction(1, 2))
         self.assertTrue(isinstance(total, float))
         self.assertEqual(total, 3.0)
+
+    def testNAN(self):
+        # Adding NAN to the running sum gives a NAN.
+        rs = self.func(101)
+        result = rs.send(float('nan'))
+        self.assertTrue(math.isnan(result))
+
+    def testINF(self):
+        # Adding INF to the running sum gives an INF.
+        inf = float('inf')
+        rs = self.func(101)
+        # One or more +INFs add to +INF.
+        result = rs.send(inf)
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result > 0)
+        result = rs.send(inf)
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result > 0)
+        # But adding a -INF makes a NAN.
+        result = rs.send(-inf)
+        self.assertTrue(math.isnan(result))
+
+    def testNINF(self):
+        # Adding -INF to the running sum gives an -INF.
+        inf = float('inf')
+        rs = self.func(9999)
+        # One or more -INFs add to -INF.
+        result = rs.send(-inf)
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result < 0)
+        result = rs.send(-inf)
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result < 0)
+        # But adding a +INF makes a NAN.
+        result = rs.send(inf)
+        self.assertTrue(math.isnan(result))
 
 
 class ProductTest(NumericTestCase, UnivariateMixin):
@@ -783,12 +944,26 @@ class ProductTest(NumericTestCase, UnivariateMixin):
         self.assertRaises(ValueError, self.func, data, [1, 2])
         self.assertRaises(ValueError, self.func, data, [1, 2, 3, 4])
         data = [1, 2, 3, 4]
-        self.assertRaises(TypeError, self.func, data, [1, 2, 3, 4])
+        self.assertRaises(ValueError, self.func, data, [2, 3, 4, 5])
 
     def testZero(self):
         # Product of anything containing zero is always zero.
         for data in (range(23), range(-35, 36)):
             self.assertEqual(self.func(data), 0)
+
+    def testNAN(self):
+        # Product of anything containing a NAN is always a NAN.
+        result = self.func([1, 2, 3, float('nan'), 4, 5], 42)
+        self.assertTrue(math.isnan(result))
+
+    def testINF(self):
+        # Product of anything containing an INF is an INF.
+        result = self.func([1, 2, 3, float('inf'), 4, 5], 42)
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result > 0)
+        result = self.func([1, 2, 3, float('-inf'), 4, 5], 42)
+        self.assertTrue(math.isinf(result))
+        self.assertTrue(result < 0)
 
 
 class MeanTest(NumericTestCase, UnivariateMixin):
@@ -826,6 +1001,12 @@ class MeanTest(NumericTestCase, UnivariateMixin):
         b = self.func(data*2)
         self.assertApproxEqual(a, b)
 
+
+class MeanColumnTest(NumericTestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.mean
+
     def testColumns(self):
         # Test columnar data.
         columns = [[1, 2, 3, 4, 5, 6, 7, 8, 9],
@@ -843,6 +1024,51 @@ class MeanTest(NumericTestCase, UnivariateMixin):
         # Test that rows must have the same number of columns.
         data = [[1, 2, 3], [1, 2]]
         self.assertRaises(ValueError, self.func, data)
+
+
+class MeanIEEEValues(NumericTestCase):
+    # Test that mean works correctly with IEEE-754 special values.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.mean
+
+    # FIXME mean() should do the right thing for negative zero and honour
+    # the sign bit. But since neither the builtin sum nor math.fsum do so,
+    # that makes it significantly harder. Consider this a Wish List test:
+    '''
+    @unittest.skip('not supported')
+    def testNegZero(self):
+        negzero = math.copysign(0, -1)
+        result = self.func([negzero, negzero])
+        self.assertEqual(result, 0)
+        self.assertEqual(math.copysign(1, result), -1)
+    '''
+
+    def testNAN(self):
+        nan = float('nan')
+        result = self.func([1, nan])
+        self.assertTrue(math.isnan(result), 'expected NAN but got %r' % result)
+
+    def testINF(self):
+        inf = float('inf')
+        # Single INFs add to the INF with the same sign.
+        result = self.func([1, inf])
+        self.assertEqual(result, inf)
+        result = self.func([1, -inf])
+        self.assertEqual(result, -inf)
+        # So do multiple INFs, if they have the same sign.
+        result = self.func([1, inf, inf])
+        self.assertEqual(result, inf)
+        result = self.func([1, -inf, -inf])
+        self.assertEqual(result, -inf)
+
+    def testMismatchedINFs(self):
+        # INFs with opposite signs add to a NAN.
+        inf = float('inf')
+        result = self.func([1, inf, -inf])
+        self.assertTrue(math.isnan(result), 'expected NAN but got %r' % result)
+        result = self.func([1, -inf, +inf])
+        self.assertTrue(math.isnan(result), 'expected NAN but got %r' % result)
 
 
 class ExactVarianceTest(NumericTestCase):
@@ -1338,30 +1564,42 @@ class VSMapTest(unittest.TestCase):
         self.assertEqual(vsmap(len, ['a'], lambda x: True), [1])
 
 
-class ScalarSumTest(unittest.TestCase):
-    # Tests for private function _scalar_sum.
+class ScalarReduceTest(unittest.TestCase):
+    # Tests for private function _scalar_reduce.
 
     def testNoFunc(self):
         data = [random.random() for _ in range(10000)]
-        expected = math.fsum(data)
-        actual = stats._scalar_sum(data)
+        expected = sum(data)
+        actual = stats._scalar_reduce(sum, data)
         self.assertEqual(actual, expected)
 
     def testWithFunc(self):
         data = [random.random() for _ in range(10000)]
         for func in (lambda x: x**2, math.sqrt, math.sin, lambda x: x+1000):
-            expected = math.fsum(func(x) for x in data)
-            actual = stats._scalar_sum(data, func)
+            expected = sum(func(x) for x in data)
+            actual = stats._scalar_reduce(sum, data, func)
             self.assertEqual(actual, expected)
 
 
-class VectorSumTest(NumericTestCase):
-    # Tests for private function _vector_sum.
+class VectorReduceTest(NumericTestCase):
+    # Tests for private function _vector_reduce.
+
+    @stats.coroutine
+    def cr_sum(self):
+        total = 0
+        x = (yield None)
+        while True:
+            total += x
+            x = (yield total)
 
     def testMismatchColumnCount(self):
-        self.assertRaises(ValueError, stats._vector_sum, 3, [[1,2], [1,2]])
-        self.assertRaises(ValueError, stats._vector_sum, 2, [[1,2], [1,2,3]])
-        self.assertRaises(ValueError, stats._vector_sum, 2, [[1,2,3], [1,2]])
+        # Test that exception is raised if a row has the wrong number
+        # of columns.
+        func = stats._vector_reduce
+        rsum = self.cr_sum
+        self.assertRaises(ValueError, func, 3, rsum, [[1,2], [1,2]])
+        self.assertRaises(ValueError, func, 2, rsum, [[1,2], [1,2,3]])
+        self.assertRaises(ValueError, func, 2, rsum, [[1,2,3], [1,2]])
 
     def make_data(self):
         n = 10
@@ -1374,56 +1612,60 @@ class VectorSumTest(NumericTestCase):
     def testNoFunc(self):
         columns = self.make_data()
         n = len(columns)
-        expected = [math.fsum(col) for col in columns]
-        actual = stats._vector_sum(n, list(zip(*columns)))
+        expected = [sum(col) for col in columns]
+        actual = stats._vector_reduce(n, self.cr_sum, list(zip(*columns)))
         self.assertApproxEqual(actual, expected, rel=1e-12)
 
     def testSingleFunc(self):
         columns = self.make_data()
+        rsum = self.cr_sum
         n = len(columns)
         for f in (lambda x: x+1, math.sqrt, math.cos, lambda x: x**2):
-            expected = [math.fsum(f(x) for x in col) for col in columns]
-            actual = stats._vector_sum(n, list(zip(*columns)), f)
+            expected = [sum(f(x) for x in col) for col in columns]
+            actual = stats._vector_reduce(n, rsum, list(zip(*columns)), f)
             self.assertApproxEqual(actual, expected, rel=1e-12)
 
     def testMultipleFuncs(self):
         columns = self.make_data()
+        rsum = self.cr_sum
         n = len(columns)
         funcs = [(lambda x, y=i: x+y) for i in range(n)]
-        expected = [math.fsum(f(x) for x in col)
-                    for f, col in zip(funcs, columns)]
-        actual = stats._vector_sum(n, list(zip(*columns)), funcs)
+        expected = [sum(f(x) for x in col) for f, col in zip(funcs, columns)]
+        actual = stats._vector_reduce(n, rsum, list(zip(*columns)), funcs)
         self.assertApproxEqual(actual, expected, rel=1e-12)
 
     def testMismatchFuncCount(self):
-        vectorsum = stats._vector_sum
+        testfunc = stats._vector_reduce
+        rsum = self.cr_sum
         data = [[1, 2], [1, 2]]
         funcs = (lambda x: x+1,)  # Tuple of a single function.
-        assert vectorsum(2, data, funcs*2) == [4, 6]
-        self.assertRaises(ValueError, vectorsum, 2, data, funcs)
-        self.assertRaises(ValueError, vectorsum, 2, data, funcs*3)
+        # This should work correctly with 2 funcs.
+        assert testfunc(2, rsum, data, funcs*2) == [4, 6]
+        # But raise an exception with 1 or 3.
+        self.assertRaises(ValueError, testfunc, 2, rsum, data, funcs)
+        self.assertRaises(ValueError, testfunc, 2, rsum, data, funcs*3)
 
 
-class GeneralisedSumTest(unittest.TestCase):
-    # Test the _generalised_sum private function.
+class LenSumTest(unittest.TestCase):
+    # Test the _len_sum private function.
 
     def test_empty(self):
         class MyList(list): pass
         for empty in ([], iter([]), (), range(0), MyList()):
-            self.assertEqual(stats._generalised_sum(empty), (0,0))
+            self.assertEqual(stats._len_sum(empty), (0, None))
 
     def test_scalar_sequence(self):
-        gs = stats._generalised_sum
+        gs = stats._len_sum
         self.assertEqual(gs([1, 2, 4, 8]), (4, 15))
         self.assertEqual(gs([1, 2, 4], lambda x: -x), (3, -7))
 
     def test_scalar_iterator(self):
-        gs = stats._generalised_sum
+        gs = stats._len_sum
         self.assertEqual(gs(iter([1, 2, 3, 4, 5])), (5, 15))
         self.assertEqual(gs(iter([1, 3, 5]), lambda x: x+1), (3, 12))
 
     def test_vector_sequence(self):
-        gs = stats._generalised_sum
+        gs = stats._len_sum
         data = [[1, 2, 3], [2, 4, 6]]
         self.assertEqual(gs(data), (2, [3, 6, 9]))
         # Test with a single function.
@@ -1434,7 +1676,7 @@ class GeneralisedSumTest(unittest.TestCase):
         self.assertEqual(gs(data, funcs), (2, [3, -6, 18]))
 
     def test_vector_iterator(self):
-        gs = stats._generalised_sum
+        gs = stats._len_sum
         data = [[1, 2, 3], [2, 4, 6], [0, 1, 1], [1, 1, 2]]
         self.assertEqual(gs(iter(data)), (4, [4, 8, 12]))
         # Test with a single function.
@@ -1451,7 +1693,7 @@ class SqrDevTest(unittest.TestCase):
     def test_empty(self):
         class MyList(list): pass
         for empty in ([], iter([]), (), range(0), MyList()):
-            self.assertEqual(stats._sum_sq_deviations(empty), (0,0))
+            self.assertEqual(stats._sum_sq_deviations(empty), (0, None))
 
     def test_scalar_sequence(self):
         ss = stats._sum_sq_deviations
