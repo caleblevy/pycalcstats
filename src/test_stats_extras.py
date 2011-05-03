@@ -463,7 +463,7 @@ class OrderMinmaxTest(unittest.TestCase):
         self.assertTrue(stats.order.minmax is stats.minmax)
 
 
-class RoundHalfEvenTest(unittest.TestCase):
+class OrderRoundHalfEvenTest(unittest.TestCase):
     # Test the _round_halfeven private function.
 
     def test_round(self):
@@ -480,7 +480,7 @@ class RoundHalfEvenTest(unittest.TestCase):
             self.assertEqual(round_halfeven(i + 0.5), i+1)
 
 
-class MedianTest(test_stats.NumericTestCase, test_stats.UnivariateMixin):
+class OrderMedianTest(test_stats.NumericTestCase, test_stats.UnivariateMixin):
     # Test median function with the default scheme.
 
     tol = rel = None  # Default to expect exact equality.
@@ -529,7 +529,7 @@ class MedianTest(test_stats.NumericTestCase, test_stats.UnivariateMixin):
         self.assertEqual(a, b)
 
 
-class MedianExtrasOddNoDups(unittest.TestCase):
+class OrderMedianExtrasOddNoDups(unittest.TestCase):
     # Extra tests for median involving the schemes.
 
     def __init__(self, *args, **kwargs):
@@ -553,7 +553,7 @@ class MedianExtrasOddNoDups(unittest.TestCase):
             self.assertEqual(actual, self.expected[scheme])
 
 
-class MedianExtrasOddDups(MedianExtrasOddNoDups):
+class OrderMedianExtrasOddDups(OrderMedianExtrasOddNoDups):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data = [11, 12, 13, 13, 14]
@@ -562,7 +562,7 @@ class MedianExtrasOddDups(MedianExtrasOddNoDups):
         assert len(self.data)%2 == 1
 
 
-class MedianExtrasEvenNoDups(MedianExtrasOddNoDups):
+class OrderMedianExtrasEvenNoDups(OrderMedianExtrasOddNoDups):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data = [11, 12, 13, 14, 15, 16]
@@ -573,7 +573,7 @@ class MedianExtrasEvenNoDups(MedianExtrasOddNoDups):
         assert all(self.data.count(x) == 1 for x in self.data)
 
 
-class MedianExtrasEvenDups1(MedianExtrasOddNoDups):
+class OrderMedianExtrasEvenDups1(OrderMedianExtrasOddNoDups):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data = [11, 12, 13, 13, 14, 14]
@@ -583,14 +583,14 @@ class MedianExtrasEvenDups1(MedianExtrasOddNoDups):
         assert len(self.data)%2 == 0
 
 
-class MedianExtrasEvenDups2(MedianExtrasEvenDups1):
+class OrderMedianExtrasEvenDups2(OrderMedianExtrasEvenDups1):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data = [11, 12, 12, 13, 13, 13]
         self.expected = {1: 12.5, 2: 12, 3: 13, 4: 12.6}
 
 
-class MidrangeTest(MedianTest):
+class OrderMidrangeTest(OrderMedianTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.midrange
@@ -603,7 +603,7 @@ class MidrangeTest(MedianTest):
         self.assertEqual(self.func([1.0, 2.5, 3.5, 5.5, 1.5]), 3.25)
 
 
-class MidhingeTest(DoubleDataFailMixin, MedianTest):
+class OrderMidhingeTest(DoubleDataFailMixin, OrderMedianTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.midhinge
@@ -625,7 +625,7 @@ class MidhingeTest(DoubleDataFailMixin, MedianTest):
         self.assertEqual(self.func(d), 3.75)
 
 
-class TrimeanTest(
+class OrderTrimeanTest(
         DoubleDataFailMixin,
         test_stats.NumericTestCase,
         test_stats.UnivariateMixin
@@ -669,7 +669,7 @@ class TrimeanTest(
         self.assertEqual(self.func(iter(data)), expected)
 
 
-class RangeTest(test_stats.NumericTestCase, test_stats.UnivariateMixin):
+class OrderRangeTest(test_stats.NumericTestCase, test_stats.UnivariateMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.range
@@ -728,7 +728,7 @@ class RangeTest(test_stats.NumericTestCase, test_stats.UnivariateMixin):
             self.assertRaises(exc, self.func, [1, 2, 3], interval)
 
 
-class IQRTest(
+class OrderIQRTest(
     DoubleDataFailMixin,
     test_stats.NumericTestCase,
     test_stats.UnivariateMixin
@@ -785,7 +785,7 @@ class IQRTest(
                 self.same_result(range(size), scheme)
 
 
-class MAD_Test(test_stats.NumericTestCase, test_stats.UnivariateMixin):
+class OrderMAD_Test(test_stats.UnivariateMixin, test_stats.NumericTestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.mad
@@ -861,7 +861,7 @@ class MAD_Test(test_stats.NumericTestCase, test_stats.UnivariateMixin):
         self.assertEqual(self.func(data, scheme=3), 2.5)
 
 
-class FiveNumTest(
+class OrderFiveNumTest(
     DoubleDataFailMixin,
     test_stats.NumericTestCase,
     test_stats.UnivariateMixin
@@ -904,7 +904,7 @@ class FiveNumTest(
         self.assertEqual(t._fields, names)
 
 
-class QuartileSkewnessTest(unittest.TestCase):
+class OrderQuartileSkewnessTest(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.quartile_skewness
@@ -928,7 +928,7 @@ class QuartileSkewnessTest(unittest.TestCase):
         self.assertEqual(self.func(0, 9, 10), -0.8)
 
 
-class QuartilesDrMathTest(unittest.TestCase):
+class OrderQuartilesDrMathTest(unittest.TestCase):
     # Test quartiles function against results given at the Dr Math page:
     # http://mathforum.org/library/drmath/view/60969.html
     # Q2 values are not checked in this test.
@@ -1013,7 +1013,7 @@ class QuartilesDrMathTest(unittest.TestCase):
         self.assertEqual(q3, 8.5)
 
 
-class QuartilesAliasesTest(unittest.TestCase):
+class OrderQuartilesAliasesTest(unittest.TestCase):
     def testAliasesMapping(self):
         # Test that the quartiles function exposes a mapping of aliases.
         self.assertTrue(hasattr(stats.order.quartiles, 'aliases'))
@@ -1028,7 +1028,7 @@ class QuartilesAliasesTest(unittest.TestCase):
         self.assertTrue(used_schemes.issubset(allowed_schemes))
 
 
-class QuartilesTest(
+class OrderQuartilesTest(
     DoubleDataFailMixin,
     test_stats.UnivariateMixin,
     test_stats.NumericTestCase
@@ -1173,7 +1173,7 @@ class QuartilesTest(
         self.assertEqual(self.func(data, 2), (1251, 1502, 1753))
 
 
-class QuantileBehaviourTest(
+class OrderQuantileBehaviourTest(
     test_stats.UnivariateMixin,
     test_stats.NumericTestCase
     ):
@@ -1201,7 +1201,7 @@ class QuantileBehaviourTest(
             self.assertRaises(ValueError, self.func, x)
 
 
-class QuantileResultsTest(test_stats.NumericTestCase):
+class OrderQuantileResultsTest(test_stats.NumericTestCase):
     # Test the results returned by quantile.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1246,7 +1246,7 @@ class QuantileResultsTest(test_stats.NumericTestCase):
             self.assertApproxEqual(expected[i], result, tol=1e-12, rel=None)
 
 
-class CompareParameterizedQuantiles(test_stats.NumericTestCase):
+class OrderCompareParameterizedQuantiles(test_stats.NumericTestCase):
     # Compare Mathematica-style parameterized quantiles with the equivalent.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1308,7 +1308,7 @@ class CompareParameterizedQuantiles(test_stats.NumericTestCase):
         self.compareMethods(scheme, params)
 
 
-class QuantilesCompareWithR(test_stats.NumericTestCase):
+class OrderQuantilesCompareWithR(test_stats.NumericTestCase):
     # Compare results of calling quantile() against results from R.
     tol = 1e-3
     rel = None
@@ -1368,21 +1368,21 @@ class QuantilesCompareWithR(test_stats.NumericTestCase):
     def testR9(self):  self.compare(9)
 
 
-class DecileBehaviourTest(QuantileBehaviourTest):
+class OrderDecileBehaviourTest(OrderQuantileBehaviourTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.raw_func = stats.order.decile
         self.func = lambda x: self.raw_func(x, 7)
 
 
-class PercentileBehaviourTest(QuantileBehaviourTest):
+class OrderPercentileBehaviourTest(OrderQuantileBehaviourTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.raw_func = stats.order.percentile
         self.func = lambda x: self.raw_func(x, 63)
 
 
-class DecileExactSchemesTest(test_stats.NumericTestCase):
+class OrderDecileExactSchemesTest(test_stats.NumericTestCase):
     # Test that certain schemes don't perform any interpolation when the
     # number of data points is exactly the same as fractile size.
     def __init__(self, *args, **kwargs):
@@ -1407,14 +1407,14 @@ class DecileExactSchemesTest(test_stats.NumericTestCase):
             self.result_is_exact(data, i)
 
 
-class PercentileExactSchemeTest(DecileExactSchemesTest):
+class OrderPercentileExactSchemeTest(OrderDecileExactSchemesTest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = stats.order.percentile
         self.num = 100
 
 
-class DecileValueTest(test_stats.NumericTestCase):
+class OrderDecileValueTest(test_stats.NumericTestCase):
     # Test deciles against results (mostly) calculated in R.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1490,7 +1490,7 @@ class DecileValueTest(test_stats.NumericTestCase):
         self.do_test(7, 10, 150.9)
 
 
-class PercentileValueTest(test_stats.NumericTestCase):
+class OrderPercentileValueTest(test_stats.NumericTestCase):
     # Test percentiles against results (mostly) calculated in R.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
