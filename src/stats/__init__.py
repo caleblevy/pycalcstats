@@ -36,6 +36,7 @@ The statistics functions are divided up into separate modules:
     stats.multivar      Multivariate (multiple variable) statistics.
     stats.order         Order statistics.
     stats.univar        Univariate (single variable) statistics.
+    stats.vectorize     Utilities for vectorizing functions.
 
 For further details, see the individual modules.
 
@@ -119,6 +120,8 @@ import operator
 
 from builtins import sum as _sum
 
+import stats.vectorize as v
+
 
 
 # === Exceptions ===
@@ -144,38 +147,27 @@ def coroutine(func):
 def add_partial(x, partials):
     """Helper function for full-precision summation of binary floats.
 
-    Adds x in place to the list partials.
+    Adds finite (not NAN or INF) x in place to the list partials.
 
-    Usage
-    -----
+    Example usage:
+
+    >>> partials = []
+    >>> add_partial(1e100, partials)
+    >>> add_partial(1e-100, partials)
+    >>> add_partial(-1e100, partials)
+    >>> partials
+    [1e-100, 0.0]
 
     Initialise partials to be a list containing at most one finite float
     (i.e. no INFs or NANs). Then for each float you wish to add, call
-    ``add_partial(x, partials)``. The x values added can be INFs or NANs.
+    ``add_partial(x, partials)``.
 
     When you are done, call sum(partials) to round the summation to the
     precision supported by float.
 
-    If you initialise partials with more than one value, or with a
-    non-finite value, results are undefined.
+    If you initialise partials with more than one value, or with special
+    values (NANs or INFs), results are undefined.
     """
-    # Special handling of IEEE-754 special values:
-    # Once a sum becomes NAN, it always stays NAN.
-    if partials and math.isnan(partials[0]):
-        return
-    if math.isnan(x):
-        partials[:] = [float('nan')]
-        return
-    # Once a sum becomes infinite, it stays infinite.
-    if partials and math.isinf(partials[0]):
-        # Unless you try subtracting infinity from it.
-        if math.isinf(x) and x != partials[0]:
-            partials[:] = [float('nan')]
-        return
-    if math.isinf(x):
-        partials[:] = [x]
-        return
-    # Otherwise we update the partial sums.
     # Rounded x+y stored in hi with the round-off stored in lo.  Together
     # hi+lo are exactly equal to x+y.  The inner loop applies hi/lo summation
     # to each partial so that the list of partial sums remains exact.
@@ -233,196 +225,135 @@ def _is_numeric(obj):
         return True
 
 
-def _vsmap(func, arg, assertion=None):
-    """_vsmap(func, arg [, assertion]) -> result
+class _Adder:
+    """High precision addition."""
 
-    Vector/Scalar mapping of func to arg, with an optional assertion.
-    If result is a list, func will be applied to each element of arg,
-    otherwise func will be applied to arg itself.
+    def __init__(self, partials=None):
+        if partials is None:
+            partials = []
+        self.partials = partials
 
-    >>> _vsmap(str.upper, "spam")  # Normal (scalar) call.
-    'SPAM'
-    >>> _vsmap(str.upper, ["spam", "ham", "eggs"])  # Vectorized call.
-    ['SPAM', 'HAM', 'EGGS']
-
-    Note that the function call is only vectorized if arg is a list or
-    subclass of list. Any other sequence or iterable is treated as if it
-    were a scalar.
-
-    If optional argument assertion is not None, it should be a function
-    which takes a single argument. In the scalar form, the result is passed
-    to the assertion function and then asserted; in the vectorized form,
-    assertion is called with each element of result.
-
-    >>> small_enough = lambda n: n < 10  # Fail if n is too big.
-    >>> _vsmap(len, "spam", small_enough)
-    4
-    >>> _vsmap(len, ["spam", "ham", "eggs"], small_enough)
-    [4, 3, 4]
-    >>> _vsmap(len, "Nobody expects the Spanish Inquisition!", small_enough)
-    Traceback (most recent call last):
-      ...
-    AssertionError
-
-    """
-    if isinstance(arg, list):
-        result = list(map(func, arg))
-        if assertion is not None:
-            assert all(assertion(x) for x in result)
-    else:
-        result = func(arg)
-        if assertion is not None:
-            assert assertion(result)
-    return result
-
-
-def _scalar_reduce(accum, data, func=None):
-    """_scalar_reduce(accum, data) -> accumulate items of data
-    _scalar_reduce(accum, data, func) -> accumulate func(each item of data)
-
-    >>> from builtins import sum
-    >>> _scalar_reduce(sum, [1, 2, 3])
-    6
-    >>> _scalar_reduce(sum, [1, 2, 3], lambda x: x**2)
-    14
-
-    """
-    if func is None:
-        return accum(data)
-    else:
-        return accum(func(x) for x in data)
-
-
-def _vector_reduce(num_columns, accum, data, func=None):
-    """_vector_reduce(num_columns, accum, data)
-        -> accumulate items of data
-    _vector_reduce(num_columns, accum, data, func)
-        -> accumulate func(each item of data)
-
-    accum should be a co-routine or other object with a send method.
-
-    Accumulate items of data column by column. Each row of data must have
-    exactly num_columns items, or ValueError will be raised.
-
-    If func is is None (the default), the items are accumulated as given.
-
-    >>> data = [[0, 1, 2, 3],
-    ...         [1, 2, 4, 6],
-    ...         [2, 4, 6, 9]]
-    >>> _vector_reduce(4, running_sum, data)
-    [3, 7, 12, 18]
-
-    If func is a single callable, then it is called with each item as
-    argument and the results passed to the accumulator.
-
-    >>> _vector_reduce(4, running_sum, data, lambda x: x**2)
-    [5, 21, 56, 126]
-
-    If func is a list or tuple of functions, it must have exactly num_columns
-    items, or ValueError will be raised. Each function is called with the
-    appropriate column, and the results summed.
-
-    >>> funcs = [lambda x: 2*x, lambda x: x**2, lambda x: x-1, lambda x: x]
-    >>> _vector_reduce(4, running_sum, data, funcs)
-    [6, 21, 9, 18]
-
-    """
-    columns = [accum() for _ in range(num_columns)]
-    result = [0.0]*num_columns
-    if func is None:
-        for row in data:
-            if len(row) != num_columns:
-                raise ValueError('expected %d columns but found %d'
-                % (num_columns, len(row)))
-            result = [cr.send(col) for cr, col in zip(columns, row)]
-    else:
-        try:
-            num_funcs = len(func)
-        except TypeError:
-            funcs = [func]*num_columns
-            num_funcs = num_columns
+    def add(self, x):
+        """Add numeric value x to self.partial."""
+        # Handle special values:
+        #
+        #   |   x   |   y   |  y+x  |   where y = partials
+        #   +-------+-------+-------|         * = any finite value
+        #   |   ?   |   []  |   x   |         ? = any value, finite or not
+        #   |  NAN  |   ?   |  NAN  |         [] = empty partials list
+        #   |   ?   |  NAN  |  NAN  |
+        #   |  INF  |  INF  |  INF  | <= same sign
+        #   | +INF  | -INF  |  NAN  | <= opposite signs
+        #   | -INF  | +INF  |  NAN  |
+        #   |   *   |  INF  |  INF  |
+        #   |  INF  |   *   |  INF  |
+        #
+        partials = self.partials[:]  # Make a copy.
+        if not partials:
+            # nothing + anything
+            partials = [x]
+        elif math.isnan(x):
+            # anything + NAN = NAN
+            partials = [x]  # Latest NAN beats previous NAN (if any).
         else:
-            funcs = func
-        if num_funcs != num_columns:
-            raise ValueError('expected %d functions but got %d'
-            % (num_columns, num_funcs))
-        for row in data:
-            if len(row) != num_columns:
-                raise ValueError('expected %d columns but found %d'
-                % (num_columns, len(row)))
-            zipped = zip(columns, row, funcs)
-            result = [cr.send(f(col)) for cr, col, f in zipped]
-    return result
+            y = partials[0]
+            if math.isnan(y):
+                # NAN + anything = NAN.
+                pass
+            elif math.isinf(y):
+                if math.isinf(x):
+                    if float(x) == float(y):
+                        # INFs have the same sign.
+                        assert (x > 0) == (y > 0)
+                        partials = [x]  # Latest INF wins.
+                    else:
+                        # INFs have opposite sign.
+                        assert (x > 0) != (y > 0)
+                        partials = [type(x)('nan')]
+                else:
+                    # INF + finite = INF
+                    assert not math.isnan(x)  # Handled earlier.
+            elif math.isinf(x):
+                # finite + INF = INF
+                assert not math.isnan(y)  # Handled earlier.
+                assert not math.isinf(y)
+                partials = [x]
+            else:
+                # finite + finite
+                try:
+                    add_partial(x, partials)
+                except TypeError:
+                    # This probably means we're trying to add Decimal to
+                    # float. Coerce to floats and try again.
+                    partials[:] = map(float, partials)
+                    x = float(x)
+                    add_partial(x, partials)
+        return type(self)(partials)
+
+    def value(self):
+        return _sum(self.partials)
 
 
-# FIXME needs documentation
-def _generalised_reduce(scalar_accum, vector_accum, data, func=None):
-    # Determine whether we can use a fast sequence path or a slow
-    # iterator path.
-    is_iter = iter(data) is data
-    if is_iter:
-        # data is an iterator. We have no random access, and no fast way to
-        # determine the length of the data.
-        try:
-            first = next(data)
-        except StopIteration:
-            return (0, None)
-        data = itertools.chain([first], data)
-        data = _countiter(data)
-        assert data.count == 0
-    else:
-        # Sequence path. We can assume random access to the items.
-        if not data:
-            return (0, None)
-        first = data[0]
-    # Now determine whether we expect scalar or vector items. This is not
-    # entirely general, but for our purposes it is good enough to treat
-    # lists or tuples as vectors and anything else as (probably) scalars.
-    if isinstance(first, (list, tuple)):
-        total = _vector_reduce(len(first), vector_accum, data, func)
-    else:
-        total = _scalar_reduce(scalar_accum, data, func)
-    n = data.count if is_iter else len(data)
-    return n, total
+_add = functools.partial(v.apply_op, _Adder.add)
+
+def _fsum(x, start=0):
+    return functools.reduce(_add, x, _Adder([start]))
 
 
-def _len_sum(data, func=None):
-    """_len_sum(data, func) -> len(data), sum(func(items of data))
+def _len_sum(iterable, func=None):
+    """\
+    _len_sum(iterable) -> len(iterable), sum(iterable)
+    _len_sum(iterable, func) -> len(iterable), sum(func(items of data))
 
     Return a two-tuple of the length of data and the sum of func() of the
     items of data. If func is None (the default)), use just the sum of items
     of data.
     """
-    def scalar_sum(data):
-        try:
-            return math.fsum(data)
-        except ValueError:
-            # You get a ValueError if fsum tries to add +inf and -inf.
-            # FIXME Are there any other circumstances?
-            return float('nan')
-    return _generalised_reduce(scalar_sum, running_sum, data, func)
-
-
-def _sum_sq_deviations(data, m=None):
-    """Returns the sum of square deviations (SS).
-    Helper function for calculating variance.
-    """
-    if m is None:
-        # Multi-pass algorithm.
-        if not isinstance(data, (list, tuple)):
-            data = list(data)
-        n, total = _len_sum(data)
-        if n == 0:
-            return (0, total)
-        if isinstance(total, list):
-            m = [x/n for x in total]
-        else:
-            m = total/n
-    if isinstance(m, list):
-        func = [lambda x, k=mm: (x-k)**2 for mm in m]
+    # Special case for speed.
+    if isinstance(iterable, list):
+        n = len(iterable)
     else:
-        func = lambda x: (x-m)**2
-    return _len_sum(data, func)
+        n = None
+        iterable = _countiter(iterable)
+    if func is None:
+        total = _fsum(iterable)
+    else:
+        total = _fsum(func(x) for x in iterable)
+    if n is None:
+        n = iterable.count
+    if isinstance(total, list):
+        total = [t.value() for t in total]
+    else:
+        total = total.value()
+    return (n, total)
+
+
+def _std_moment(data, m, s, r):
+    """Return the length and standardised moment of order r = 1...4."""
+    assert r in (1, 2, 3, 4), "private function not intended for r != 1...4"
+    if m is None or s is None:
+        # We need multiple passes over the data, so make sure we can.
+        if not isinstance(data, list):
+            data = list(data)
+        if m is None: m = mean(data)
+        if s is None: s = pstdev(data, m)
+    # Minimize the number of arithmetic operations needed for some
+    # common functions.
+    if False and s == 1:  # FIXME this optimization is currently disabled.
+        if r == 1:
+            args = (m,)
+            f = lambda x, m: (x-m)
+        elif r == 2:
+            args = (m,)
+            f = lambda x, m: (x-m)**2
+        else:
+            args = (m, r)
+            f = lambda x, m, r: (x-m)**r
+    else:
+        args = (m, s, r)
+        f = lambda x, m, s, r: ((x-m)/s)**r
+    n, total = _len_sum(v.apply(f, x, *args) for x in data)
+    return (n, total)
     # FIXME the above may not be accurate enough for 2nd moments (x-m)**2
     # A more accurate algorithm is the compensated version:
     #   sum2 = sum((x-m)**2) as above
@@ -478,18 +409,7 @@ def sum(data, start=0):
     if not count:
         return start
     # Add start as needed.
-    if isinstance(total, list):
-        try:
-            num_start = len(start)
-        except TypeError:
-            start = [start]*len(total)
-            num_start = len(total)
-        if num_start != len(total):
-            raise ValueError('expected %d starting values but got %d'
-            % (len(total), num_start))
-        return [x+s for x,s in zip(total, start)]
-    else:
-        return total + start
+    return v.add(total, start)
 
 
 @coroutine
@@ -513,22 +433,13 @@ def running_sum(start=None):
     [10, 12, 15]
 
     """
-    if start is not None:
-        total = [start]
-    else:
-        total = []
+    if start is None: start = []
+    else: start = [start]
+    total = _Adder(start)
     x = (yield None)
     while True:
-        try:
-            add_partial(x, total)
-        except TypeError:
-            if not _is_numeric(x):
-                raise
-            # Downgrade to floats and try again.
-            x = float(x)
-            total[:] = map(float, total)
-            continue
-        x = (yield _sum(total))
+        total = total.add(x)
+        x = (yield total.value())
 
 
 @coroutine
@@ -607,29 +518,10 @@ def product(data, start=1):
     """
     if isinstance(data, str):
         raise TypeError('data argument cannot be a string')
-    # Calculate the length and product of data.
-    scalar_multiply = functools.partial(functools.reduce, operator.mul)
+    return v.prod(data, start)
     # Note: do *not* be tempted to do something clever with logarithms:
     #   math.exp(sum([math.log(x) for x in data], start))
-    # is FAR less accurate than the naive multiplication above.
-    count, total = _generalised_reduce(scalar_multiply, running_product, data)
-    if not count:
-        return start
-    # Multiply by start as needed.
-    if isinstance(total, list):
-        try:
-            num_start = len(start)
-        except TypeError:
-            start = [start]*len(total)
-            num_start = len(total)
-        if num_start != len(total):
-            raise ValueError('expected %d starting values but got %d'
-            % (len(total), num_start))
-        return [x*s for x,s in zip(total, start)]
-    else:
-        if _is_numeric(start):
-            return total * start
-        raise ValueError()  # FIXME
+    # is FAR less accurate than naive multiplication.
 
 
 # === Basic univariate statistics ===
@@ -670,7 +562,7 @@ def mean(data):
     count, total = _len_sum(data)
     if not count:
         raise StatsError('mean of empty sequence is not defined')
-    return _vsmap(lambda x: x/count, total)
+    return v.div(total, count)
 
 
 def variance(data, m=None):
@@ -686,7 +578,9 @@ def variance(data, m=None):
         often inconsistent and confusing. This is the variance with
         Bessel's correction for bias, also known as variance with N-1
         degrees of freedom. See Wolfram Mathworld for further details:
+
         http://mathworld.wolfram.com/Variance.html
+        http://mathworld.wolfram.com/SampleVariance.html
 
     When given a single iterable of data, ``variance`` returns the sample
     variance of that data:
@@ -749,9 +643,11 @@ def stdev(data, m=None):
     >>> stdev(data)  #doctest: +ELLIPSIS
     [0.816496580927..., 1.41421356237..., 1.82574185835...]
 
+    Note that although ``variance`` is an unbiased estimate for the
+    population variance, ``stdev`` itself is *not* unbiased.
     """
     svar = variance(data, m)
-    return _vsmap(math.sqrt, svar)
+    return v.sqrt(svar)
 
 
 def pvariance(data, m=None):
@@ -763,19 +659,14 @@ def pvariance(data, m=None):
     data. A large variance indicates that the data is spread out; a small
     variance indicates it is clustered closely around the central location.
 
-        WARNING: The mathematical terminology related to variance is
-        often inconsistent and confusing. This is the uncorrected variance,
-        also known as variance with N degrees of freedom. See Wolfram
-        Mathworld for further details:
-        http://mathworld.wolfram.com/Variance.html
+    See ``variance`` for further information.
 
     If your data represents the entire population, you should use this
     function. If your data is a sample of the population, this function
     returns a biased estimate of the variance. For an unbiased estimate,
     use ``variance`` instead.
 
-    Here we calculate the true variance of a population with exactly
-    eight elements:
+    Calculate the variance of populations:
 
     >>> pvariance([0.0, 0.25, 0.25, 1.25, 1.5, 1.75, 2.75, 3.25])
     1.25
@@ -799,8 +690,6 @@ def pvariance(data, m=None):
     optional second argument ``m``. For columnar data, ``m`` must be either
     a single number, or it must contain the same number of columns as the
     data.
-
-    See also ``variance``.
     """
     return _variance(data, m, 0)
 
@@ -828,26 +717,19 @@ def pstdev(data, m=None):
 
     """
     pvar = pvariance(data, m)
-    return _vsmap(math.sqrt, pvar)
+    return v.sqrt(pvar)
 
 
-def _variance(data, m, offset):
-    """Return an estimate of variance with N-offset degrees of freedom."""
-    n, ss = _sum_sq_deviations(data, m)
+def _variance(data, m, p):
+    """Return an estimate of variance with N-p degrees of freedom."""
+    n, ss = _std_moment(data, m, 1, 2)
     assert n >= 0
-    if n - offset <= 0:
-        required = max(0, offset+1)
+    if n <= p:
         raise StatsError(
-        'at least %d items are required but only got %d' % (required, n))
-    den = n - offset
-    return _vsmap(lambda x: x/den, ss, lambda v: v >= 0.0)
-    if isinstance(ss, list):
-        v = [x/den for x in ss]
-        assert all(x >= 0.0 for x in v)
-    else:
-        v = ss/den
-        assert v >= 0.0
-    return v
+        'at least %d items are required but only got %d' % (p+1, n))
+    den = n - p
+    v.assert_(lambda x: x >= 0.0, ss)
+    return v.div(ss, den)
 
 
 def minmax(*values, **kw):
@@ -880,7 +762,7 @@ def minmax(*values, **kw):
     if isinstance(values, collections.Sequence):
         # For speed, fall back on built-in min and max functions when
         # data is a sequence and can be safely iterated over twice.
-        # TODO this would be unnecessary if this were re-written in C.
+        # TODO this could be unnecessary if this were re-written in C.
         minimum = min(values, **kw)
         maximum = max(values, **kw)
         # The number of comparisons is N-1 for both min() and max(), so the

@@ -203,19 +203,20 @@ def _get_scheme_func(ns, scheme):
 #       things get ugly.
 #
 # Quantiles and percentiles also have a plethora of calculation methods.
-# R (and presumably S) include nine different methods for quantiles.
-# Mathematica uses a parameterized quantile function capable of matching
-# eight of those nine methods. Wikipedia lists a tenth method. There are
-# probably others I don't know of. And then there are grouped and weighted
-# data, all of which have their own methods too :(
+# R includes nine different methods for quantiles. Mathematica uses a
+# parameterized quantile function capable of matching eight of those nine
+# methods. Wikipedia lists a tenth method. The Haskell statistics package
+# includes six. There are probably others I don't know of. And then there
+# are grouped and weighted data, all of which have their own methods too :(
 #
 # The most frustrating part of this is that most examples of fractile use
 # don't give any hint as to which calculation method is used, or even that
 # there is a choice to be made.
 #
-# R's approach is to specify the calculation "type" as an optional parameter
-# of the quantile function: quantile(x, probs ... type = 7, ...). I take a
-# similar approach. Notable differences are:
+# The approach used by R is to specify the calculation "type" as an optional
+# parameter of the quantile function: quantile(x, probs ... type = 7, ...).
+# SAS uses a similar approach, using different numbers. I take a similar
+# approach. Notable differences are:
 #
 #   * I use the term "scheme" rather than "type" or "method";
 #   * I support user-extensible string aliases (names) as well as
@@ -619,19 +620,20 @@ class _Quantile:
         })
     ALIASES_MAP = {
         'cdf': 2,
-        'excel': 7,
+        'excel': 7,  # Method used by Excel, OpenOffice and Gnumeric.
         'h&f': 8,
         'hyndman': 8,
-        'matlab': 5,
-        'minitab': 6,
-        'sas-1': 4,
+        'matlab': 5,  # As used by Matlab.
+        'minitab': 6,  # As used by Minitab.
+        's': 7,  # As used by S.
+        'sas-1': 4,  # Methods available in SAS.
         'sas-2': 3,
         'sas-3': 1,
         'sas-4': 6,
         'sas-5': 2,
+        'spss': 6, # As used by SPSS.
         }
     assert all(alias==alias.lower() for alias in ALIASES_MAP)
-
 
 # -- Public fractile functions --
 

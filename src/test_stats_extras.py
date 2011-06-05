@@ -1782,6 +1782,89 @@ class UnivarPearsonSkewnessTest(test_stats.NumericTestCase):
         self.assertEqual(self.func(225, 250, 25), -1.0)
 
 
+class UnivarSkewnessTest(
+    test_stats.UnivariateMixin,
+    test_stats.NumericTestCase
+    ):
+
+    tol = 1e-15
+    rel = 1e-15
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.skewness
+
+    def testSingleData(self):
+        # Override mixin method.
+        self.assertRaises(ValueError, self.func, [42])
+
+    def test_uniform(self):
+        # Compare the calculated skewness against an exact result
+        # calculated from a uniform distribution.
+        data = range(10000)
+        self.assertEqual(self.func(data), 0.0)
+        data = [x + 1e9 for x in data]
+        self.assertEqual(self.func(data), 0.0)
+
+    def get_non_uniform_data(self):
+        d = list(range(1, 1500, 3))
+        d.extend(range(2, 1000, 3))
+        d.extend(range(10, 50, 2))
+        d.extend(range(230, 260))
+        d.extend(range(100, 400, 2))
+        d.extend(range(151, 250, 2))
+        d.extend(range(300, 450, 7))
+        d.extend(range(800, 900, 4))
+        d.extend(range(2000, 2010))
+        random.shuffle(d)
+        return d
+
+    def testShuffled(self):
+        data = self.get_non_uniform_data()
+        a = self.func(data)
+        random.shuffle(data)
+        b = self.func(data)
+        self.assertEqual(a, b)
+
+    def testShifted(self):
+        data = self.get_non_uniform_data()
+        a = self.func(data)
+        b = self.func(x+1e6 for x in data)
+        self.assertApproxEqual(a, b, tol=1e-12)
+
+    def testMeanGiven(self):
+        # Giving the sample mean shouldn't change the result.
+        data = self.get_non_uniform_data()
+        a = self.func(data)
+        m = stats.mean(data)
+        b = self.func(data, m)
+        self.assertEqual(a, b)
+
+    def testStdevGiven(self):
+        # Giving the sample stdev shouldn't change the result.
+        data = self.get_non_uniform_data()
+        a = self.func(data)
+        m = stats.mean(data)
+        s = stats.stdev(data, m)
+        b = self.func(data, None, s)
+        self.assertEqual(a, b)
+
+    def testMeanStdevGiven(self):
+        # Giving both the mean and stdev shouldn't change the result.
+        data = self.get_non_uniform_data()
+        a = self.func(data)
+        m = stats.mean(data)
+        s = stats.stdev(data, m)
+        b = self.func(data, m, s)
+        self.assertEqual(a, b)
+
+    def test_exact_result(self):
+        # Test against a hand-calculated result.
+        data = [1, 1, 2, 2, 2, 3, 4]
+        expected = math.sqrt(13446972/37933056)
+        self.assertApproxEqual(self.func(data), expected)
+
+
 class UnivarStErrMeanTest(test_stats.NumericTestCase):
     tol=1e-11
     def __init__(self, *args, **kwargs):
@@ -1962,6 +2045,51 @@ class UnivarCircularMeanTest(
         random.shuffle(data)
         theta = self.func(data, False)
         self.assertApproxEqual(theta, 0.0)
+
+
+class UnivarModeTest(test_stats.NumericTestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = stats.univar.mode
+        self.data = [
+                    1,
+                    2, 2,
+                    3,
+                    4, 4, 4,
+                    5, 5, 5, 5, 5,
+                    6, 6,
+                    7,
+                    8,
+                    ]
+        self.expected = 5
+
+    def setUp(self):
+        random.shuffle(self.data)
+
+    def testNoMode(self):
+        data = list(set(self.data))
+        self.assertRaises(ValueError, self.func, data)
+
+    def testMode(self):
+        self.assertEqual(self.func(self.data), self.expected)
+
+    def testNominal(self):
+        data = ["yellow"]*8 + ["blue"]*5 + ["red"]*5 + ["green"]*4
+        random.shuffle(data)
+        self.assertEqual(self.func(data), "yellow")
+
+    def testBimodalNominal(self):
+        data = ["yellow"]*8 + ["blue"]*8 + ["red"]*4 + ["green"]*2
+        random.shuffle(data)
+        self.assertRaises(ValueError, self.func, data)
+
+    def testBimodal(self):
+        data = self.data[:]
+        n = data.count(self.expected)
+        data.extend([0]*n)
+        random.shuffle(data)
+        assert data.count(0) == n
+        self.assertRaises(ValueError, self.func, data)
 
 
 

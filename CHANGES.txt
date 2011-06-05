@@ -15,6 +15,7 @@ Version 0.2a  2011-03-???
       with `python3 -m stats._tests`.
     * Renamed stderrskewness and stderrkurtosis to sterrskewness and
       sterrkurtosis for consistancy with stdev and sterrmean.
+    * Replaced hinges function with Tukey's fivenum summary.
 
     Performance improvements:
     * Processing iterators are now about 25% faster.
@@ -22,9 +23,14 @@ Version 0.2a  2011-03-???
     New functionality:
     * Many functions have been vectorized (will operate on columns of data
       in a single function call).
+    * Support for alternative definitions of median (e.g. "social sciences
+      median", "low median", and others.)
+
+    Notable bug fixes:
+    * Fixed the issue with quantile scheme #3.  <<<------ FIXME
 
     Known issues:
-    * none yet :)
+    * Unconfirmed reports that the Windows binary installer does not work.
 
 
 Version 0.1.2a  2010-12-31
