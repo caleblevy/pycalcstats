@@ -529,95 +529,6 @@ class AddPartialTest(unittest.TestCase):
         stats.add_partial(-4.5, L)
         self.assertEqual(sum(L), 1e-120)
 
-    def check_is_nan(self, L):
-        """Check that list L == [nan]."""
-        self.assertTrue(len(L) == 1)
-        self.assertTrue(math.isnan(L[0]))
-
-    def testNAN(self):
-        # Test that add_partial does the right thing when adding NANs.
-        nan = float('nan')
-        # Test adding to an empty list.
-        L = []
-        stats.add_partial(nan, L)
-        self.check_is_nan(L)
-        # Adding more stuff doesn't change the list.
-        stats.add_partial(nan, L)
-        self.check_is_nan(L)
-        stats.add_partial(42, L)
-        stats.add_partial(float('inf'), L)
-        stats.add_partial(100, L)
-        self.check_is_nan(L)
-        # Test adding to a non-empty list.
-        L = [1]
-        stats.add_partial(1e-100, L)
-        stats.add_partial(1e100, L)
-        stats.add_partial(nan, L)
-        self.check_is_nan(L)
-
-    def testINF(self):
-        # Test that add_partial does the right thing when adding +INFs.
-        inf = float('inf')
-        # Test adding to an empty list.
-        L = []
-        stats.add_partial(inf, L)
-        self.assertEqual(L, [inf])
-        # Adding more non-NANs doesn't change the list.
-        stats.add_partial(inf, L)
-        self.assertEqual(L, [inf])
-        stats.add_partial(42, L)
-        stats.add_partial(100, L)
-        self.assertEqual(L, [inf])
-        # Test adding to a non-empty list.
-        L = [1]
-        stats.add_partial(1e-100, L)
-        stats.add_partial(1e100, L)
-        stats.add_partial(inf, L)
-        self.assertEqual(L, [inf])
-        # Adding a NAN turns it into a NAN.
-        stats.add_partial(float('nan'), L)
-        self.check_is_nan(L)
-
-    def testNINF(self):
-        # Test that add_partial does the right thing when adding -INFs.
-        inf = float('inf')
-        # Test adding to an empty list.
-        L = []
-        stats.add_partial(-inf, L)
-        self.assertEqual(L, [-inf])
-        # Adding more non-NANs doesn't change the list.
-        stats.add_partial(-inf, L)
-        self.assertEqual(L, [-inf])
-        stats.add_partial(23, L)
-        stats.add_partial(500, L)
-        self.assertEqual(L, [-inf])
-        # Test adding to a non-empty list.
-        L = [2]
-        stats.add_partial(3e-100, L)
-        stats.add_partial(3e100, L)
-        stats.add_partial(-inf, L)
-        self.assertEqual(L, [-inf])
-        # Adding a NAN turns it into a NAN.
-        stats.add_partial(float('nan'), L)
-        self.check_is_nan(L)
-
-    def testMismatchedINFs(self):
-        # Test that adding +INF and -INF produces a NAN.
-        nan = float('nan')
-        inf = float('inf')
-        # Test +INF + -INF.
-        L = []
-        stats.add_partial(inf, L)
-        self.assertEqual(L, [inf])
-        stats.add_partial(-inf, L)
-        self.check_is_nan(L)
-        # Test -INF + +INF.
-        L = []
-        stats.add_partial(-inf, L)
-        self.assertEqual(L, [-inf])
-        stats.add_partial(inf, L)
-        self.check_is_nan(L)
-
 
 class SumTest(UnivariateMixin, NumericTestCase):
     def __init__(self, *args, **kwargs):
@@ -712,32 +623,32 @@ class SumIEEEValues(NumericTestCase):
 
     def testNAN(self):
         nan = float('nan')
-        result = stats.sum([1, nan])
+        result = stats.sum([1, nan, 2])
         self.assertTrue(math.isnan(result))
 
     def testINF(self):
         inf = float('inf')
         # Single INFs add to the INF with the same sign.
-        result = stats.sum([1, inf])
+        result = stats.sum([1, inf, 2])
         self.assertTrue(math.isinf(result))
         self.assertTrue(result > 0)
-        result = stats.sum([1, -inf])
+        result = stats.sum([1, -inf, 2])
         self.assertTrue(math.isinf(result))
         self.assertTrue(result < 0)
         # So do multiple INFs, if they have the same sign.
-        result = stats.sum([1, inf, inf])
+        result = stats.sum([1, inf, inf, 2])
         self.assertTrue(math.isinf(result))
         self.assertTrue(result > 0)
-        result = stats.sum([1, -inf, -inf])
+        result = stats.sum([1, -inf, -inf, 2])
         self.assertTrue(math.isinf(result))
         self.assertTrue(result < 0)
 
     def testMismatchedINFs(self):
         # INFs with opposite signs add to a NAN.
         inf = float('inf')
-        result = stats.sum([1, inf, -inf])
+        result = stats.sum([1, inf, -inf, 2])
         self.assertTrue(math.isnan(result))
-        result = stats.sum([1, -inf, +inf])
+        result = stats.sum([1, -inf, +inf, 2])
         self.assertTrue(math.isnan(result))
 
 

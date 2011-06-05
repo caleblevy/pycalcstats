@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
+# -*- coding: utf8 -*-
 
 ##  Copyright (c) 2011 Steven D'Aprano.
 ##  See the file __init__.py for the licence terms for this software.
 
 """
 Univariate statistics.
+
+This module provides functions for calculating summary statistics for
+univariate (single-variable) data. For additional functions, see the main
+``stats`` module.
 
 
 This module provides the following univariate statistics functions:
@@ -15,12 +20,14 @@ This module provides the following univariate statistics functions:
     circular_mean       Mean (average) of circular quantities.
     geometric_mean*     Mean of exponential growth rates.
     harmonic_mean*      Mean of rates or speeds.
-    kurtosis            Measure of shape of the data.
+    kurtosis*           Measure of shape of the data.
     mode                Most frequent value.
     moving_average      Simple moving average iterator.
     pearson_skewness    Measure of symmetry of the data.
+    pkurtosis*          Population kurtosis.
+    pskewness*          Population skewness.
     quadratic_mean*     Root-mean-square average.
-    skewness            Measure of the symmetry of the data
+    skewness*           Measure of the symmetry of the data
     sterrkurtosis       Standard error of the kurtosis.
     sterrmean           Standard error of the mean.
     sterrskewness       Standard error of the skewness.
@@ -37,6 +44,7 @@ __all__ = [
     'sterrskewness',
     ]
 
+import decimal
 import math
 import operator
 import functools
@@ -45,6 +53,7 @@ import collections
 
 import stats
 import stats.utils
+import stats.vectorize as v
 
 
 # Utility functions
@@ -74,30 +83,25 @@ def _divide(num, den):
     Decimal('NaN')
 
     """
-    # Support Decimal, but only if necessary. Avoid importing such a
-    # heavyweight module if not needed.
-    if 'decimal' in (type(num).__module__, type(den).__module__):
-        import decimal
+    try:
+        return num/den
+    except (decimal.DivisionByZero, decimal.InvalidOperation):
+        # num and den could be NANs, INFs, or den == 0. The easiest way
+        # to handle all the cases is just do the division again.
         with decimal.localcontext() as ctx:
             ctx.traps[decimal.DivisionByZero] = 0
             ctx.traps[decimal.InvalidOperation] = 0
             return num/den
-    # Support non-Decimal values.
-    try:
-        return num/den
     except ZeroDivisionError:
-        if num:
-            result = math.copysign(float('inf'), den)
+        assert den == 0  # Division by NAN or INF is handled okay.
+        assert not math.isnan(num)  # NAN/x will not raise Zero
+        if num == 0:
+            return float('nan')
+        else:
+            result = math.copysign(float('inf'), den)  # Support signed zero.
             if num < 0:
                 result = -result
-        else:
-            result = float('nan')
-    for x in (num, den):
-        try:
-            return x.from_float(result)
-        except (AttributeError, ValueError, TypeError):
-            pass
-    return result
+            return result
 
 
 # Measures of central tendency (means and averages)
@@ -134,11 +138,11 @@ def harmonic_mean(data):
     # FIXME harmonic_mean([x]) should equal x exactly, but due to rounding
     # errors in the 1/(1/x) round trip, sometimes it doesn't.
     invert = functools.partial(_divide, 1)
-    count, total = stats._len_sum(data, invert)
-    if not count:
-        raise stats.StatsError('harmonic mean of empty sequence is not defined')
-    f = functools.partial(_divide, count)
-    return stats._vsmap(f, total)
+    n, total = stats._len_sum(v.apply(invert, x) for x in data)
+    if not n:
+        raise stats.StatsError(
+        'harmonic mean of empty sequence is not defined')
+    return v.div(n, total)
 
 
 def geometric_mean(data):
@@ -150,19 +154,38 @@ def geometric_mean(data):
     The geometric mean of N items is the Nth root of the product of the
     items. It is best suited for averaging exponential growth rates.
 
+    If data is an iterable of sequences, each inner sequence represents a
+    row of data, and the geometric mean of each column is returned. Every
+    row must have the same number of columns, or ValueError is raised.
+
+    >>> data = [[1, 1],
+    ...         [2, 3],
+    ...         [3, 9]]
+    ...
+    >>> geometric_mean(data)  #doctest: +ELLIPSIS
+    [1.81712059283..., 3.0]
+
     """
     # Calculate the length and product of data.
     def safe_mul(a, b):
         x = a*b
         if x < 0: return float('nan')
         return x
-    scalar_multiply = functools.partial(functools.reduce, safe_mul)
-    count, total = stats._generalised_reduce(
-                    scalar_multiply, stats.running_product, data)
-    if not count:
+    mul = functools.partial(v.apply_op, safe_mul)
+
+    # Special case for speed.
+    if isinstance(data, list):
+        n = len(data)
+    else:
+        n = None
+        data = stats._countiter(data)
+    prod = functools.reduce(mul, data)
+    if n is None:
+        n = data.count
+    if not n:
         raise stats.StatsError(
         'geometric mean of empty sequence is not defined')
-    return pow(total, 1.0/count)
+    return v.pow(prod, 1.0/n)
 
 
 def quadratic_mean(data):
@@ -194,44 +217,33 @@ def quadratic_mean(data):
     [1.29099..., 2.64575..., 4.3204..., 5.41602...]
 
     """
-    count, total = stats._len_sum(data, lambda x: x*x)
+    count, total = stats._len_sum(v.sqr(x) for x in data)
     if not count:
-        raise stats.StatsError('quadratic mean of empty sequence is not defined')
-    return stats._vsmap(lambda x: math.sqrt(x/count), total)
+        raise stats.StatsError(
+        'quadratic mean of empty sequence is not defined')
+    return v.sqrt(v.div(total, count))
 
 
-def mode(data, window=None):
-    """Returns the most common element of a sequence of numbers.
+def mode(data):
+    """Returns the most common element of a sequence of discrete numbers.
 
     The mode is commonly used as an average. It is the "most typical"
-    value of a distribution or data set.
+    value of a distribution or data set. This function assumes that the
+    values are discrete and exact, and returns the most frequent value:
 
     >>> mode([5, 7, 2, 3, 2, 2, 1, 3])
     2
 
-    For discrete data, pass ``window=None`` (the default) to return the
-    element with the largest frequency. If there is no such element, or
-    it is not unique, ``StatsError`` is raised.
+    If there is no such element, or it is not unique, ``StatsError`` is
+    raised.
 
-    For continuous data, the mode is estimated using the technique described
-    as "estimating the rate of an inhomogeneous Poisson process by jth
-    waiting times" (Numerical Recipes in Pascal, Press et. al.) Choose a
-    positive integer as the "window size". A smaller window size gives better
-    resolution and a chance at finding a high but narrow peak, but is also
-    more likely to mistake a chance fluctuation in the data as the mode.
+    ``mode`` also works on nominal data:
 
-    ``window`` should be as large as you can tolerate. If it is less than 1,
-    ValueError is raised. If it is 2 or 3, a warning is raised.
+    >>> mode(['big', 'small', 'medium', 'small', 'huge', 'small', 'medium'])
+    'small'
+
+    If your data is continuous, see functions .... FIXME
     """
-    if window is not None:
-        if window < 1:
-            raise ValueError('window size must be strictly positive and'
-            ' should be at least three')
-        if window < 3:
-            import warnings
-            warnings.warn('window size is recommended to be at least three')
-        raise NotImplementedError
-    assert window is None
     L = sorted(
         [(count, value) for (value, count) in
          make_freq_table(data).items()],
@@ -289,16 +301,30 @@ def average_deviation(data, m=None):
     >>> average_deviation(data)
     0.3
 
+    If data is an iterable of sequences, each inner sequence represents a
+    row of data, and ``average_deviation`` operates on each column. Every
+    row must have the same number of columns, or ValueError is raised.
+    Similarly, m (if given) must have either the same number of items, or
+    be a single number.
+
+    >>> data = [[0, 1, 2, 4],
+    ...         [1, 2, 4, 6],
+    ...         [2, 4, 6, 6]]
+    ...
+    >>> average_deviation(data, [1, 2, 3.5, 6])  #doctest: +ELLIPSIS
+    [0.666666..., 1.0, 1.5, 0.666666...]
+
     """
     if m is None:
-        if not isinstance(data, (list, tuple)):
+        if not isinstance(data, list):
             data = list(data)
         m = stats.mean(data)
-    n, total = stats._len_sum(data, lambda x: abs(x-m))
-    if n < 1:
+    f = lambda x, m: abs(x-m)
+    count, total = stats._len_sum(v.apply(f, x, m) for x in data)
+    if not count:
         raise stats.StatsError(
         'average deviation requires at least 1 data point')
-    return total/n
+    return v.div(total, count)
 
 
 # Other moments of the data
@@ -322,27 +348,76 @@ def pearson_skewness(mean, mode, stdev):
         raise stats.StatsError("standard deviation cannot be negative")
 
 
+def pskewness(data, m=None, s=None):
+    """pskewness(data [,m [,s]]) -> population skewness of data.
+
+    This returns γ₁ "\\N{GREEK SMALL LETTER GAMMA}\\N{SUBSCRIPT ONE}", the
+    population skewness. For more information about skewness, see the sample
+    skewness function ``skewness``.
+
+    >>> pskewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    ... #doctest: +ELLIPSIS
+    1.37474650254...
+
+    """
+    n, total = stats._std_moment(data, m, s, 3)
+    assert n >= 0
+    if n <= 1:
+        raise StatsError('no skewness is defined for empty data')
+    return v.div(total, n)
+
+
 def skewness(data, m=None, s=None):
     """skewness(data [,m [,s]]) -> sample skewness of data.
 
-    Returns a biased estimate of the degree to which the data is skewed to
-    the left or the right of the mean.
+    The skewness, or third standardised moment, of data is the degree to
+    which it is skewed to the left or right of the mean.
+
+    This returns g₁ "g\\N{SUBSCRIPT ONE}", the sample skewness. For the
+    population skewness, see function ``pskewness``.
+
+        WARNING: The mathematical terminology and notation related to
+        skewness is often inconsistent and contradictory. See Wolfram
+        Mathworld for further details:
+
+        http://mathworld.wolfram.com/Skewness.html
 
     >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
     ... #doctest: +ELLIPSIS
-    1.12521290135...
+    1.71461013539878...
 
-    If you know one or both of the population mean and standard deviation,
-    or estimates of them, then you can pass the mean as optional argument m
-    and the standard deviation as s.
+    If you already know one or both of the population mean and standard
+    deviation, you can pass the mean as optional argument m and/or the
+    standard deviation as s:
 
-    >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5], m=2.25)
+    >>> skewness([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5], m=2.25, s=1)
     ... #doctest: +ELLIPSIS
-    0.965559535600599...
+    1.47132881615329...
 
-    The reliablity of the result as an estimate for the true skewness depends
-    on the estimated mean and standard deviation. If m or s are not given, or
-    are None, they are estimated from the data.
+        CAUTION: "Garbage in, garbage out" applies here. You can pass
+        any values you like as ``m`` or ``s``, but if they are not
+        sensible estimates for the mean and standard deviation, the
+        result returned as the skewness will likewise not be sensible.
+
+    If m or s are not given, or are None, they are estimated from the data.
+
+    If data is an iterable of sequences, each inner sequence represents a
+    row of data, and ``skewness`` operates on each column. Every row must
+    have the same number of columns, or ValueError is raised.
+
+    >>> data = [[0, 1],
+    ...         [1, 5],
+    ...         [2, 6],
+    ...         [5, 7]]
+    ...
+    >>> skewness(data)  #doctest: +ELLIPSIS
+    [1.19034012827899..., -1.44305883553164...]
+
+    Similarly, if either m or s are given, they must be either a single
+    number or have the same number of items as the data:
+
+    >>> skewness(data, m=[2.5, 5.0], s=2)  #doctest: +ELLIPSIS
+    [-0.189443057077845..., -2.97696232550900...]
 
     A negative skewness indicates that the distribution's left-hand tail is
     longer than the tail on the right-hand side, and that the majority of
@@ -352,43 +427,96 @@ def skewness(data, m=None, s=None):
     that the values are evenly distributed around the mean, often but not
     necessarily implying the distribution is symmetric.
 
-        :: CAUTION ::
-        As a rule of thumb, a non-zero value for skewness should only be
-        treated as meaningful if its absolute value is larger than
-        approximately twice its standard error. See stderrskewness.
+        CAUTION: As a rule of thumb, a non-zero value for skewness
+        should only be treated as meaningful if its absolute value is
+        larger than approximately twice its standard error. See also
+        ``stderrskewness``.
 
     """
-    if m is None or s is None:
-        if not isinstance(data, (list, tuple)):
-            data = list(data)
-        if m is None: m = stats.mean(data)
-        if s is None: s = stats.stdev(data, m)
-    n, total = stats._len_sum(data, lambda x: ((x-m)/s)**3)
-    return total/n
+    n, total = stats._std_moment(data, m, s, 3)
+    assert n >= 0
+    if n < 3:
+        raise StatsError('sample skewness requires at least three items')
+    skew = v.div(total, n)
+    k = math.sqrt(n*(n-1))/(n-2)
+    return v.mul(k, skew)
+
+
+def pkurtosis(data, m=None, s=None):
+    """pkurtosis(data [,m [,s]]) -> population kurtosis of data.
+
+    This returns γ₂ "\\N{GREEK SMALL LETTER GAMMA}\\N{SUBSCRIPT TWO}", the
+    population kurtosis relative to that of the normal distribution, also
+    known as the excess kurtosis. For the "kurtosis proper" known as
+    β₂ "\\N{GREEK SMALL LETTER BETA}\\N{SUBSCRIPT TWO}", add 3 to the result.
+
+    For more information about kurtosis, see the sample kurtosis function
+    ``kurtosis``.
+
+    >>> pkurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
+    ... #doctest: +ELLIPSIS
+    0.7794232987...
+
+    """
+    n, total = stats._std_moment(data, m, s, 4)
+    assert n >= 0
+    assert total >= 1
+    if n <= 1:
+        raise StatsError('no kurtosis is defined for empty data')
+    kurt = v.div(total, n)
+    return v.sub(kurt, 3)
 
 
 def kurtosis(data, m=None, s=None):
     """kurtosis(data [,m [,s]]) -> sample excess kurtosis of data.
 
-    Returns a biased estimate of the excess kurtosis of the data, relative
-    to the kurtosis of the normal distribution. To convert to kurtosis proper,
-    add 3 to the result.
+    The kurtosis of a distribution is a measure of its shape. This function
+    returns an estimate of the sample excess kurtosis usually known as g₂
+    "g\\N{SUBSCRIPT TWO}". For the population kurtosis, see ``pkurtosis``.
+
+        WARNING: The mathematical terminology and notation related to
+        kurtosis is often inconsistent and contradictory. See Wolfram
+        Mathworld for further details:
+
+        http://mathworld.wolfram.com/Kurtosis.html
 
     >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5])
     ... #doctest: +ELLIPSIS
-    -0.1063790369...
+    3.03678892733564...
 
-    If you know one or both of the population mean and standard deviation,
-    or estimates of them, then you can pass the mean as optional argument m
-    and the standard deviation as s.
+    If you already know one or both of the population mean and standard
+    deviation, you can pass the mean as optional argument m and/or the
+    standard deviation as s:
 
-    >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5], m=2.25)
-    ... #doctest: +ELLIPSIS
-    -0.37265014648437...
+    >>> kurtosis([1.25, 1.5, 1.5, 1.75, 1.75, 2.5, 2.75, 4.5], m=2.25, s=1)
+    2.3064453125
 
-    The reliablity of the result as an estimate for the kurtosis depends on
-    the estimated mean and standard deviation given. If m or s are not given,
-    or are None, they are estimated from the data.
+        CAUTION: "Garbage in, garbage out" applies here. You can pass
+        any values you like as ``m`` or ``s``, but if they are not
+        sensible estimates for the mean and standard deviation, the
+        result returned as the kurtosis will likewise not be sensible.
+        If you give either m or s, and the calculated kurtosis is out
+        of range, a warning is raised.
+
+    If m or s are not given, or are None, they are estimated from the data.
+
+    If data is an iterable of sequences, each inner sequence represents a
+    row of data, and ``kurtosis`` operates on each column. Every row must
+    have the same number of columns, or ValueError is raised.
+
+    >>> data = [[0, 1],
+    ...         [1, 5],
+    ...         [2, 6],
+    ...         [5, 7]]
+    ...
+    >>> kurtosis(data)  #doctest: +ELLIPSIS
+    [1.50000000000000..., 2.23486717956161...]
+
+    Similarly, if either m or s are given, they must be either a single
+    number or have the same number of items:
+
+    >>> kurtosis(data, m=[3, 5], s=2)  #doctest: +ELLIPSIS
+    [-0.140625, 18.4921875]
 
     The kurtosis of a population is a measure of the peakedness and weight
     of the tails. The normal distribution has kurtosis of zero; positive
@@ -399,21 +527,40 @@ def kurtosis(data, m=None, s=None):
     kurtosis means more of the variance is the result of infrequent extreme
     deviations, as opposed to frequent modestly sized deviations.
 
-        :: CAUTION ::
-        As a rule of thumb, a non-zero value for kurtosis should only
-        be treated as meaningful if its absolute value is larger than
-        approximately twice its standard error. See stderrkurtosis.
+        CAUTION: As a rule of thumb, a non-zero value for kurtosis
+        should only be treated as meaningful if its absolute value is
+        larger than approximately twice its standard error. See also
+        ``stderrkurtosis``.
 
     """
-    if m is None or s is None:
-        if not isinstance(data, (list, tuple)):
-            data = list(data)
-        if m is None: m = stats.mean(data)
-        if s is None: s = stats.stdev(data, m)
-    n, total = stats._len_sum(data, lambda x: ((x-m)/s)**4)
-    k = total/n - 3
-    assert k >= -2
-    return k
+    n, total = stats._std_moment(data, m, s, 4)
+    assert n >= 0
+    v.assert_(lambda x: x >= 1, total)
+    if n < 4:
+        raise StatsError('sample kurtosis requires at least 4 data points')
+    q = (n-1)/((n-2)*(n-3))
+    gamma2 = v.div(total, n)
+    # Don't do this:-
+    # kurt = v.mul((n+1)*q, gamma2)
+    # kurt = v.sub(kurt, 3*(n-1)*q)
+    #   Even though the above two commented out lines are mathematically
+    #   equivalent to the next two, and cheaper, they appear to be
+    #   slightly less accurate.
+    kurt = v.sub(v.mul(n+1, gamma2), 3*(n-1))
+    kurt = v.mul(q, kurt)
+    if v.isiterable(kurt): out_of_range = any(x < -2 for x in kurt)
+    else: out_of_range = kurt < -2
+    if m is s is None:
+        assert not out_of_range, 'kurtosis failed: %r' % kurt
+        # This is a "should never happen" condition, hence an assertion.
+    else:
+        # This, on the other hand, can easily happen if the caller
+        # gives junk values for m or s. The difference between a junk
+        # value and a legitimate value can be surprisingly subtle!
+        if out_of_range:
+            import warnings
+            warnings.warn('calculated kurtosis out of range')
+    return kurt
 
 
 # === Other statistical formulae ===
@@ -462,6 +609,7 @@ def sterrmean(s, n, N=None):
 # Tabachnick and Fidell (1996) appear to be the most commonly quoted
 # source for standard error of skewness and kurtosis; see also "Numerical
 # Recipes in Pascal", by William H. Press et al (Cambridge University Press).
+# Mathworld also references Kendall et al. (1998).
 
 def sterrskewness(n):
     """sterrskewness(n) -> float

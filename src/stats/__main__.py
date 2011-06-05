@@ -52,9 +52,9 @@ def self_test(verbose, quiet):
     assert not (verbose and quiet)
     import doctest
     import stats, stats.co, stats.multivar, stats.order, \
-           stats.univar, stats.utils
+           stats.univar, stats.utils, stats.vectorize
     modules = (stats, stats.co, stats.multivar, stats.order,
-               stats.univar, stats.utils
+               stats.univar, stats.utils, stats.vectorize,
                )
     failed = tried = 0
     for module in modules:
