@@ -382,7 +382,7 @@ class StatsErrorTest(unittest.TestCase):
         self.assertTrue(issubclass(calcstats.StatsError, ValueError))
 
 
-# === Test utility functions ===
+# === Test the utility functions ===
 
 class CoroutineTest(unittest.TestCase):
     def testDecorator(self):
@@ -482,7 +482,7 @@ class AddPartialTest(unittest.TestCase):
         self.assertTrue(isinstance(x, MyFloat))
 
 
-# === Test running sum, product and mean ===
+# === Test sums ===
 
 class TestConsumerMixin:
     def testIsConsumer(self):
@@ -545,91 +545,6 @@ class RunningSumTest(unittest.TestCase, TestConsumerMixin):
             self.assertEqual(x, start+y)
             self.assertTrue(isinstance(x, Decimal))
 
-
-class RunningProductTest(unittest.TestCase, TestConsumerMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.func = calcstats.running_product
-
-    def testProduct(self):
-        cr = self.func()
-        data = [3, 5, 1, -2, -0.5, 0.75]
-        expected = [3, 15, 15, -30, 15.0, 11.25]
-        assert len(data)==len(expected)
-        for x, y in zip(data, expected):
-            self.assertEqual(cr.send(x), y)
-
-    def testProductStart(self):
-        start = 1.275
-        cr = self.func(start)
-        data = [2, 5.5, -4, 1.0, -0.25, 1.25]
-        expected = [2, 11.0, -44.0, -44.0, 11.0, 13.75]
-        assert len(data)==len(expected)
-        for x, y in zip(data, expected):
-            self.assertEqual(cr.send(x), start*y)
-
-    def testFractions(self):
-        F = Fraction
-        data = [F(3, 5), 2, F(1, 4), F(5, 3)]
-        expected = [F(3, 5), F(6, 5), F(6, 20), F(1, 2)]
-        assert len(data)==len(expected)
-        start = F(1, 7)
-        rs = self.func(start)
-        for f, y in zip(data, expected):
-            x = rs.send(f)
-            self.assertEqual(x, start*y)
-            self.assertTrue(isinstance(x, Fraction))
-
-    def testDecimals(self):
-        D = Decimal
-        data = [D('0.4'), 4, D('2.5'), D('1.7')]
-        expected = [D('0.4'), D('1.6'), D('4.0'), D('6.8')]
-        assert len(data)==len(expected)
-        start = D('1.35')
-        rs = self.func(start)
-        for d, y in zip(data, expected):
-            x = rs.send(d)
-            self.assertEqual(x, start*y)
-            self.assertTrue(isinstance(x, Decimal))
-
-
-class RunningMeanTest(unittest.TestCase, TestConsumerMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.func = calcstats.running_mean
-
-    def testFloats(self):
-        cr = self.func()
-        data = [3, 5, 0, -1, 0.5, 1.75]
-        expected = [3, 4.0, 8/3, 1.75, 1.5, 9.25/6]
-        assert len(data)==len(expected)
-        for x, y in zip(data, expected):
-            self.assertEqual(cr.send(x), y)
-
-    def testFractions(self):
-        F = Fraction
-        data = [F(3, 5), F(1, 5), F(1, 3), 3, F(5, 3)]
-        expected = [F(3, 5), F(2, 5), F(17, 45), F(31, 30), F(29, 25)]
-        assert len(data)==len(expected)
-        rs = self.func()
-        for f, y in zip(data, expected):
-            x = rs.send(f)
-            self.assertEqual(x, y)
-            self.assertTrue(isinstance(x, Fraction))
-
-    def testDecimals(self):
-        D = Decimal
-        data = [D('3.4'), 2, D('3.9'), -D('1.3'), D('4.2')]
-        expected = [D('3.4'), D('2.7'), D('3.1'), D('2.0'), D('2.44')]
-        assert len(data)==len(expected)
-        rs = self.func()
-        for d, y in zip(data, expected):
-            x = rs.send(d)
-            self.assertEqual(x, y)
-            self.assertTrue(isinstance(x, Decimal))
-
-
-# === Test sum, product and mean ===
 
 class UnivariateMixin:
     # Common tests for most univariate functions that take a data argument.
@@ -817,6 +732,55 @@ class SumTortureTest(NumericTestCase):
             func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=1e-15, tol=None)
 
 
+# === Test products ===
+
+class RunningProductTest(unittest.TestCase, TestConsumerMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.running_product
+
+    def testProduct(self):
+        cr = self.func()
+        data = [3, 5, 1, -2, -0.5, 0.75]
+        expected = [3, 15, 15, -30, 15.0, 11.25]
+        assert len(data)==len(expected)
+        for x, y in zip(data, expected):
+            self.assertEqual(cr.send(x), y)
+
+    def testProductStart(self):
+        start = 1.275
+        cr = self.func(start)
+        data = [2, 5.5, -4, 1.0, -0.25, 1.25]
+        expected = [2, 11.0, -44.0, -44.0, 11.0, 13.75]
+        assert len(data)==len(expected)
+        for x, y in zip(data, expected):
+            self.assertEqual(cr.send(x), start*y)
+
+    def testFractions(self):
+        F = Fraction
+        data = [F(3, 5), 2, F(1, 4), F(5, 3)]
+        expected = [F(3, 5), F(6, 5), F(6, 20), F(1, 2)]
+        assert len(data)==len(expected)
+        start = F(1, 7)
+        rs = self.func(start)
+        for f, y in zip(data, expected):
+            x = rs.send(f)
+            self.assertEqual(x, start*y)
+            self.assertTrue(isinstance(x, Fraction))
+
+    def testDecimals(self):
+        D = Decimal
+        data = [D('0.4'), 4, D('2.5'), D('1.7')]
+        expected = [D('0.4'), D('1.6'), D('4.0'), D('6.8')]
+        assert len(data)==len(expected)
+        start = D('1.35')
+        rs = self.func(start)
+        for d, y in zip(data, expected):
+            x = rs.send(d)
+            self.assertEqual(x, start*y)
+            self.assertTrue(isinstance(x, Decimal))
+
+
 class ProductTest(NumericTestCase, UnivariateMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -870,6 +834,44 @@ class ProductTest(NumericTestCase, UnivariateMixin):
         self.assertEqual(self.func(data), 112.5)
 
 
+# === Test means ===
+
+class RunningMeanTest(unittest.TestCase, TestConsumerMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.running_mean
+
+    def testFloats(self):
+        cr = self.func()
+        data = [3, 5, 0, -1, 0.5, 1.75]
+        expected = [3, 4.0, 8/3, 1.75, 1.5, 9.25/6]
+        assert len(data)==len(expected)
+        for x, y in zip(data, expected):
+            self.assertEqual(cr.send(x), y)
+
+    def testFractions(self):
+        F = Fraction
+        data = [F(3, 5), F(1, 5), F(1, 3), 3, F(5, 3)]
+        expected = [F(3, 5), F(2, 5), F(17, 45), F(31, 30), F(29, 25)]
+        assert len(data)==len(expected)
+        rs = self.func()
+        for f, y in zip(data, expected):
+            x = rs.send(f)
+            self.assertEqual(x, y)
+            self.assertTrue(isinstance(x, Fraction))
+
+    def testDecimals(self):
+        D = Decimal
+        data = [D('3.4'), 2, D('3.9'), -D('1.3'), D('4.2')]
+        expected = [D('3.4'), D('2.7'), D('3.1'), D('2.0'), D('2.44')]
+        assert len(data)==len(expected)
+        rs = self.func()
+        for d, y in zip(data, expected):
+            x = rs.send(d)
+            self.assertEqual(x, y)
+            self.assertTrue(isinstance(x, Decimal))
+
+
 class MeanTest(NumericTestCase, UnivariateMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -883,7 +885,8 @@ class MeanTest(NumericTestCase, UnivariateMixin):
     def testSeq(self):
         self.assertApproxEqual(self.func(self.data), self.expected)
 
-    def testBigData(self):
+    def testShiftedData(self):
+        # Shifting data shouldn't change the mean.
         data = [x + 1e9 for x in self.data]
         expected = self.expected + 1e9
         assert expected != 1e9
@@ -903,6 +906,14 @@ class MeanTest(NumericTestCase, UnivariateMixin):
         b = self.func(data*2)
         self.assertApproxEqual(a, b)
 
+    def testAddMean(self):
+        # Adding the mean to a data set shouldn't change the mean.
+        data = [random.random() for _ in range(1000)]
+        a = self.func(data)
+        data.extend([a]*123)
+        random.shuffle(data)
+        b = self.func(data)
+        self.assertEqual(a, b)
 
 
 # === Test other statistics functions ===
