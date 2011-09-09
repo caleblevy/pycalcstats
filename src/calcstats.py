@@ -2,14 +2,20 @@
 
 """Basic no-frills calculator statistics functions.
 
-No missing values, no arrays, undefined behaviour with NANs and INFs.
-
-Supports ints with fractions, or decimals, or floats, but mixed data sets are
-undefined. (Mixed Decimal|float operations will likely fail.)
-
-KISS.
+>>> data = [2, 0, 3, 2, 5, 6, 1, 2, 3, 2, 1, 2]
+>>> mean(data)  #doctest: +ELLIPSIS
+2.41666666666...
+>>> stdev(data)  #doctest: +ELLIPSIS
+1.67648622440...
 
 """
+
+# No support for missing values, or arrays.
+# For the time being, behaviour with NANs and INFs is officially undefined.
+# (That's a TODO for another day.)
+# Full support for ints, fractions, decimals, and floats.
+# Behaviour with mixed data types (e.g. float + Decimal) is undefined.
+
 
 import collections
 import functools
@@ -22,14 +28,15 @@ from builtins import sum as _builtin_sum
 
 
 # Package metadata.
-__version__ = "0.2.0a"
-__date__ = "2011-08-19"
+__version__ = "0.1a"
+__date__ = "2011-09-09"
 __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
 __all__ = [ 'add_partial', 'coroutine', 'mean', 'minmax', 'product',
             'pstdev', 'pvariance', 'running_mean', 'running_product',
             'running_sum', 'StatsError', 'stdev', 'sum', 'variance',
+            'welford',
           ]
 
 
@@ -322,7 +329,7 @@ def welford():
         delta = x - m
         m += delta/i  # Update the mean.
         total = rs.send(delta*(x-m))  # Update the sum of squared residuals.
-        assert total >= 0.0
+        assert total >= 0
         x = (yield total)
         i += 1
 
@@ -348,6 +355,9 @@ def _variance(data, mu, p):
         # First pass over data to calculate the mean.
         mu = mean(data)
     n = len(data)
+    if n <= p:
+        raise StatsError(
+            'at least %d items are required but only got %d' % (p+1, n))
     sum_squares = sum((x-mu)**2 for x in data)
     sum_residues = sum(x-mu for x in data)
         # sum_residues should be zero, if the values are infinitely precise.
@@ -356,9 +366,6 @@ def _variance(data, mu, p):
         # which should be more accurate than sum_squares alone.
     total = sum_squares - sum_residues**2/n
     assert total >= 0
-    if n <= p:
-        raise StatsError(
-            'at least %d items are required but only got %d' % (p+1, n))
     return total/(n-p)
 
 
@@ -516,5 +523,5 @@ if __name__ == '__main__':
     import doctest
     failed, tried = doctest.testmod()
     if failed == 0:
-        print("Successfully run %d doctests." % tried)
+        print("Successfully ran %d doctests." % tried)
 
