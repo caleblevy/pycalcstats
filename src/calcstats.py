@@ -1,6 +1,39 @@
 ##  Copyright (c) 2011 Steven D'Aprano.
 
-"""Basic no-frills calculator statistics functions.
+"""\
+=====================
+Calculator statistics
+=====================
+
+Simple calculator-style statistics.
+
+This module provides the following statistics and related functions:
+
+    Statistics          Description
+    ==================  ===============================================
+    mean                Arithmetic mean (average) of data.
+    minmax              Minimum and maximum of the arguments.
+    product             Product of data.
+    pstdev              Population standard deviation of data.
+    pvariance           Population variance of data.
+    running_mean        Running average of data.
+    running_product     Running product of data.
+    running_sum         High-precision running sum of data.
+    stdev               Sample standard deviation of data.
+    sum                 High-precision sum of data.
+    variance            Sample variance of data (bias-corrected).
+    welford             Running sum of square residuals.
+
+
+    Utilities           Description
+    ==================  ===============================================
+    add_partial         Helper function for high-precision addition.
+    coroutine           Decorator to initialise co-routines.
+    StatsError          Exception raised on invalid statistics.
+
+
+Examples
+--------
 
 >>> data = [2, 0, 3, 2, 5, 6, 1, 2, 3, 2, 1, 2]
 >>> mean(data)  #doctest: +ELLIPSIS
@@ -10,9 +43,8 @@
 
 """
 
-# No support for missing values, or arrays.
-# For the time being, behaviour with NANs and INFs is officially undefined.
-# (That's a TODO for another day.)
+# No support for missing values, or arrays (at this time).
+# Behaviour with NANs and INFs is officially undefined (at this time).
 # Full support for ints, fractions, decimals, and floats.
 # Behaviour with mixed data types (e.g. float + Decimal) is undefined.
 
