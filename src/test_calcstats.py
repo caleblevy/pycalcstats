@@ -4,6 +4,7 @@ from decimal import Decimal
 from fractions import Fraction
 
 import collections
+import itertools
 import math
 import random
 import unittest
@@ -913,7 +914,149 @@ class MeanTest(NumericTestCase, UnivariateMixin):
         data.extend([a]*123)
         random.shuffle(data)
         b = self.func(data)
-        self.assertEqual(a, b)
+        self.assertApproxEqual(a, b, tol=1e-15)
+
+
+# === Test variances and standard deviations ===
+
+class WelfordTest(NumericTestCase, TestConsumerMixin):
+    # Expected results were either calculated by hand, or using a HP-48GX
+    # calculator with the RPL program: « Σ+ PVAR NΣ * »
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.welford
+
+    def testFloats(self):
+        cr = self.func()
+        data = [2.5, 3.25, 5, -0.5, 1.75, 2.5, 3.5]
+        expected = [0.0, 0.28125, 3.29166666666, 15.796875, 16.325,
+                    16.3333333333, 17.3392857143]
+        assert len(data)==len(expected)
+        for x, y in zip(data, expected):
+            self.assertApproxEqual(cr.send(x), y, tol=1e-10)
+
+    def testFractions(self):
+        cr = self.func()
+        F = Fraction
+        data = [F(2), F(3), F(4), F(5), F(6)]
+        expected = [F(0), F(1, 2), F(2, 1), F(5, 1), F(10, 1)]
+        assert len(data)==len(expected)
+        for f, y in zip(data, expected):
+            x = cr.send(f)
+            self.assertEqual(x, y)
+            self.assertTrue(isinstance(x, Fraction))
+
+    def testDecimals(self):
+        D = Decimal
+        cr = self.func()
+        data = [D(3), D(5), D(4), D(3), D(5), D(4)]
+        expected = [D(0), D(2), D(2), D('2.75'), D(4), D(4)]
+        assert len(data)==len(expected)
+        for d, y in zip(data, expected):
+            x = cr.send(d)
+            self.assertEqual(x, y)
+            self.assertTrue(isinstance(x, Decimal))
+        x = cr.send(D(-2))
+        self.assertApproxEqual(x, D('34.8571428571'), tol=D('1e-10'))
+
+
+class PrivateVarTest(unittest.TestCase):
+    # Test the _variance private function.
+
+    def test_enough_points(self):
+        # Test that _variance succeeds if N-p is positive.
+        for N in range(1, 8):
+            for p in range(N):
+                data = range(N)
+                assert len(data) > p
+                _ = calcstats._variance(data, 2.5, p)
+
+    def test_too_few_points(self):
+        # Test that _variance fails if N-p is too low.
+        StatsError = calcstats.StatsError
+        var = calcstats._variance
+        for p in range(5):
+            for N in range(p):
+                data = range(N)
+                assert len(data) <= p
+                self.assertRaises(StatsError, var, data, 2.5, p)
+
+    def test_error_msg(self):
+        # Test that the error message is correct.
+        try:
+            calcstats._variance([4, 6, 8], 2.5, 5)
+        except calcstats.StatsError as e:
+            self.assertEqual(
+                e.args[0], 'at least 6 items are required but only got 3'
+                )
+        else:
+            self.fail('expected StatsError exception did not get raised')
+
+    def test_float_sequence(self):
+        data = [3.5, 5.5, 4.0, 2.5, 2.0]
+        assert sum(data)/len(data) == 3.5  # mean
+        actual = calcstats._variance(data, 3.5, 3)
+        expected = (0 + 2**2 + 0.5**2 + 1 + 1.5**2)/2
+        self.assertEqual(actual, expected)
+
+    def test_fraction_sequence(self):
+        F = Fraction
+        data = [F(2, 5), F(3, 4), F(1, 4), F(2, 3)]
+        assert sum(data)/len(data) == F(31, 60)  # mean
+        actual = calcstats._variance(data, F(31, 15), 2)
+        expected = (F(7,60)**2 + F(14,60)**2 + F(16,60)**2 + F(9,60)**2)/2
+        self.assertEqual(actual, expected)
+
+    def test_decimal_sequence(self):
+        D = Decimal
+        data = [D(2), D(2), D(5), D(7)]
+        assert sum(data)/len(data) == D(4)  # mean
+        actual = calcstats._variance(data, D(4), 2)
+        expected = (D(2)**2 + D(2)**2 + D(1)**2 + D(3)**2)/2
+        self.assertEqual(actual, expected)
+
+
+class ExactVarianceTest(unittest.TestCase):
+    # Exact tests for variance and friends.
+    def testExactVariance(self):
+        data = [1, 2, 3]
+        assert calcstats.mean(data) == 2
+        self.assertEqual(calcstats.pvariance(data), 2/3)
+        self.assertEqual(calcstats.variance(data), 1.0)
+        self.assertEqual(calcstats.pstdev(data), math.sqrt(2/3))
+        self.assertEqual(calcstats.stdev(data), 1.0)
+
+
+class VarianceUnbiasedTest(NumericTestCase):
+    # Test that variance is unbiased.
+    tol = 5e-11
+    rel = 5e-16
+
+    def testUnbiased(self):
+        # Test that variance is unbiased with known data.
+        data = [1, 1, 2, 5]  # Don't give data too many items or this
+                             # will be way too slow!
+        assert calcstats.mean(data) == 2.25
+        assert calcstats.pvariance(data) == 2.6875
+        samples = self.get_all_samples(data)
+        sample_variances = [calcstats.variance(sample) for sample in samples]
+        self.assertEqual(calcstats.mean(sample_variances), 2.6875)
+
+    def testRandomUnbiased(self):
+        # Test that variance is unbiased with random data.
+        data = [random.uniform(-100, 1000) for _ in range(5)]
+        samples = self.get_all_samples(data)
+        pvar = calcstats.pvariance(data)
+        sample_variances = [calcstats.variance(sample) for sample in samples]
+        self.assertApproxEqual(calcstats.mean(sample_variances), pvar)
+
+    def get_all_samples(self, data):
+        """Return a generator that returns all permutations with
+        replacement of the given data."""
+        return itertools.chain(
+            *(itertools.product(data, repeat=n) for n in
+            range(2, len(data)+1)))
 
 
 # === Test other statistics functions ===
@@ -1019,6 +1162,15 @@ class MinmaxTest(unittest.TestCase):
 
 
 # === Run tests ===
+
+class DocTests(unittest.TestCase):
+    def testDocTests(self):
+        import doctest
+        failed, tried = doctest.testmod(calcstats)
+        self.assertTrue(tried > 0)
+        self.assertTrue(failed == 0)
+
+
 
 if __name__ == '__main__':
     unittest.main()
