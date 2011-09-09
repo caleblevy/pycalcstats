@@ -492,12 +492,12 @@ def stdev(data, m=None):
     return math.sqrt(svar)
 
 
-def pvariance(data, mu=None):
-    return _variance(data, mu, 0)
+def pvariance(data, m=None):
+    return _variance(data, m, 0)
 
 
-def pstdev(data, mu=None):
-    sigma = pvariance(data, mu)
+def pstdev(data, m=None):
+    sigma = pvariance(data, m)
     assert sigma >= 0
     return math.sqrt(sigma)
 
