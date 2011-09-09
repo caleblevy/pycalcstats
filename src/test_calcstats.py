@@ -605,17 +605,20 @@ class UnivariateMixin:
             result = self.func(data)
             self.assertApproxEqual(result, expected)
 
-    def testTypeOfDataCollection(self):
-        # Test that the type of iterable data doesn't effect the result.
+    def get_allowed_kinds(self):
         class MyList(list):
             pass
         class MyTuple(tuple):
             pass
         def generator(data):
             return (obj for obj in data)
+        return (list, tuple, iter, MyList, MyTuple, generator)
+
+    def testTypeOfDataCollection(self):
+        # Test that the type of iterable data doesn't effect the result.
         data = range(1, 16, 2)
         expected = self.func(data)
-        for kind in (list, tuple, iter, MyList, MyTuple, generator):
+        for kind in self.get_allowed_kinds():
             result = self.func(kind(data))
             self.assertEqual(result, expected)
 
@@ -1019,13 +1022,37 @@ class PrivateVarTest(unittest.TestCase):
 
 class ExactVarianceTest(unittest.TestCase):
     # Exact tests for variance and friends.
-    def testExactVariance(self):
+    def testExactVariance1(self):
         data = [1, 2, 3]
         assert calcstats.mean(data) == 2
         self.assertEqual(calcstats.pvariance(data), 2/3)
         self.assertEqual(calcstats.variance(data), 1.0)
         self.assertEqual(calcstats.pstdev(data), math.sqrt(2/3))
         self.assertEqual(calcstats.stdev(data), 1.0)
+
+    def testExactVariance2(self):
+        data = [1, 1, 1, 2, 3, 7]
+        assert calcstats.mean(data) == 2.5
+        self.assertEqual(calcstats.pvariance(data), 165/36)
+        self.assertEqual(calcstats.variance(data), 165/30)
+        self.assertEqual(calcstats.pstdev(data), math.sqrt(165/36))
+        self.assertEqual(calcstats.stdev(data), math.sqrt(165/30))
+
+    def testExactVarianceFrac(self):
+        data = [Fraction(100), Fraction(200), Fraction(600)]
+        assert calcstats.mean(data) == Fraction(300)
+        self.assertEqual(calcstats.pvariance(data), Fraction(420000, 9))
+        self.assertEqual(calcstats.variance(data), Fraction(70000))
+        self.assertEqual(calcstats.pstdev(data), math.sqrt(420000/9))
+        self.assertEqual(calcstats.stdev(data), math.sqrt(70000))
+
+    def testExactVarianceDec(self):
+        data = [Decimal('1.1'), Decimal('1.2'), Decimal('1.9')]
+        assert calcstats.mean(data) == Decimal('1.4')
+        self.assertEqual(calcstats.pvariance(data), Decimal('1.14')/9)
+        self.assertEqual(calcstats.variance(data), Decimal('0.19'))
+        self.assertEqual(calcstats.pstdev(data), math.sqrt(1.14/9))
+        self.assertEqual(calcstats.stdev(data), math.sqrt(0.19))
 
 
 class VarianceUnbiasedTest(NumericTestCase):
@@ -1057,6 +1084,154 @@ class VarianceUnbiasedTest(NumericTestCase):
         return itertools.chain(
             *(itertools.product(data, repeat=n) for n in
             range(2, len(data)+1)))
+
+
+class PVarianceTest(NumericTestCase, UnivariateMixin):
+    # Test population variance.
+    # This will be subclassed by variance and [p]stdev.
+    tol = 1e-11
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.pvariance
+        # Test data for test_main, test_shift:
+        self.data = [4.0, 7.0, 13.0, 16.0]
+        self.expected = 22.5  # Exact population variance of self.data.
+        # If you duplicate each data point, the variance will scale by
+        # this value:
+        self.duplication_scale_factor = 1.0
+
+    def setUp(self):
+        random.shuffle(self.data)
+
+    def get_allowed_kinds(self):
+        kinds = super().get_allowed_kinds()
+        return [kind for kind in kinds if hasattr(kind, '__len__')]
+
+    def test_main(self):
+        # Test that pvariance calculates the correct result.
+        self.assertEqual(self.func(self.data), self.expected)
+
+    def test_shift(self):
+        # Shifting the data by a constant amount should not affect
+        # the variance.
+        for shift in (1e2, 1e6, 1e9):
+            data = [x + shift for x in self.data]
+            self.assertEqual(self.func(data), self.expected)
+
+    def test_equal_data(self):
+        # If the data is constant, the variance should be zero.
+        self.assertEqual(self.func([42]*10), 0)
+
+    def testDuplicate(self):
+        # Test that the variance behaves as expected when you duplicate
+        # each data point [a,b,c,...] -> [a,a,b,b,c,c,...]
+        data = [random.uniform(-100, 500) for _ in range(20)]
+        expected = self.func(data)*self.duplication_scale_factor
+        actual = self.func(data*2)
+        self.assertApproxEqual(actual, expected)
+
+    def testDomainError(self):
+        # Domain error exception reported by Geremy Condra.
+        data = [0.123456789012345]*10000
+        # All the items are identical, so variance should be exactly zero.
+        # We allow some small round-off error.
+        self.assertApproxEqual(self.func(data), 0.0, tol=5e-17)
+
+    def testSingleton(self):
+        # Population variance of a single value is always zero.
+        for x in self.data:
+            self.assertEqual(self.func([x]), 0)
+
+    def testMeanArgument(self):
+        # Variance calculated with the given mean should be the same
+        # as that calculated without the mean.
+        data = [random.random() for _ in range(15)]
+        m = calcstats.mean(data)
+        expected = self.func(data, m=None)
+        self.assertEqual(self.func(data, m=m), expected)
+
+
+class VarianceComparedTest(NumericTestCase):
+    # Compare variance calculations with results calculated using
+    # HP-48GX calculator and R.
+    tol = 1e-7
+    def __init__(self, *args, **kwargs):
+        NumericTestCase.__init__(self, *args, **kwargs)
+        self.data = (
+            list(range(1, 11)) + list(range(1000, 1201)) +
+            [0, 3, 7, 23, 42, 101, 111, 500, 567]
+            )
+
+    def setUp(self):
+        random.shuffle(self.data)
+
+    def test_pvariance(self):
+        # Compare the calculated population variance against the result
+        # calculated by the HP-48GX calculator.
+        self.assertApproxEqual(calcstats.pvariance(self.data), 88349.2408884)
+
+    def test_variance(self):
+        # As above, for sample variance.
+        self.assertApproxEqual(calcstats.variance(self.data), 88752.6620797)
+
+    def test_pstdev(self):
+        # As above, for population standard deviation.
+        self.assertApproxEqual(calcstats.pstdev(self.data), 297.236002006)
+
+    def test_stdev(self):
+        # As above, for sample standard deviation.
+        self.assertApproxEqual(calcstats.stdev(self.data), 297.913850097)
+
+    def testCompareVarianceWithR(self):
+        # Compare against a result calculated with R:
+        #       > x <- c(seq(1, 10), seq(1000, 1200))
+        #       > var(x)
+        #       [1] 57563.55
+        data = list(range(1, 11)) + list(range(1000, 1201))
+        expected = 57563.55
+        self.assertApproxEqual(calcstats.variance(data), expected, tol=1e-3)
+            # The expected value from R looks awfully precise... does R
+            # round figures? I don't think it is the exact value, as
+            # my HP-48GX calculator returns 57563.5502144.
+
+    def testCompareStdevWithR(self):
+        # Compare with a result calculated by R.
+        data = list(range(1, 11)) + list(range(1000, 1201))
+        expected = 239.9241
+        self.assertApproxEqual(calcstats.stdev(data), expected, tol=1e-4)
+
+
+class VarianceUniformData(unittest.TestCase):
+    # Compare variances against the expected value for uniformly distributed
+    # data [0, 1, 2, 3, 4, 5, ...]
+    def __init__(self, *args, **kwargs):
+        unittest.TestCase.__init__(self, *args, **kwargs)
+        self.data = list(range(10000))
+        # Exact value for population variance:
+        self.expected = (10000**2 - 1)/12
+
+    def setUp(self):
+        random.shuffle(self.data)
+
+    def test_pvariance(self):
+        # Compare the calculated population variance against the exact result.
+        self.assertEqual(calcstats.pvariance(self.data), self.expected)
+
+    def test_variance(self):
+        # Compare the calculated sample variance against the exact result.
+        expected = self.expected*10000/(10000-1)
+        self.assertEqual(calcstats.variance(self.data), expected)
+
+    def test_pstdev(self):
+        # Compare the calculated population std dev against the exact result.
+        expected = math.sqrt(self.expected)
+        self.assertEqual(calcstats.pstdev(self.data), expected)
+
+    def test_stdev(self):
+        # Compare the calculated sample variance against the exact result.
+        expected = math.sqrt(self.expected*10000/(10000-1))
+        self.assertEqual(calcstats.stdev(self.data), expected)
 
 
 # === Test other statistics functions ===
