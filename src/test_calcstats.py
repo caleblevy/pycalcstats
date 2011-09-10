@@ -178,7 +178,7 @@ class ApproxIntegerTest(unittest.TestCase):
         # (4) compare approx equal with relative but not absolute error:
         self.assertTrue(approx_equal(a, b, tol=0.04, rel=0.007))
 
-    def testSymmetry(self):
+    def testRelSymmetry(self):
         # Check that approx_equal treats relative error symmetrically.
         # (a-b)/a is usually not equal to (a-b)/b. Ensure that this
         # doesn't matter.
@@ -194,6 +194,19 @@ class ApproxIntegerTest(unittest.TestCase):
         # is given first.
         self.assertTrue(approx_equal(a, b, tol=0, rel=rel))
         self.assertTrue(approx_equal(b, a, tol=0, rel=rel))
+
+    def testSymmetry(self):
+        # Test that approx_equal(a, b) == approx_equal(b, a)
+        alist = [random.random() for _ in range(20)]
+        blist = [random.random() for _ in range(20)]
+        template = "approx_equal comparisons don't match for %r"
+        for a, b in zip(alist, blist):
+            for tol in (0, 0.1, 0.7, 1):
+                for rel in (0, 0.001, 0.03, 0.4, 1):
+                    flag1 = approx_equal(a, b, tol, rel)
+                    flag2 = approx_equal(b, a, tol, rel)
+                    t = (a, b, tol, rel)
+                    self.assertEqual(flag1, flag2, template % (t,))
 
 
 class ApproxFractionTest(unittest.TestCase):
