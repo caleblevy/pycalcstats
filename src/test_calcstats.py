@@ -24,18 +24,33 @@ import calcstats
 # === Test infrastructure ===
 
 def approx_equal(x, y, tol=1e-12, rel=1e-7):
-    """Test whether x is approximately equal to y, using an absolute error
+    """approx_equal(x, y [, tol [, rel]]) => True|False
+
+    Test whether x is approximately equal to y, using an absolute error
     of tol and/or a relative error of rel, whichever is bigger.
 
-    Pass None as either tol or rel to ignore that test; if both are None,
-    the test performed is an exact equality test.
+    If not given, tol=1e-12 and rel=1e-7.
 
-    tol and rel must be either None or a non-negative, finite number,
-    otherwise the behaviour is undefined.
+    Absolute error is defined as abs(x-y); if that is less than or equal to
+    tol, x and y are considered approximately equal. If tol is zero, this
+    is equivalent to testing x == y.
+
+    Relative error is defined as abs((x-y)/x) or abs((x-y)/y), whichever is
+    smaller, provided x or y are not zero. If that figure is less than or
+    equal to rel, x and y are considered approximately equal. If rel is zero,
+    this is also equivalent to testing x == y.
+
+    (But note that in neither case will x and y be compared directly for
+    equality.)
+
+    NANs always compare unequal, even with themselves. Infinities compare
+    approximately equal if they have the same sign (both positive or both
+    negative). Infinities with different signs compare unequal; so do
+    comparisons of infinities with finite numbers.
+
+    tol and rel must be non-negative, finite numbers, otherwise the behaviour
+    is undefined.
     """
-    if tol is rel is None:
-        # Fall back on exact equality.
-        return x == y
     # NANs are never equal to anything, approximately or otherwise.
     if math.isnan(x) or math.isnan(y):
         # FIXME Signalling NANs should raise an exception.
@@ -43,15 +58,10 @@ def approx_equal(x, y, tol=1e-12, rel=1e-7):
     # Infinities are approximately equal if they have the same sign.
     if math.isinf(x) or math.isinf(y):
         return x == y
-    # If we get here, both x and y are finite, and likewise delta.
-    delta = abs(x - y)
-    tests = []
-    if tol is not None:
-        tests.append(tol)
-    if rel is not None:
-        tests.append(rel*max(abs(x), abs(y)))
-    assert tests
-    return delta <= max(tests)
+    # If we get here, both x and y are finite.
+    actual_error = abs(x - y)
+    allowed_error = max(tol, rel*max(abs(x), abs(y)))
+    return actual_error <= allowed_error
 
 
 # Generic test suite subclass
@@ -59,19 +69,20 @@ def approx_equal(x, y, tol=1e-12, rel=1e-7):
 # We prefer this for testing numeric values that may not be exactly equal.
 # Avoid using TestCase.almost_equal, because it sucks :)
 
-USE_DEFAULT = object()
 class NumericTestCase(unittest.TestCase):
     # By default, we expect exact equality, unless overridden.
-    tol = None
-    rel = None
+    tol = 0
+    rel = 0
 
     def assertApproxEqual(
-        self, actual, expected, tol=USE_DEFAULT, rel=USE_DEFAULT, msg=None
-        ):
-        if tol is USE_DEFAULT: tol = self.tol
-        if rel is USE_DEFAULT: rel = self.rel
-        if (isinstance(actual, collections.Sequence) and
-        isinstance(expected, collections.Sequence)):
+            self, actual, expected, tol=None, rel=None, msg=None
+            ):
+        if tol is None: tol = self.tol
+        if rel is None: rel = self.rel
+        if (
+                isinstance(actual, collections.Sequence) and
+                isinstance(expected, collections.Sequence)
+            ):
             check = self._check_approx_seq
         else:
             check = self._check_approx_num
@@ -100,34 +111,25 @@ class NumericTestCase(unittest.TestCase):
 
     @staticmethod
     def _make_std_err_msg(actual, expected, tol, rel, idx):
-        # Create the standard error message, starting with the common part,
-        # which comes at the end.
+        # Create the standard error message for approx_equal failures.
+        assert actual != expected
+        template = (
+            'actual value %r differs from expected %r\n'
+            '    by more than tol=%r and rel=%r\n'
+            '    ..absolute error = %r\n'
+            '    ..relative error = %r'
+            )
+        if idx is not None:
+            header = 'numeric sequences first differ at index %d.\n' % idx
+            template = header + template
+        # Calculate actual errors:
         abs_err = abs(actual - expected)
-        rel_err1 = abs_err/abs(expected) if expected else float('inf')
-        rel_err2 = abs_err/abs(actual) if actual else float('inf')
-        rel_err = min(rel_err1, rel_err2)
-        err_msg = '    absolute error = %r\n    relative error = %r'
-        # Now for the part that is not common to all messages.
-        if idx is None:
-            # Comparing two numeric values.
-            idxheader = ''
+        base = max(abs(actual), abs(expected))
+        if base == 0:
+            rel_err = 'inf'
         else:
-            idxheader = 'numeric sequences first differs at index %d.\n' % idx
-        if tol is rel is None:
-            header = 'actual value %r is not equal to expected %r\n'
-            items = (actual, expected, abs_err, rel_err)
-        else:
-            header = 'actual value %r differs from expected %r\n' \
-                        '    by more than %s\n'
-            t = []
-            if tol is not None:
-                t.append('tol=%r' % tol)
-            if rel is not None:
-                t.append('rel=%r' % rel)
-            assert t
-            items = (actual, expected, ' and '.join(t), abs_err, rel_err)
-        standardMsg = (idxheader + header + err_msg) % items
-        return standardMsg
+            rel_err = abs_err/base
+        return template % (actual, expected, tol, rel, abs_err, rel_err)
 
 
 # Here we test the test infrastructure itself.
@@ -137,10 +139,8 @@ class ApproxIntegerTest(unittest.TestCase):
 
     def _equality_tests(self, x, y):
         """Test ways of spelling 'exactly equal'."""
-        return (approx_equal(x, y, tol=None, rel=None),
-                approx_equal(y, x, tol=None, rel=None),
-                #approx_equal(x, x, tol=0, rel=None),
-                #approx_equal(y, x, tol=0, rel=None),
+        return (approx_equal(x, y, tol=0, rel=0),
+                approx_equal(y, x, tol=0, rel=0),
                 )
 
     def testExactlyEqual(self):
@@ -154,16 +154,16 @@ class ApproxIntegerTest(unittest.TestCase):
 
     def testAbsolute(self):
         # Test approximate equality with an absolute error.
-        self.assertTrue(approx_equal(-42, -43, tol=1, rel=None))
-        self.assertTrue(approx_equal(15, 16, tol=2, rel=None))
-        self.assertFalse(approx_equal(23, 27, tol=3, rel=None))
+        self.assertTrue(approx_equal(-42, -43, tol=1, rel=0))
+        self.assertTrue(approx_equal(15, 16, tol=2, rel=0))
+        self.assertFalse(approx_equal(23, 27, tol=3, rel=0))
 
     def testRelative(self):
         # Test approximate equality with a relative error.
-        self.assertTrue(approx_equal(100, 119, tol=None, rel=0.2))
-        self.assertTrue(approx_equal(119, 100, tol=None, rel=0.2))
-        self.assertFalse(approx_equal(100, 130, tol=None, rel=0.2))
-        self.assertFalse(approx_equal(130, 100, tol=None, rel=0.2))
+        self.assertTrue(approx_equal(100, 119, tol=0, rel=0.2))
+        self.assertTrue(approx_equal(119, 100, tol=0, rel=0.2))
+        self.assertFalse(approx_equal(100, 130, tol=0, rel=0.2))
+        self.assertFalse(approx_equal(130, 100, tol=0, rel=0.2))
 
     def testBoth(self):
         # Test approximate equality with both absolute and relative errors.
@@ -178,6 +178,23 @@ class ApproxIntegerTest(unittest.TestCase):
         # (4) compare approx equal with relative but not absolute error:
         self.assertTrue(approx_equal(a, b, tol=0.04, rel=0.007))
 
+    def testSymmetry(self):
+        # Check that approx_equal treats relative error symmetrically.
+        # (a-b)/a is usually not equal to (a-b)/b. Ensure that this
+        # doesn't matter.
+        a, b = 23.234, 23.335
+        delta = abs(b-a)
+        rel_err1, rel_err2 = delta/a, delta/b
+        assert rel_err1 > rel_err2
+        # Choose an acceptable error margin halfway between the two.
+        rel = (rel_err1 + rel_err2)/2
+        # Check our logic:
+        assert rel*a < delta < rel*b
+        # Now see that a and b compare approx equal regardless of which
+        # is given first.
+        self.assertTrue(approx_equal(a, b, tol=0, rel=rel))
+        self.assertTrue(approx_equal(b, a, tol=0, rel=rel))
+
 
 class ApproxFractionTest(unittest.TestCase):
     # Test the approx_equal function with Fractions.
@@ -188,11 +205,11 @@ class ApproxFractionTest(unittest.TestCase):
         values = [-F(1, 2), F(0), F(5, 3), F(9, 7), F(35, 36)]
         for x in values:
             self.assertTrue(
-                approx_equal(x, x, tol=None, rel=None),
+                approx_equal(x, x, tol=0, rel=0),
                 'equality failure for x=%r' % x
                 )
             self.assertFalse(
-                approx_equal(x, x+1, tol=None, rel=None),
+                approx_equal(x, x+1, tol=0, rel=0),
                 'inequality failure for x=%r' % x
                 )
 
@@ -200,16 +217,16 @@ class ApproxFractionTest(unittest.TestCase):
         # Test approximate equality with an absolute error.
         F = Fraction
         aeq = approx_equal
-        self.assertTrue(aeq(F(7, 9), F(8, 9), tol=F(1, 9), rel=None))
-        self.assertTrue(aeq(F(8, 5), F(7, 5), tol=F(2, 5), rel=None))
-        self.assertFalse(aeq(F(6, 8), F(8, 8), tol=F(1, 8), rel=None))
+        self.assertTrue(aeq(F(7, 9), F(8, 9), tol=F(1, 9), rel=0))
+        self.assertTrue(aeq(F(8, 5), F(7, 5), tol=F(2, 5), rel=0))
+        self.assertFalse(aeq(F(6, 8), F(8, 8), tol=F(1, 8), rel=0))
 
     def testRelative(self):
         # Test approximate equality with a relative error.
         F = Fraction
         aeq = approx_equal
-        self.assertTrue(aeq(F(45, 100), F(65, 100), tol=None, rel=F(32, 100)))
-        self.assertFalse(aeq(F(23, 50), F(48, 50), tol=None, rel=F(26, 50)))
+        self.assertTrue(aeq(F(45, 100), F(65, 100), tol=0, rel=F(32, 100)))
+        self.assertFalse(aeq(F(23, 50), F(48, 50), tol=0, rel=F(26, 50)))
 
 
 class ApproxDecimalTest(unittest.TestCase):
@@ -221,11 +238,11 @@ class ApproxDecimalTest(unittest.TestCase):
         values = [D('-23.0'), D(0), D('1.3e-15'), D('3.25'), D('1.7e15')]
         for x in values:
             self.assertTrue(
-                approx_equal(x, x, tol=None, rel=None),
+                approx_equal(x, x, tol=0, rel=0),
                 'equality failure for x=%r' % x
                 )
             self.assertFalse(
-                approx_equal(x, x+1, tol=None, rel=None),
+                approx_equal(x, x+1, tol=0, rel=0),
                 'inequality failure for x=%r' % x
                 )
 
@@ -233,16 +250,16 @@ class ApproxDecimalTest(unittest.TestCase):
         # Test approximate equality with an absolute error.
         D = Decimal
         aeq = approx_equal
-        self.assertTrue(aeq(D('12.78'), D('12.35'), tol=D('0.43'), rel=None))
-        self.assertTrue(aeq(D('35.4'), D('36.2'), tol=D('1.5'), rel=None))
-        self.assertFalse(aeq(D('35.3'), D('36.2'), tol=D('0.8'), rel=None))
+        self.assertTrue(aeq(D('12.78'), D('12.35'), tol=D('0.43'), rel=0))
+        self.assertTrue(aeq(D('35.4'), D('36.2'), tol=D('1.5'), rel=0))
+        self.assertFalse(aeq(D('35.3'), D('36.2'), tol=D('0.8'), rel=0))
 
     def testRelative(self):
         # Test approximate equality with a relative error.
         D = Decimal
         aeq = approx_equal
-        self.assertTrue(aeq(D('5.4'), D('6.7'), tol=None, rel=D('0.20')))
-        self.assertFalse(aeq(D('5.4'), D('6.7'), tol=None, rel=D('0.19')))
+        self.assertTrue(aeq(D('5.4'), D('6.7'), tol=0, rel=D('0.20')))
+        self.assertFalse(aeq(D('5.4'), D('6.7'), tol=0, rel=D('0.19')))
 
     def testSpecials(self):
         nan = Decimal('nan')
@@ -267,30 +284,30 @@ class ApproxFloatTest(unittest.TestCase):
         values = [-23.0, 0.0, 1.3e-15, 3.37, 1.7e9, 4.7e15]
         for x in values:
             self.assertTrue(
-                approx_equal(x, x, tol=None, rel=None),
+                approx_equal(x, x, tol=0, rel=0),
                 'equality failure for x=%r' % x
                 )
             self.assertFalse(
-                approx_equal(x, x+1, tol=None, rel=None),
+                approx_equal(x, x+1, tol=0, rel=0),
                 'inequality failure for x=%r' % x
                 )
 
     def testAbsolute(self):
         # Test approximate equality with an absolute error.
-        self.assertTrue(approx_equal(4.57, 4.54, tol=0.5, rel=None))
-        self.assertTrue(approx_equal(4.57, 4.52, tol=0.5, rel=None))
-        self.assertTrue(approx_equal(2.3e12, 2.6e12, tol=0.4e12, rel=None))
-        self.assertFalse(approx_equal(2.3e12, 2.6e12, tol=0.2e12, rel=None))
-        self.assertTrue(approx_equal(1.01e-9, 1.03e-9, tol=0.05e-9, rel=None))
-        self.assertTrue(approx_equal(273.5, 263.9, tol=9.7, rel=None))
-        self.assertFalse(approx_equal(273.5, 263.9, tol=9.0, rel=None))
+        self.assertTrue(approx_equal(4.57, 4.54, tol=0.5, rel=0))
+        self.assertTrue(approx_equal(4.57, 4.52, tol=0.5, rel=0))
+        self.assertTrue(approx_equal(2.3e12, 2.6e12, tol=0.4e12, rel=0))
+        self.assertFalse(approx_equal(2.3e12, 2.6e12, tol=0.2e12, rel=0))
+        self.assertTrue(approx_equal(1.01e-9, 1.03e-9, tol=0.05e-9, rel=0))
+        self.assertTrue(approx_equal(273.5, 263.9, tol=9.7, rel=0))
+        self.assertFalse(approx_equal(273.5, 263.9, tol=9.0, rel=0))
 
     def testRelative(self):
         # Test approximate equality with a relative error.
-        self.assertTrue(approx_equal(3.5, 4.1, tol=None, rel=0.147))
-        self.assertFalse(approx_equal(3.5, 4.1, tol=None, rel=0.146))
-        self.assertTrue(approx_equal(7.2e11, 6.9e11, tol=None, rel=0.042))
-        self.assertFalse(approx_equal(7.2e11, 6.9e11, tol=None, rel=0.041))
+        self.assertTrue(approx_equal(3.5, 4.1, tol=0, rel=0.147))
+        self.assertFalse(approx_equal(3.5, 4.1, tol=0, rel=0.146))
+        self.assertTrue(approx_equal(7.2e11, 6.9e11, tol=0, rel=0.042))
+        self.assertFalse(approx_equal(7.2e11, 6.9e11, tol=0, rel=0.041))
 
     def testSpecials(self):
         nan = float('nan')
@@ -307,63 +324,43 @@ class ApproxFloatTest(unittest.TestCase):
         self.assertTrue(approx_equal(-inf, -inf, tol=2, rel=2))
 
     def testZeroes(self):
-        nzero = math.copysign(0, -1)
+        nzero = math.copysign(0.0, -1)
         self.assertTrue(approx_equal(nzero, 0.0, tol=1, rel=1))
-        self.assertTrue(approx_equal(0.0, nzero, tol=None, rel=None))
+        self.assertTrue(approx_equal(0.0, nzero, tol=0, rel=0))
 
 
 class TestNumericTestCase(unittest.TestCase):
     # The formatting routine that generates the error messages is complex
     # enough that it needs its own test.
 
-    def test_error_msg_exact(self):
-        # Test the error message generated for exact tests.
-        msg = NumericTestCase._make_std_err_msg(0.5, 0.25, None, None, None)
-        self.assertEqual(msg,
-            "actual value 0.5 is not equal to expected 0.25\n"
-            "    absolute error = 0.25\n"
-            "    relative error = 0.5"
-            )
+        # NOTE: Try not to compare to the exact error message, since
+        # that might change. Instead, look for substrings that should
+        # be present.
 
-    def test_error_msg_inexact(self):
+    def test_error_msg(self):
         # Test the error message generated for inexact tests.
-        msg = NumericTestCase._make_std_err_msg(2.5, 1.25, 0.25, None, None)
-        self.assertEqual(msg,
-            "actual value 2.5 differs from expected 1.25\n"
-            "    by more than tol=0.25\n"
-            "    absolute error = 1.25\n"
-            "    relative error = 0.5"
-            )
-        msg = NumericTestCase._make_std_err_msg(1.5, 2.5, None, 0.25, None)
-        self.assertEqual(msg,
-            "actual value 1.5 differs from expected 2.5\n"
-            "    by more than rel=0.25\n"
-            "    absolute error = 1.0\n"
-            "    relative error = 0.4"
-            )
         msg = NumericTestCase._make_std_err_msg(2.5, 4.0, 0.5, 0.25, None)
-        self.assertEqual(msg,
-            "actual value 2.5 differs from expected 4.0\n"
-            "    by more than tol=0.5 and rel=0.25\n"
-            "    absolute error = 1.5\n"
-            "    relative error = 0.375"
-            )
+        self.assertIn('actual value 2.5', msg)
+        self.assertIn('expected 4.0', msg)
+        self.assertIn('tol=0.5', msg)
+        self.assertIn('rel=0.25', msg)
+        self.assertIn('absolute error = 1.5', msg)
+        self.assertIn('relative error = 0.375', msg)
 
     def test_error_msg_sequence(self):
         # Test the error message generated for sequence tests.
         msg = NumericTestCase._make_std_err_msg(2.5, 4.0, 0.5, 0.25, 7)
-        self.assertEqual(msg,
-            "numeric sequences first differs at index 7.\n"
-            "actual value 2.5 differs from expected 4.0\n"
-            "    by more than tol=0.5 and rel=0.25\n"
-            "    absolute error = 1.5\n"
-            "    relative error = 0.375"
-            )
+        self.assertIn('differ at index 7', msg)
+        self.assertIn('actual value 2.5', msg)
+        self.assertIn('expected 4.0', msg)
+        self.assertIn('tol=0.5', msg)
+        self.assertIn('rel=0.25', msg)
+        self.assertIn('absolute error = 1.5', msg)
+        self.assertIn('relative error = 0.375', msg)
 
     def testNumericTestCaseIsTestCase(self):
         # Ensure that NumericTestCase actually is a TestCase.
         self.assertTrue(issubclass(NumericTestCase, unittest.TestCase))
-
 
 
 # === Test metadata, exceptions and module globals ===
@@ -749,7 +746,7 @@ class SumTortureTest(NumericTestCase):
         self.assertEqual(func([1, 1e100, 1, -1e100]*10000), 20000.0)
         self.assertEqual(func([1e100, 1, 1, -1e100]*10000), 20000.0)
         self.assertApproxEqual(
-            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=1e-15, tol=None)
+            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=1e-15, tol=0)
 
 
 # === Test products ===
