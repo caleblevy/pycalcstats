@@ -30,8 +30,8 @@ def approx_equal(x, y, tol=1e-12, rel=1e-7):
     Pass None as either tol or rel to ignore that test; if both are None,
     the test performed is an exact equality test.
 
-    tol and rel must be either None or a positive, finite number, otherwise
-    the behaviour is undefined.
+    tol and rel must be either None or a non-negative, finite number,
+    otherwise the behaviour is undefined.
     """
     if tol is rel is None:
         # Fall back on exact equality.
@@ -139,6 +139,8 @@ class ApproxIntegerTest(unittest.TestCase):
         """Test ways of spelling 'exactly equal'."""
         return (approx_equal(x, y, tol=None, rel=None),
                 approx_equal(y, x, tol=None, rel=None),
+                #approx_equal(x, x, tol=0, rel=None),
+                #approx_equal(y, x, tol=0, rel=None),
                 )
 
     def testExactlyEqual(self):
@@ -162,6 +164,20 @@ class ApproxIntegerTest(unittest.TestCase):
         self.assertTrue(approx_equal(119, 100, tol=None, rel=0.2))
         self.assertFalse(approx_equal(100, 130, tol=None, rel=0.2))
         self.assertFalse(approx_equal(130, 100, tol=None, rel=0.2))
+
+    def testBoth(self):
+        # Test approximate equality with both absolute and relative errors.
+        a, b = 10.1, 10.15
+        # Actual absolute error = 0.05, relative error just under 0.005.
+        # (1) compare approx equal with both absolute and relative errors:
+        self.assertTrue(approx_equal(a, b, tol=0.1, rel=0.01))
+        # (2) compare approx equal with neither absolute nor relative errors:
+        self.assertFalse(approx_equal(a, b, tol=0.01, rel=0.001))
+        # (3) compare approx equal with absolute but not relative error:
+        self.assertTrue(approx_equal(a, b, tol=0.06, rel=0.002))
+        # (4) compare approx equal with relative but not absolute error:
+        self.assertTrue(approx_equal(a, b, tol=0.04, rel=0.007))
+
 
 class ApproxFractionTest(unittest.TestCase):
     # Test the approx_equal function with Fractions.
