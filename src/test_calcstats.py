@@ -1099,7 +1099,7 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         self.expected = 22.5  # Exact population variance of self.data.
         # If you duplicate each data point, the variance will scale by
         # this value:
-        self.duplication_scale_factor = 1.0
+        self.dup_scale_factor = 1.0
 
     def setUp(self):
         random.shuffle(self.data)
@@ -1127,7 +1127,7 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         # Test that the variance behaves as expected when you duplicate
         # each data point [a,b,c,...] -> [a,a,b,b,c,c,...]
         data = [random.uniform(-100, 500) for _ in range(20)]
-        expected = self.func(data)*self.duplication_scale_factor
+        expected = self.func(data)*self.dup_scale_factor
         actual = self.func(data*2)
         self.assertApproxEqual(actual, expected)
 
@@ -1150,6 +1150,43 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         m = calcstats.mean(data)
         expected = self.func(data, m=None)
         self.assertEqual(self.func(data, m=m), expected)
+
+
+class VarianceTest(PVarianceTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.variance
+        self.expected = 30.0  # Exact sample variance of self.data.
+        # Scaling factor when you duplicate each data point:
+        self.dup_scale_factor = (2*20-2)/(2*20-1)
+
+    def testSingleData(self):
+        # Override mixin test.
+        self.assertRaises(calcstats.StatsError, self.func, [23])
+
+    # Note that testSingleData and testSingleton are not redundant tests!
+    # Although they both end up doing the same thing, they are both needed
+    # to override tests which do different things in the superclasses.
+
+    def testSingleton(self):
+        # Override pvariance test.
+        self.assertRaises(calcstats.StatsError, self.func, [42])
+
+
+class PStdevTest(PVarianceTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.pstdev
+        self.expected = math.sqrt(self.expected)
+        self.dup_scale_factor = math.sqrt(self.dup_scale_factor)
+
+
+class StdevTest(VarianceTest):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.stdev
+        self.expected = math.sqrt(self.expected)
+        self.dup_scale_factor = math.sqrt(self.dup_scale_factor)
 
 
 class VarianceComparedTest(NumericTestCase):
@@ -1232,6 +1269,27 @@ class VarianceUniformData(unittest.TestCase):
         # Compare the calculated sample variance against the exact result.
         expected = math.sqrt(self.expected*10000/(10000-1))
         self.assertEqual(calcstats.stdev(self.data), expected)
+
+
+class PVarianceDupsTest(NumericTestCase):
+    tol=1e-12
+
+    def testManyDuplicates(self):
+        # Start with 1000 normally distributed data points.
+        data = [random.gauss(7.5, 5.5) for _ in range(1000)]
+        expected = calcstats.pvariance(data)
+        # We expect the calculated variance to be close to the exact result
+        # for the variance of normal data, namely 5.5**2, but because the
+        # data was generated randomly, it might not be. But if it isn't,
+        # it doesn't matter.
+        #
+        # Duplicating the data points should keep the variance the same.
+        for n in (3, 5, 10, 20, 30):
+            d = data*n
+            actual = calcstats.pvariance(d)
+            self.assertApproxEqual(actual, expected)
+        # FIXME -- we should test this with LOTS of duplicates, but that
+        # will probably have to wait for support for iterator data streams.
 
 
 # === Test other statistics functions ===
