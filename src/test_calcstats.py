@@ -29,6 +29,9 @@ def approx_equal(x, y, tol=1e-12, rel=1e-7):
     Test whether x is approximately equal to y, using an absolute error
     of tol and/or a relative error of rel, whichever is bigger.
 
+    >>> approx_equal(1.2589, 1.2587, 0.003)
+    True
+
     If not given, tol=1e-12 and rel=1e-7.
 
     Absolute error is defined as abs(x-y); if that is less than or equal to
@@ -1512,7 +1515,13 @@ class MinmaxTest(unittest.TestCase):
 # === Run tests ===
 
 class DocTests(unittest.TestCase):
-    def testDocTests(self):
+    def testMyDocTests(self):
+        import doctest
+        failed, tried = doctest.testmod()
+        self.assertTrue(tried > 0)
+        self.assertTrue(failed == 0)
+
+    def testStatsDocTests(self):
         import doctest
         failed, tried = doctest.testmod(calcstats)
         self.assertTrue(tried > 0)
