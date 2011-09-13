@@ -393,11 +393,16 @@ def welford():
 def _comp_var(data, p):
     """So-called "computational formula for variance".
 
-    For testing/comparisons only, do not use in production.
+    Implements the variance formula
+    σ2 = 1/n**2 * (n*Σ(x**2) - (Σx)**2)
+
+    FOR TESTING AND COMPARISON USE ONLY, DO NOT USE IN PRODUCTION.
+    This formula is numerically unstable and can be extremely inaccurate,
+    possibly as bad as returning negative results.
     """
     n = len(data)
-    s1 = sum(x**2 for x in data)
-    s2 = sum(data)
+    s1 = _builtin_sum(x**2 for x in data)
+    s2 = _builtin_sum(data)
     return (n*s1 - s2**2)/(n*(n-p))
 
 
