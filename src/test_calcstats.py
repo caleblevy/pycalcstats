@@ -404,9 +404,14 @@ def comp_var(data, p):
     return (n*s1 - s2**2)/(n*(n-p))
 
 
-# Test the comp_var function.
-
 class TestCompPVariance(unittest.TestCase):
+    """Test the comp_var function.
+
+    Note: any tests here should also be tested against the real variance
+    function(s); there's no point in confirming that the computational
+    formula doesn't give the right answer if we don't also test that we
+    can get the right answer!
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.func = lambda data: comp_var(data, 0)  # Population variance.
@@ -416,10 +421,15 @@ class TestCompPVariance(unittest.TestCase):
     def test_variance(self):
         self.assertEqual(self.func(self.data), self.expected)
 
-    # @unittest.skip('function is numerically unstable and fails')
+    def shifted_data(self):
+        return [x+1e12 for x in self.data]*100
+
     def test_shifted_variance(self):
-        data = [x+1e12 for x in self.data]*100
-        self.assertEqual(self.func(data), self.expected)
+        # We expect the computational formula to be numerically unstable;
+        # if it isn't, we want to know about it!
+        data = self.shifted_data()
+        variance = self.func(data)
+        self.assertTrue(variance < -1e-9)  # Impossible value!
 
 
 class TestCompVariance(TestCompPVariance):
@@ -1369,6 +1379,32 @@ class PVarianceDupsTest(NumericTestCase):
             self.assertApproxEqual(actual, expected)
         # FIXME -- we should test this with LOTS of duplicates, but that
         # will probably have to wait for support for iterator data streams.
+
+
+class TestAgainstCompFormulaP(TestCompPVariance):
+    """Test that the population variance succeeds in calculations that the
+    so-called 'computational formula of the variance' fails at.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.pvariance
+
+    def test_shifted_variance(self):
+        data = self.shifted_data()
+        self.assertEqual(self.func(data), self.expected)
+
+
+class TestAgainstCompFormula(TestCompVariance):
+    """Test that the sample variance succeeds in calculations that the
+    so-called 'computational formula of the variance' fails at.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = calcstats.variance
+
+    def test_shifted_variance(self):
+        data = self.shifted_data()
+        self.assertEqual(self.func(data), self.expected*400/499)
 
 
 # === Test other statistics functions ===
