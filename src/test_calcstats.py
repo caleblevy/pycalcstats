@@ -376,6 +376,59 @@ class TestNumericTestCase(unittest.TestCase):
         self.assertTrue(issubclass(NumericTestCase, unittest.TestCase))
 
 
+# === Utility functions ===
+
+def comp_var(data, p):
+    """So-called 'computational formula for variance'.
+
+    FOR TESTING AND COMPARISON USE ONLY, DO NOT USE IN PRODUCTION.
+
+    This formula is numerically unstable and can be extremely inaccurate,
+    including returning negative results. Use this only for exact values
+    (ints, Fractions) or small data sets with very little rounding error.
+
+    Calculate the population variance σ2 = 1/n**2 * (n*Σ(x**2) - (Σx)**2)
+
+    >>> comp_var([1, 1, 3, 7], 0)
+    6.0
+
+    Calculate the sample variance s2 = 1/(n*(n-1)) * (n*Σ(x**2) - (Σx)**2)
+
+    >>> comp_var([1, 1, 3, 7], 1)
+    8.0
+
+    """
+    n = len(data)
+    s1 = sum(x**2 for x in data)
+    s2 = sum(data)
+    return (n*s1 - s2**2)/(n*(n-p))
+
+
+# Test the comp_var function.
+
+class TestCompPVariance(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = lambda data: comp_var(data, 0)  # Population variance.
+        self.data = [1, 2, 4, 5, 8]
+        self.expected = 6.0
+
+    def test_variance(self):
+        self.assertEqual(self.func(self.data), self.expected)
+
+    # @unittest.skip('function is numerically unstable and fails')
+    def test_shifted_variance(self):
+        data = [x+1e12 for x in self.data]*100
+        self.assertEqual(self.func(data), self.expected)
+
+
+class TestCompVariance(TestCompPVariance):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.func = lambda data: comp_var(data, 1)  # Sample variance.
+        self.expected = 7.5
+
+
 # === Test metadata, exceptions and module globals ===
 
 class MetadataTest(unittest.TestCase):
