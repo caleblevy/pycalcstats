@@ -809,3 +809,64 @@ def minmax(*values, **kw):
             pass
     return (minimum, maximum)
 
+
+
+
+def average_deviation(data, m=None):
+    """average_deviation(data [, m]) -> average absolute deviation of data.
+
+    Return the average deviation of the sample data from the population
+    centre ``m`` (usually the mean, or the median).
+
+
+    Arguments
+    ---------
+
+    data
+        Non-empty iterable of non-complex numeric data.
+
+    m
+        None, or the central location of the population, usually the
+        population mean or median (optional, defaults to None).
+
+
+    Examples
+    --------
+
+    If you know the mean or median of the population which the sample data
+    has been taken from, pass it as the second element:
+
+    >>> data = [2.0, 2.25, 2.5, 2.5, 3.25]  # A sample from a population
+    >>> mu = 2.75                           # with a known mean.
+    >>> average_deviation(data, mu)
+    0.45
+
+    If you don't know the centre location, you can estimate it by passing
+    the sample mean or median instead. If ``m`` is not None, or not given,
+    the sample mean is calculated from the data and used as an estimate of
+    the population mean:
+
+    >>> average_deviation(data)
+    0.3
+
+
+    Additional Information
+    ----------------------
+
+    The average deviation is a more robust (less effected by outliers) measure
+    of spread than standard deviation.
+    """
+    if m is None:
+        # FIXME in principle there should be a one-pass method for
+        # calculating this, but for now just convert to a list and
+        # do two passes.
+        if iter(data) is data:
+            data = list(data)
+        m = mean(data)
+    n = len(data)
+    if not n:
+        raise StatisticsError('')
+    deviation = sum(abs(x-m) for x in data)
+    return deviation/n
+
+

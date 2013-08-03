@@ -133,7 +133,7 @@ Rationale
 
     It isn't just the variance and standard deviation. Even the mean is not
     quite as straight-forward as it might appear.  The above implementation
-    seems to simple to have problems, but it does:
+    seems too simple to have problems, but it does:
 
     - The built-in sum can lose accuracy when dealing with floats of wildly
       differing magnitude.  Consequently, the above naive mean fails this

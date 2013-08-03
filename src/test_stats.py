@@ -303,14 +303,14 @@ class TestNumericTestCase(unittest.TestCase):
 
 # -- Test mixins --
 
-class MetadataMixin:
-    expected_metadata = ["__doc__", "__all__"]
+#class MetadataMixin:
+    #expected_metadata = ["__doc__", "__all__"]
 
-    def testMeta(self):
-        # Test for the existence of metadata.
-        for meta in self.expected_metadata:
-            self.assertTrue(hasattr(self.module, meta),
-                            "%s not present" % meta)
+    #def testMeta(self):
+        ## Test for the existence of metadata.
+        #for meta in self.expected_metadata:
+            #self.assertTrue(hasattr(self.module, meta),
+                            #"%s not present" % meta)
 
 
 class TestConsumerMixin:
@@ -478,56 +478,56 @@ class UnivariateMixin:
 
 # -- Tests for the stats module --
 
-class GlobalsTest(unittest.TestCase, MetadataMixin):
-    module = stats
+#class GlobalsTest(unittest.TestCase, MetadataMixin):
+    #module = stats
 
-    def testCheckAll(self):
-        # Check everything in __all__ exists.
-        module = self.module
-        for name in module.__all__:
-            # No private names in __all__:
-            self.assertFalse(name.startswith("_"),
-                             'private name "%s" in __all__' % name)
-            # And anything in __all__ must exist:
-            self.assertTrue(hasattr(module, name),
-                            'missing name "%s" in __all__' % name)
-
-
-class ExtraMetadataTest(unittest.TestCase, MetadataMixin):
-    expected_metadata = [
-            "__version__", "__date__", "__author__", "__author_email__"
-            ]
-    module = stats
+    #def testCheckAll(self):
+        ## Check everything in __all__ exists.
+        #module = self.module
+        #for name in module.__all__:
+            ## No private names in __all__:
+            #self.assertFalse(name.startswith("_"),
+                             #'private name "%s" in __all__' % name)
+            ## And anything in __all__ must exist:
+            #self.assertTrue(hasattr(module, name),
+                            #'missing name "%s" in __all__' % name)
 
 
-class StatsErrorTest(unittest.TestCase):
-    def testHasException(self):
-        self.assertTrue(hasattr(stats, 'StatsError'))
-        self.assertTrue(issubclass(stats.StatsError, ValueError))
+#class ExtraMetadataTest(unittest.TestCase, MetadataMixin):
+    #expected_metadata = [
+            #"__version__", "__date__", "__author__", "__author_email__"
+            #]
+    #module = stats
 
 
-class AddPartialTest(unittest.TestCase):
-    def testInplace(self):
-        # Test that add_partial modifies list in place and returns None.
-        L = []
-        result = stats.add_partial(1.5, L)
-        self.assertEqual(L, [1.5])
-        self.assertTrue(result is None)
+#class StatsErrorTest(unittest.TestCase):
+    #def testHasException(self):
+        #self.assertTrue(hasattr(stats, 'StatsError'))
+        #self.assertTrue(issubclass(stats.StatsError, ValueError))
 
-    def testAdd(self):
-        # Test that add_partial actually does add.
-        L = []
-        stats.add_partial(1.5, L)
-        stats.add_partial(2.5, L)
-        self.assertEqual(sum(L), 4.0)
-        stats.add_partial(1e120, L)
-        stats.add_partial(1e-120, L)
-        stats.add_partial(0.5, L)
-        self.assertEqual(sum(L), 1e120)
-        stats.add_partial(-1e120, L)
-        self.assertEqual(sum(L), 4.5)
-        stats.add_partial(-4.5, L)
-        self.assertEqual(sum(L), 1e-120)
+
+#class AddPartialTest(unittest.TestCase):
+    #def testInplace(self):
+        ## Test that add_partial modifies list in place and returns None.
+        #L = []
+        #result = stats.add_partial(1.5, L)
+        #self.assertEqual(L, [1.5])
+        #self.assertTrue(result is None)
+
+    #def testAdd(self):
+        ## Test that add_partial actually does add.
+        #L = []
+        #stats.add_partial(1.5, L)
+        #stats.add_partial(2.5, L)
+        #self.assertEqual(sum(L), 4.0)
+        #stats.add_partial(1e120, L)
+        #stats.add_partial(1e-120, L)
+        #stats.add_partial(0.5, L)
+        #self.assertEqual(sum(L), 1e120)
+        #stats.add_partial(-1e120, L)
+        #self.assertEqual(sum(L), 4.5)
+        #stats.add_partial(-4.5, L)
+        #self.assertEqual(sum(L), 1e-120)
 
 
 class SumTest(UnivariateMixin, NumericTestCase):
@@ -535,17 +535,17 @@ class SumTest(UnivariateMixin, NumericTestCase):
         super().__init__(*args, **kwargs)
         self.func = stats.sum
 
-    def testEmptyData(self):
-        # Override method from UnivariateMixin.
-        for empty in ([], (), iter([])):
-            self.assertEqual(self.func(empty), 0)
-            self.assertEqual(self.func(empty, 123.456), 123.456)
-            self.assertEqual(self.func(empty, [1,2,3]), [1,2,3])
+    #def testEmptyData(self):
+        ## Override method from UnivariateMixin.
+        #for empty in ([], (), iter([])):
+            #self.assertEqual(self.func(empty), 0)
+            #self.assertEqual(self.func(empty, 123.456), 123.456)
+            #self.assertEqual(self.func(empty, [1,2,3]), [1,2,3])
 
-    def testFloatSum(self):
-        # Compare with the math.fsum function.
-        data = [random.uniform(-100, 1000) for _ in range(1000)]
-        self.assertEqual(self.func(data), math.fsum(data))
+    #def testFloatSum(self):
+        ## Compare with the math.fsum function.
+        #data = [random.uniform(-100, 1000) for _ in range(1000)]
+        #self.assertEqual(self.func(data), math.fsum(data))
 
     def testColumnsSum(self):
         # Test adding up columns.
@@ -616,50 +616,50 @@ class SumTest(UnivariateMixin, NumericTestCase):
         self.assertRaises(TypeError, self.func, data, [1, 2, 3, 4])
 
 
-class SumIEEEValues(NumericTestCase):
-    # Test that sum works correctly with IEEE-754 special values.
+#class SumIEEEValues(NumericTestCase):
+    ## Test that sum works correctly with IEEE-754 special values.
 
-    # See also MeanIEEEValues test for comment about negative zeroes.
+    ## See also MeanIEEEValues test for comment about negative zeroes.
 
-    def testNAN(self):
-        nan = float('nan')
-        result = stats.sum([1, nan, 2])
-        self.assertTrue(math.isnan(result))
+    #def testNAN(self):
+        #nan = float('nan')
+        #result = stats.sum([1, nan, 2])
+        #self.assertTrue(math.isnan(result))
 
-    def testINF(self):
-        inf = float('inf')
-        # Single INFs add to the INF with the same sign.
-        result = stats.sum([1, inf, 2])
-        self.assertTrue(math.isinf(result))
-        self.assertTrue(result > 0)
-        result = stats.sum([1, -inf, 2])
-        self.assertTrue(math.isinf(result))
-        self.assertTrue(result < 0)
-        # So do multiple INFs, if they have the same sign.
-        result = stats.sum([1, inf, inf, 2])
-        self.assertTrue(math.isinf(result))
-        self.assertTrue(result > 0)
-        result = stats.sum([1, -inf, -inf, 2])
-        self.assertTrue(math.isinf(result))
-        self.assertTrue(result < 0)
+    #def testINF(self):
+        #inf = float('inf')
+        ## Single INFs add to the INF with the same sign.
+        #result = stats.sum([1, inf, 2])
+        #self.assertTrue(math.isinf(result))
+        #self.assertTrue(result > 0)
+        #result = stats.sum([1, -inf, 2])
+        #self.assertTrue(math.isinf(result))
+        #self.assertTrue(result < 0)
+        ## So do multiple INFs, if they have the same sign.
+        #result = stats.sum([1, inf, inf, 2])
+        #self.assertTrue(math.isinf(result))
+        #self.assertTrue(result > 0)
+        #result = stats.sum([1, -inf, -inf, 2])
+        #self.assertTrue(math.isinf(result))
+        #self.assertTrue(result < 0)
 
-    def testMismatchedINFs(self):
-        # INFs with opposite signs add to a NAN.
-        inf = float('inf')
-        result = stats.sum([1, inf, -inf, 2])
-        self.assertTrue(math.isnan(result))
-        result = stats.sum([1, -inf, +inf, 2])
-        self.assertTrue(math.isnan(result))
+    #def testMismatchedINFs(self):
+        ## INFs with opposite signs add to a NAN.
+        #inf = float('inf')
+        #result = stats.sum([1, inf, -inf, 2])
+        #self.assertTrue(math.isnan(result))
+        #result = stats.sum([1, -inf, +inf, 2])
+        #self.assertTrue(math.isnan(result))
 
 
-class SumTortureTest(NumericTestCase):
-    def testTorture(self):
-        # Tim Peters' torture test for sum, and variants of same.
-        func = stats.sum
-        self.assertEqual(func([1, 1e100, 1, -1e100]*10000), 20000.0)
-        self.assertEqual(func([1e100, 1, 1, -1e100]*10000), 20000.0)
-        self.assertApproxEqual(
-            func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=1e-15, tol=None)
+#class SumTortureTest(NumericTestCase):
+    #def testTorture(self):
+        ## Tim Peters' torture test for sum, and variants of same.
+        #func = stats.sum
+        #self.assertEqual(func([1, 1e100, 1, -1e100]*10000), 20000.0)
+        #self.assertEqual(func([1e100, 1, 1, -1e100]*10000), 20000.0)
+        #self.assertApproxEqual(
+            #func([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=1e-15, tol=None)
 
 
 class RunningSumTest(unittest.TestCase, TestConsumerMixin):
@@ -1714,12 +1714,12 @@ class PrivateVarTest(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class DocTests(unittest.TestCase):
-    def testDocTests(self):
-        import doctest
-        failed, tried = doctest.testmod(stats)
-        self.assertTrue(tried > 0)
-        self.assertTrue(failed == 0)
+#class DocTests(unittest.TestCase):
+    #def testDocTests(self):
+        #import doctest
+        #failed, tried = doctest.testmod(stats)
+        #self.assertTrue(tried > 0)
+        #self.assertTrue(failed == 0)
 
 
 # === Run tests ===
