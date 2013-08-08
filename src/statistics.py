@@ -32,7 +32,6 @@ Summary:
 ==================  =============================================
 Function            Description
 ==================  =============================================
-add_partial         Utility for performing high-precision sums.
 mean                Arithmetic mean (average) of data.
 median              Median (middle value) of data.
 mode                Mode (most common value) of data.
@@ -40,7 +39,7 @@ pstdev              Population standard deviation of data.
 pvariance           Population variance of data.
 StatisticsError     Exception for statistics errors.
 stdev               Sample standard deviation of data.
-sum                 High-precision sum of data.
+sum                 High-precision sum of numeric data.
 variance            Sample variance of data.
 ==================  =============================================
 
@@ -54,6 +53,22 @@ Examples
 4.38961843444...
 
 
+Calculate the standard median of discrete data:
+
+>>> median([2, 3, 4, 5])
+3.5
+
+
+Calculate the median of data grouped into class intervals centred on the
+data values provided. E.g. if your data points are rounded to the nearest
+whole number:
+
+>>> median.grouped([2, 2, 3, 3, 3, 4])  #doctest: +ELLIPSIS
+2.8333333333...
+
+This should be interpreted in this way: you have two data points in the class
+interval 1.5-2.5, three data points in the class interval 2.5-3.5, and one in
+the class interval 3.5-4.5. The median of these data points is 2.8333...
 
 """
 
@@ -85,6 +100,93 @@ class StatisticsError(ValueError):
 
 # === Public utilities ===
 
+def sum(data, start=0):
+    """sum(data [, start]) -> value
+
+    Return a high-precision sum of the given numeric data. If optional
+    argument ``start`` is given, it is added to the total. If ``data`` is
+    empty, ``start`` (defaulting to 0) is returned.
+
+
+    Examples
+    --------
+
+    >>> sum([3, 2.25, 4.5, -0.5, 1.0], 0.75)
+    11.0
+
+    Float sums are calculated using high-precision floating point arithmetic
+    that can avoid some sources of round-off error:
+
+    >>> sum([1e50, 1, -1e50] * 1000)  # Built-in sum returns zero.
+    1000.0
+
+    Fractions and Decimals are also supported:
+
+    >>> from fractions import Fraction as F
+    >>> sum([F(2, 3), F(7, 5), F(1, 4), F(5, 6)])
+    Fraction(63, 20)
+
+    Decimal sums honour the context:
+
+    >>> import decimal
+    >>> D = decimal.Decimal
+    >>> data = [D("0.1375"), D("0.2108"), D("0.3061"), D("0.0419")]
+    >>> sum(data)
+    Decimal('0.6963')
+    >>> with decimal.localcontext(
+    ...         decimal.Context(prec=2, rounding=decimal.ROUND_DOWN)):
+    ...     sum(data)
+    Decimal('0.68')
+
+
+    Limitations
+    -----------
+
+    ``sum`` supports mixed arithmetic with the following limitations:
+
+    - mixing Fractions and Decimals raises TypeError;
+    - mixing floats with either Fractions or Decimals coerces to float,
+      which may lose precision;
+    - complex numbers are not supported.
+
+    These limitations may change without notice in future versions.
+
+    """
+    if not isinstance(start, numbers.Number):
+        raise TypeError('sum only accepts numbers')
+    total = start
+    data = iter(data)
+    x = None
+    if not isinstance(total, float):
+        # Non-float sum. If we find a float, we exit this loop and continue
+        # with the float code below. Until that happens, we keep adding.
+        for x in data:
+            if isinstance(x, float):
+                total = float(total)
+                break
+            total += x
+        else:
+            # No break, so we're done.
+            return total
+    # High-precision float sum.
+    assert isinstance(total, float)
+    partials = []
+    add_partial(total, partials)
+    if x is not None:
+        add_partial(x, partials)
+    for x in data:
+        try:
+            # Don't call float() directly, as that converts strings and we
+            # don't want that. Also, like all dunder methods, we should call
+            # __float__ on the class, not the instance.
+            x = type(x).__float__(x)
+        except OverflowError:
+            x = float('inf') if x > 0 else float('-inf')
+        add_partial(x, partials)
+    return _sum(partials)
+
+
+# === Private utilities ===
 
 # Thanks to Raymond Hettinger for his recipe:
 # http://code.activestate.com/recipes/393090/
@@ -153,96 +255,6 @@ def add_partial(x, partials):
     assert i > 0
     partials[i:] = [x]
 
-
-def sum(data, start=0):
-    """sum(data [, start]) -> value
-
-    Return a high-precision sum of the given numeric data. If optional
-    argument ``start`` is given, it is added to the total. If ``data`` is
-    empty, ``start`` (defaulting to 0) is returned.
-
-
-    Examples
-    --------
-
-    >>> sum([3, 2.25, 4.5, -0.5, 1.0], 0.75)
-    11.0
-
-    Float sums are calculated using high-precision floating point arithmetic
-    that can avoid some sources of round-off error:
-
-    >>> sum([1e50, 1, -1e50] * 1000)  # Built-in sum returns zero.
-    1000.0
-
-    Fractions and Decimals are also supported:
-
-    >>> from fractions import Fraction as F
-    >>> sum([F(2, 3), F(7, 5), F(1, 4), F(5, 6)])
-    Fraction(63, 20)
-
-    Decimal sums honour the context:
-
-    >>> import decimal
-    >>> D = decimal.Decimal
-    >>> data = [D("0.1375"), D("0.2108"), D("0.3061"), D("0.0419")]
-    >>> sum(data)
-    Decimal('0.6963')
-    >>> with decimal.localcontext(
-    ...         decimal.Context(prec=2, rounding=decimal.ROUND_DOWN)):
-    ...     sum(data)
-    Decimal('0.68')
-
-
-    Limitations
-    -----------
-
-    ``sum`` supports mixed arithmetic with the following limitations:
-
-    - mixing Fractions and Decimals raises TypeError;
-    - mixing floats with either Fractions or Decimals coerces to float,
-      which may lose precision;
-    - complex numbers are not supported.
-
-    These limitations may change without notice in future versions.
-
-    """
-    if not isinstance(start, numbers.Number):
-        raise TypeError('sum only accepts numbers')
-    total = start
-    data = iter(data)
-    x = None
-    if not isinstance(total, float):
-        # Non-float sum. If we find a float, we exit this loop and continue
-        # with the float code below. Until that happens, we keep adding.
-        for x in data:
-            if isinstance(x, float):
-                # Convert running total to a float. See comment below for
-                # why we do it this way.
-                total = type(total).__float__(total)
-                break
-            total += x
-        else:
-            # No break, so we're done.
-            return total
-    # High-precision float sum.
-    assert isinstance(total, float)
-    partials = []
-    add_partial(total, partials)
-    if x is not None:
-        add_partial(x, partials)
-    for x in data:
-        try:
-            # Don't call float() directly, as that converts strings and we
-            # don't want that. Also, like all dunder methods, we should call
-            # __float__ on the class, not the instance.
-            x = type(x).__float__(x)
-        except OverflowError:
-            x = float('inf') if x > 0 else float('-inf')
-        add_partial(x, partials)
-    return _sum(partials)
-
-
-# === Private utilities ===
 
 class _countiter:
     """Iterator that counts how many elements it has seen.
@@ -331,6 +343,24 @@ def _var_helper(data, m):
     return (ss, m, n)
 
 
+def _attach_to(target):
+    """Attach the decorated function to target.
+
+    >>> def f(): pass
+    >>>
+    >>> @_attach_to(f)
+    ... def g(): pass
+    >>>
+    >>> f.g is g
+    True
+
+    """
+    def decorator(func):
+        setattr(target, func.__name__, func)
+        return func
+    return decorator
+
+
 # === Measures of central tendency (averages) ===
 
 def mean(data):
@@ -393,170 +423,142 @@ def mean(data):
         raise StatisticsError('mean of empty data is not defined')
 
 
-class median:
+# FIXME: investigate ways to calculate medians without sorting?
+def median(data):
     """Return the median (middle value) of numeric data.
 
-    There are (at least) four different methods for calculating median,
-    depending on whether or not you allow interpolation between data points:
+    This uses the "mean-of-middle-two" method of calculating the median. When
+    the number of data points is odd, the middle data point is returned:
 
-    1. The most common method returns the middle value if there are an
-       odd number of values, or the average of the two middle values
-       when there are an even number of values.
+    >>> median([1, 3, 5])
+    3
 
-    2. The "low median" returns the middle value, or the smaller of the
-       two middle values.
+    When the number of data points is even, the median is interpolated by
+    taking the average of the two middle values:
 
-    3. The "high median" returns the middle value, or the larger of the
-       two middle values.
-
-    4. For grouped continuous data, it is common to treat the median as
-       the 50th percentile and interpolate when there are duplicate
-       values.
-
-
-    Examples
-    --------
-
-    To get the regular median (#1 above), call ``median`` directly:
-
-    >>> median([2, 3, 4, 5])
-    3.5
+    >>> median([1, 3, 5, 7])
+    4.0
 
     This is best suited when your data is discrete, and you don't mind that
-    the median may not be an actual data point.
+    the median may not be an actual data point. Three other methods for
+    calculating median are provided as methods on the ``median`` function:
 
-    The other calculation methods are provided as methods on ``median``:
-
-    >>> median.low([2, 3, 4, 5])
-    3
-    >>> median.high([2, 3, 4, 5])
-    4
-    >>> median.grouped([2, 2, 3, 3, 3, 4])  #doctest: +ELLIPSIS
-    2.8333333333...
-
-    For further details, see the individual methods.
-
+        * median.low
+        * median.high
+        * median.grouped
+        
+    See individual methods for details.
     """
     # If you think that having four definitions of median is annoying, you
     # ought to see the FIFTEEN definitions for quartiles!
-
-    _ERROR = StatisticsError("no median for empty data")
-
-    # FIXME: investigate ways to calculate medians without sorting?
-    def __new__(cls, data):
-        """Return median of data using the common mean-of-middle-two method.
-
-        If the number of data points is odd, the middle data point is
-        returned:
-
-        >>> median([1, 3, 5])
-        3
-
-        When the number of data points is even, the average of the two
-        middle values is returned:
-
-        >>> median([1, 3, 5, 7])
-        4.0
-
-        """
-        data = sorted(data)
-        n = len(data)
-        if n == 0:
-            raise cls._ERROR
-        if n%2 == 1:
-            return data[n//2]
-        else:
-            i = n//2
-            return (data[i - 1] + data[i])/2
-
-    @classmethod
-    def low(cls, data):
-        """Return the low median of data.
-
-        The low median is always a member of the data set. When the number
-        of data points is odd, the middle value is returned. When it is
-        even, the smaller of the two middle values is returned.
-
-        >>> median.low([1, 3, 5])
-        3
-        >>> median.low([1, 3, 5, 7])
-        3
-
-        """
-        data = sorted(data)
-        n = len(data)
-        if n == 0:
-            raise cls._ERROR
-        if n%2 == 1:
-            return data[n//2]
-        else:
-            return data[n//2 - 1]
-
-    @classmethod
-    def high(cls, data):
-        """Return the high median of data.
-
-        The high median is always a member of the data set. When the number
-        of data points is odd, the middle value is returned. When it is
-        even, the larger of the two middle values is returned.
-
-        >>> median.high([1, 3, 5])
-        3
-        >>> median.high([1, 3, 5, 7])
-        5
-
-        """
-        data = sorted(data)
-        n = len(data)
-        if n == 0:
-            raise cls._ERROR
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    if n%2 == 1:
         return data[n//2]
+    else:
+        i = n//2
+        return (data[i - 1] + data[i])/2
 
-    @classmethod
-    def grouped(cls, data, interval=1):
-        """"Return the median of grouped continuous data.
 
-        >>> median.grouped([1, 2, 2, 3, 4, 4, 4, 4, 4, 5])
-        3.7
+@_attach_to(median)
+def low(data):
+    """Return the low median of numeric data.
 
-        This calculates the median as the 50th percentile, and should be
-        used when your data is continuous and grouped. In the above example,
-        the values 1, 2, 3, etc. actually represent the midpoint of classes
-        0.5-1.5, 1.5-2.5, 2.5-3.5, etc. The middle value falls somewhere in
-        class 3.5-4.5, and interpolation is used to estimate it.
+    The low median is always a member of the data set. When the number
+    of data points is odd, the middle value is returned. When it is
+    even, the smaller of the two middle values is returned.
 
-        Optional argument ``interval`` represents the class interval, and
-        defaults to 1.
+    >>> median.low([1, 3, 5])
+    3
+    >>> median.low([1, 3, 5, 7])
+    3
 
-        >>> median.grouped([52, 52, 53, 54])
-        52.5
-        >>> median.grouped([1, 3, 3, 5, 7])
-        3.25
-        >>> median.grouped([1, 3, 3, 5, 7], 2)
-        3.5
+    Use the low median when your data are discrete and you prefer the median
+    to be an actual data point rather than interpolated.
+    """
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    if n%2 == 1:
+        return data[n//2]
+    else:
+        return data[n//2 - 1]
 
-        This function does not check whether the data points are at least
-        ``interval`` apart, and is equivalent to the Gnumeric spreadsheet
-        function "ssmedian".
-        """
-        # References:
-        # http://www.ualberta.ca/~opscan/median.html
-        # https://mail.gnome.org/archives/gnumeric-list/2011-April/msg00018.html
-        # https://projects.gnome.org/gnumeric/doc/gnumeric-function-SSMEDIAN.shtml
-        data = sorted(data)
-        n = len(data)
-        if n == 0:
-            raise cls._ERROR
-        elif n == 1:
-            return data[0]
-        # Find the value at the midpoint. Remember this corresponds to the
-        # centre of the class interval.
-        x = data[n//2]
-        L = x - interval/2  # The lower limit of the median interval.
-        cf = data.index(x)  # Number of values below the median interval.
-        # FIXME The following line could be more efficient for big lists.
-        f = data.count(x)  # Number of data points in the median interval.
-        return L + interval*(n/2 - cf)/f
+
+@_attach_to(median)
+def high(data):
+    """Return the high median of data.
+
+    The high median is always a member of the data set. When the number of
+    data points is odd, the middle value is returned. When it is even, the
+    larger of the two middle values is returned.
+
+    >>> median.high([1, 3, 5])
+    3
+    >>> median.high([1, 3, 5, 7])
+    5
+
+    Use the high median when your data are discrete and you prefer the median
+    to be an actual data point rather than interpolated.
+    """
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    return data[n//2]
+
+
+@_attach_to(median)
+def grouped(data, interval=1):
+    """"Return the 50th percentile (median) of grouped continuous data.
+
+    >>> median.grouped([1, 2, 2, 3, 4, 4, 4, 4, 4, 5])
+    3.7
+    >>> median.grouped([52, 52, 53, 54])
+    52.5
+
+    This calculates the median as the 50th percentile, and should be
+    used when your data is continuous and grouped. In the above example,
+    the values 1, 2, 3, etc. actually represent the midpoint of classes
+    0.5-1.5, 1.5-2.5, 2.5-3.5, etc. The middle value falls somewhere in
+    class 3.5-4.5, and interpolation is used to estimate it.
+
+    Optional argument ``interval`` represents the class interval, and
+    defaults to 1. Changing the class interval naturall will change the
+    interpolated 50th percentile value:
+
+    >>> median.grouped([1, 3, 3, 5, 7], interval=1)
+    3.25
+    >>> median.grouped([1, 3, 3, 5, 7], interval=2)
+    3.5
+
+    This function does not check whether the data points are at least
+    ``interval`` apart.
+    """
+    # References:
+    # http://www.ualberta.ca/~opscan/median.html
+    # https://mail.gnome.org/archives/gnumeric-list/2011-April/msg00018.html
+    # https://projects.gnome.org/gnumeric/doc/gnumeric-function-SSMEDIAN.shtml
+    data = sorted(data)
+    n = len(data)
+    if n == 0:
+        raise StatisticsError("no median for empty data")
+    elif n == 1:
+        return data[0]
+    # Find the value at the midpoint. Remember this corresponds to the
+    # centre of the class interval.
+    x = data[n//2]
+    L = x - interval/2  # The lower limit of the median interval.
+    cf = data.index(x)  # Number of values below the median interval.
+    # FIXME The following line could be more efficient for big lists.
+    f = data.count(x)  # Number of data points in the median interval.
+    return L + interval*(n/2 - cf)/f
+
+
+del low, high, grouped
 
 
 class mode:
