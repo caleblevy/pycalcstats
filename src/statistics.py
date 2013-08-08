@@ -427,6 +427,9 @@ def mean(data):
 def median(data):
     """Return the median (middle value) of numeric data.
 
+    The median is a robust measure of central location, and is less affected
+    by the presence of outliers in your data.
+
     This uses the "mean-of-middle-two" method of calculating the median. When
     the number of data points is odd, the middle data point is returned:
 
@@ -557,14 +560,13 @@ def grouped(data, interval=1):
     f = data.count(x)  # Number of data points in the median interval.
     return L + interval*(n/2 - cf)/f
 
-
 del low, high, grouped
 
 
-class mode:
-    """mode(data [, window [, max_modes [, delta]]]) -> mode(s)
+def mode(data, max_modes=1):
+    """mode(data [, max_modes]) -> mode(s)
 
-    Return the most common data point, or points, from ``data``. The mode
+    Return the most common data point, or points, from discrete data. The mode
     (when it exists) is the most typical value, and is a robust measure of
     central location.
 
@@ -575,26 +577,16 @@ class mode:
     data
         Non-empty iterable of data points, not necessarily numeric.
 
-    window
-        Optional window size for estimating the mode when data is
-        numeric and continuous. For discrete data (numeric or not),
-        use the default value of 0. Otherwise, ``window`` must be an
-        integer 3 or larger. See ``mode.collate`` for more details.
-
     max_modes
-        The maximum number of modes to return. Defaults to 1.
-
-    delta
-        None or a number specifying the difference in scores that
-            distinguishes a mode from a non-mode. Defaults to 0. See
-            ``mode.extract`` for more details.
+        The maximum number of modes to return. Defaults to 1. Passing 0 or
+        None as ``max_modes`` will allow an unlimited number of modes.
 
 
     Examples
     --------
 
-    By default, mode assumes discrete data, and returns a single value. This
-    is the standard treatment of the mode as commonly taught in schools:
+    ``mode`` assumes discrete data, and by default returns a single value.
+    This is the standard treatment of the mode as commonly taught in schools:
 
     >>> mode([1, 1, 2, 3, 3, 3, 3, 4])
     3
@@ -604,50 +596,18 @@ class mode:
     >>> mode(["red", "blue", "blue", "red", "green", "red", "red"])
     'red'
 
-    If your data is continuous (and not grouped), then we expect most values
-    will be unique, and ``mode`` to raise an exception:
-
-    >>> data = [1.1, 1.8, 2.4, 3.3, 3.4, 3.5, 4.6]
-    >>> mode(data)  #doctest: +IGNORE_EXCEPTION_DETAIL
-    Traceback (most recent call last):
-      ...
-    StatisticsError: no mode
-
-    In this case, the mode represents the peak in the distribution, and we
-    can estimate it by looking at multiple values at once, using a sliding
-    window. Pass a non-zero int value, 3 or higher, for the ``window``
-    argument:
-
-    >>> mode(data, window=3)
-    3.4
 
     If you suspect that your data has more than one mode, pass a positive
-    int as the ``max_mode`` argument, and no more than that many modes will
-    be returned as a list:
+    int as the ``max_mode`` argument, and up to that many modes will be
+    returned as a list. In this example, the data has two modes, both of which
+    have a frequency of three:
 
-    >>> mode([5, 3, 2, 1, 5, 4, 2, 2, 5], max_modes=3)
+    >>> mode([5, 3, 2, 1, 5, 4, 2, 2, 5], max_modes=2)
     [2, 5]
 
-    By default, peaks must have exactly the same height to count as multiple
-    modes. To relax that restriction, supply argument ``delta``. See the
-    ``mode.extract`` method for details.
 
-
-    Additional Methods
-    ------------------
-
-    ``mode`` provides two methods to assist in determining how many peaks
-    a data set actually has:
-
-    mode.collate
-        Returns the data set collated into sorted (value, frequency)
-        pairs.
-
-    mode.extract
-        Decide which value or values should be considered a peak of
-        the sample, and return only those values.
-
-    See the individual methods for more details.
+    If you pass 0 or None as ``max_modes``, an unlimited number of modes may
+    be returned.
 
 
     Errors
@@ -655,145 +615,23 @@ class mode:
 
     If your data is empty, or if it has more modes than you specified as
     ``max_modes`` (default of 1), then ``mode`` will raise StatisticsError.
-
-    If you specify ``window`` less than 3, or greater than the number of
-    data points, ``mode`` will raise ValueError.
-
-
-    Additional Information
-    ----------------------
-
-    The mode is the only measure of location available for nominal data.
-
-    Smaller window sizes have better resolution, and a chance to find
-    narrow but tall peaks, but also increase the chance of missing the
-    true mode and finding a chance fluctuation in the data. In general
-    you should pick the largest window size your data will stand.
-
-    The mode is a robust measure of the centre of a distribution even
-    when data contains outliers.
     """
-    def __new__(cls, data, window=0, max_modes=1, delta=0):
-        c = cls.collate(data, window)
-        if not c:
-            raise StatisticsError('data must not be empty (no mode)')
-        elif c[0][1] and window == 1:
-            # Discrete data and every item is unique.
-            raise StatisticsError('data has no mode')
-        modes = cls.extract(c, window, delta)
-        if len(modes) > max_modes:
-            raise StatisticsError('too many modes: %d' % len(modes))
-        elif max_modes == 1:
-            assert len(modes) == 1
-            return modes[0]
-        return modes
-
-    @classmethod
-    def collate(cls, data, window):
-        """Collate values from data using window-sized intervals.
-
-        Arguments
-        ---------
-
-        data
-            Non-empty iterable of data; must be numeric unless ``window``
-            is zero.
-
-        window
-            for discrete or nominal data, 0; otherwise for continuous
-            data, an int equal to or greater than 3.
-
-        Returns a list of (value, score), sorted into descending order by
-        score, where the values are:
-
-        - data points, for discrete and nominal data;
-        - an interpolated mid-point of the sliding window into the data,
-          for continuous data (``window`` != 0). 
-
-        """
-        if window == 0:
-            # Calculate scores for discrete data by counting.
-            return collections.Counter(data).most_common()
-        # Otherwise we estimate scores for continuous data using a
-        # technique called "Estimating the rate of an inhomogeneous
-        # Poisson process from Jth waiting times", using the algorithm
-        # from "Numerical Recipes In Pascal", Press et al.,
-        # Cambridge University Press, 1992, p.508.
-        if window < 3:
-            raise ValueError('window size must be at least 3')
-        data = sorted(data)
-        n = len(data)
-        if window > n:
-            raise ValueError('too few data points for window size')
-        collation = []
-        for i in range(n-window+1):
-            a, b = data[i], data[i+window-1]
-            x = (a+b)/2
-            score = window/(n*(b-a)) if b!= a else float('inf')
-            collation.append((x, score))
-        collation.sort(key=operator.itemgetter(1), reverse=True)
-        return collation
-
-    @classmethod
-    def extract(cls, collation, window, delta):
-        """Extract modal values from collated (value, score) pairs.
-
-        ``extract`` takes a sorted, collated list, and determines which
-        elements should be considered modes by comparing the score of each
-        element with the score of the first, then returns those values in
-        a list in ascending order.
-
-        Scores can be interpreted in two ways:
-
-        - for discrete data, the score is the frequency of the value;
-        - for continuous data, the score is an estimate of the
-          frequency within the given window size.
-
-
-        Arguments
-        ---------
-
-        collation
-            List of (value, score) pairs, sorted in order of
-            increasing frequency, as generated by the ``collate``
-            method.
-
-        window
-            0, or window size as used by ``mode.collate``.
-
-        delta
-            None, or a numeric difference in score required to
-            distinguish modes from non-modes in your data.
-
-        If ``delta`` is a non-zero number, then two scores must differ by
-        at least that amount to be distinguished. If ``delta`` is zero,
-        (the default), then scores are compared using the ``!=`` operator.
-
-        If ``delta`` is None, and ``window`` is zero (i.e. as used for
-        discrete data) then scores are compared using ``!=``. Otherwise
-        scores are distinguished if the relative error between them is
-        greater than twice the square root of the window size.
-        """
-        if delta is None:
-            if window == 0:
-                diff = operator.ne
-            else:
-                # See Press et al. above.
-                k = math.sqrt(window)
-                # Factor of 2 below gives a 95% confidence; use 1* for
-                # a 68% confidence or 3* for a 98.5% confidence (approx).
-                diff = lambda a, b: k*abs(a - b) >= 2*abs(max(a, b))
-        elif delta == 0:
-            diff = operator.ne
-        else:
-            diff = lambda a, b: abs(a - b) >= delta
-        a = collation[0][1]
-        for i in range(1, len(collation)):
-            b = collation[i][1]
-            if diff(a, b):
-                collation = collation[:i]
-                break
-        return [t[0] for t in collation]
+    # Generate a table of sorted (value, frequency) pairs.
+    table = collections.Counter(data).most_common()
+    if not table:
+        raise StatisticsError('empty data has no mode')
+    # Extract the modes (highest frequency).
+    maxfreq = table[0][1]
+    for i in range(1, len(table)):
+        if table[i][1] != maxfreq:
+            table = table[:i]
+            break
+    if max_modes and len(table) > max_modes:
+        raise StatisticsError('got too many modes: %d' % len(modes))
+    if max_modes == 1:
+        assert len(table) == 1
+        return table[0][0]
+    return [t[0] for t in table]
 
 
 # === Measures of spread ===
