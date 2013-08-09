@@ -461,7 +461,14 @@ def grouped(data, interval=1):
     # Find the value at the midpoint. Remember this corresponds to the
     # centre of the class interval.
     x = data[n//2]
-    L = x - interval/2  # The lower limit of the median interval.
+    for obj in (x, interval):
+        if isinstance(obj, (str, bytes)):
+            raise TypeError('expected number but got %r' % obj)
+    try:
+        L = x - interval/2  # The lower limit of the median interval.
+    except TypeError:
+        # Mixed type. For now we just coerce to float.
+        L = float(x) - float(interval)/2
     cf = data.index(x)  # Number of values below the median interval.
     # FIXME The following line could be more efficient for big lists.
     f = data.count(x)  # Number of data points in the median interval.
@@ -524,6 +531,8 @@ def mode(data, max_modes=1):
     ``max_modes`` (default of 1), then ``mode`` will raise StatisticsError.
     """
     # Generate a table of sorted (value, frequency) pairs.
+    if data is None:
+        raise TypeError('None is not iterable')
     table = collections.Counter(data).most_common()
     if not table:
         raise StatisticsError('empty data has no mode')
@@ -534,7 +543,7 @@ def mode(data, max_modes=1):
             table = table[:i]
             break
     if max_modes and len(table) > max_modes:
-        raise StatisticsError('got too many modes: %d' % len(modes))
+        raise StatisticsError('got too many modes: %d' % len(table))
     if max_modes == 1:
         assert len(table) == 1
         return table[0][0]
