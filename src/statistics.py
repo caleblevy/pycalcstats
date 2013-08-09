@@ -256,93 +256,6 @@ def add_partial(x, partials):
     partials[i:] = [x]
 
 
-class _countiter:
-    """Iterator that counts how many elements it has seen.
-
-    >>> c = _countiter(['a', 1, None, 'c'])
-    >>> _ = list(c)
-    >>> c.count
-    4
-
-    """
-    def __init__(self, iterable):
-        self.it = iter(iterable)
-        self.count = 0
-    def __next__(self):
-        x = next(self.it)  # This must occur before incrementing the count.
-        self.count += 1
-        return x
-    def __iter__(self):
-        return self
-
-
-def _welford(data):
-    """Welford's one-pass method for calculating variance and mean.
-
-    Expects ``data`` to be a _countiter, and returns a three-tuple of
-
-    - sum of square deviations from the mean;
-    - the mean;
-    - the number of items.
-
-    """
-    assert type(data) is _countiter
-    n = 0
-    m = 0
-    ss = 0
-    for x in data:
-        n = n + 1
-        delta = x - m
-        m = m + delta/n
-        ss = ss + delta*(x - m)
-    assert n == data.count
-    return (ss, m, n)
-
-
-def _direct(data, m, n):
-    """Direct method for calculating variance (compensated version).
-
-    Expects ``data`` to be a sequence, and ``m`` to be the mean of the data.
-    ``n`` should be the number of items, or None. Returns the sum of squared
-    deviations from the mean.
-    """
-    assert m is not None
-    ss = sum((x-m)**2 for x in data)
-    if n:
-        # The following sum should mathematically equal zero, but
-        # due to rounding error may not.
-        ss -= sum((x-m) for x in data)**2/n
-    return ss
-
-
-def _var_helper(data, m):
-    """Return (sum of square deviations, mean, count) of data."""
-    # Under no circumstances use the so-called "computational formula for
-    # variance", as that is only suitable for hand calculations with a small
-    # amount of low-precision data. It has terrible numeric properties.
-    #
-    # See a comparison of three computational methods here:
-    # http://www.johndcook.com/blog/2008/09/26/comparing-three-methods-of-computing-standard-deviation/
-    try:
-        n = len(data)
-    except TypeError:
-        n = None
-        data = _countiter(data)
-    if m is None:
-        if n is None:
-            # data must be an iterator.
-            ss, m, n = _welford(data)
-        else:
-            m = mean(data)
-            ss = _direct(data, m, n)
-    else:
-        ss = _direct(data, m, n)
-    if n is None:
-        n = data.count
-    assert not ss < 0, 'sum of square deviations is negative'
-    return (ss, m, n)
-
-
 def _attach_to(target):
     """Attach the decorated function to target.
 
@@ -409,18 +322,12 @@ def mean(data):
     the entire population. If you call ``mean`` with the entire population,
     the result returned is the population mean \N{GREEK SMALL LETTER MU}.
     """
-    try:
-        n = len(data)
-    except TypeError:
-        n = None
-        data = _countiter(data)
-    total = sum(data)
-    if n is None:
-        n = data.count
-    if n:
-        return total/n
-    else:
-        raise StatisticsError('mean of empty data is not defined')
+    if iter(data) is data:
+        data = list(data)
+    n = len(data)
+    if n < 1:
+        raise StatisticsError('mean requires at least one data point')
+    return sum(data)/n
 
 
 # FIXME: investigate ways to calculate medians without sorting?
@@ -639,25 +546,53 @@ def mode(data, max_modes=1):
 # See http://mathworld.wolfram.com/Variance.html
 #     http://mathworld.wolfram.com/SampleVariance.html
 #     http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
+#
+# Under no circumstances use the so-called "computational formula for
+# variance", as that is only suitable for hand calculations with a small
+# amount of low-precision data. It has terrible numeric properties.
+#
+# See a comparison of three computational methods here:
+# http://www.johndcook.com/blog/2008/09/26/comparing-three-methods-of-computing-standard-deviation/
 
-def variance(data, m=None):
-    """variance(data [, m]) -> sample variance of numeric data
+def _ss(data, c=None):
+    """Return sum of square deviations of sequence data.
 
-    Return the sample variance of ``data``, a sequence or iterator of
-    real-valued numbers.
+    If ``c`` is None, deviations are calculated from the mean. Otherwise,
+    deviations are calculated from ``c``. Use the second case with care, as
+    it can lead to garbage results.
+    """
+    if c is None:
+        c = mean(data)
+    ss = sum((x-c)**2 for x in data)
+    # The following sum should mathematically equal zero, but due to rounding
+    # error may not.
+    ss -= sum((x-c) for x in data)**2/len(data)
+    assert not ss < 0, 'negative sum of square deviations: %f' % ss
+    return ss
+
+
+def variance(data, center=None):
+    """variance(data [, center]) -> sample variance of numeric data
+
+    Return the sample variance of ``data``, a sequence of real-valued numbers.
 
     Variance is a measure of the variability (spread or dispersion) of
     data. A large variance indicates that the data is spread out; a small
     variance indicates it is clustered closely around the central location.
 
+    Use this function when your data is a sample. If your data is the entire
+    population, you should use ``pvariance`` instead.
+
+
     Arguments
     ---------
 
     data
-        iterable of numeric (non-complex) data with at least two values.
+        sequence of numeric (non-complex) data with at least two values.
 
-    m
-        (optional) mean of data, or None.
+    center
+        Central location from which to measure variance (optional). If missing
+        or None (the default), the mean is used as that central location.
 
 
     Examples
@@ -668,14 +603,15 @@ def variance(data, m=None):
     1.3720238095238095
 
     If you have already calculated the mean of your data, you can pass it as
-    the optional second argument ``m`` to avoid recalculating it:
+    the optional second argument to avoid recalculating it:
 
     >>> m = mean(data)
     >>> variance(data, m)
     1.3720238095238095
 
-        .. CAUTION:: Using arbitrary values for ``m`` which are not the
-           actual mean may lead to invalid or impossible results.
+        .. CAUTION:: Using arbitrary values for ``center`` may lead to invalid
+           or impossible results.
+
 
     Decimals and Fractions are supported:
 
@@ -696,34 +632,38 @@ def variance(data, m=None):
     know the true population mean \N{GREEK SMALL LETTER MU} you should use
     the ``pvariance`` function instead.
     """
-    ss, m, n = _var_helper(data, m)
+    if iter(data) is data:
+        data = list(data)
+    n = len(data)
     if n < 2:
         raise StatsError('variance requires at least two data points')
+    ss = _ss(data, center)
     return ss/(n-1)
 
 
-def pvariance(data, m=None):
-    """pvariance(data [, m]) -> population variance of numeric data
+def pvariance(data, center=None):
+    """pvariance(data [, center]) -> population variance of numeric data
 
-    Return the population variance of ``data``, a sequence or iterator
-    of real-valued numbers.
+    Return the population variance of ``data``, a sequence of real-valued
+    numbers.
 
     Variance is a measure of the variability (spread or dispersion) of
     data. A large variance indicates that the data is spread out; a small
     variance indicates it is clustered closely around the central location.
+
+    If your data represents the entire population, you should use this
+    function; otherwise you should normally use ``variance`` instead.
 
 
     Arguments
     ---------
 
     data
-        non-empty iterable of numeric (non-complex) data.
+        non-empty sequence of numeric (non-complex) data.
 
-    m
-        (optional) mean of data, or None.
-
-    If your data represents the entire population, you should use this
-    function; otherwise you should normally use ``variance`` instead.
+    center
+        Central location from which to measure variance (optional). If missing
+        or None (the default), the mean is used as that central location.
 
 
     Examples
@@ -734,14 +674,15 @@ def pvariance(data, m=None):
     1.25
 
     If you have already calculated the mean of your data, you can pass it as
-    the optional second argument ``m`` to avoid recalculating it:
+    the optional second argument to avoid recalculating it:
 
     >>> m = mean(data)
     >>> pvariance(data, m)
     1.25
 
-        .. CAUTION:: Using arbitrary values for ``m`` which are not the
-           actual mean may lead to invalid or impossible results.
+        .. CAUTION:: Using arbitrary values for ``center`` may lead to invalid
+           or impossible results.
+
 
     Decimals and Fractions are supported:
 
@@ -762,19 +703,21 @@ def pvariance(data, m=None):
     known as variance with N degrees of freedom.
 
     If you somehow know the true population mean \N{GREEK SMALL LETTER MU},
-    you should use this function to calculate the sample variance instead of
-    the ``variance`` function, giving the known population mean as argument
-    ``m``. In that case, the result will be an unbiased estimate of the
-    population variance.
+    you should use this function to calculate the sample variance, giving the
+    known population mean as the second argument. In that case, the result
+    will be an unbiased estimate of the population variance.
     """
-    ss, m, n = _var_helper(data, m)
+    if iter(data) is data:
+        data = list(data)
+    n = len(data)
     if n < 1:
         raise StatsError('pvariance requires at least one data point')
+    ss = _ss(data, center)
     return ss/n
 
 
-def stdev(data, m=None):
-    """stdev(data [, m]) -> sample standard deviation of numeric data
+def stdev(data, center=None):
+    """stdev(data [, center]) -> sample standard deviation of numeric data
 
     Return the square root of the sample variance. See ``variance`` for
     arguments and other details.
@@ -783,15 +726,15 @@ def stdev(data, m=None):
     1.0810874155219827
 
     """
-    var = variance(data, m)
+    var = variance(data, center)
     try:
         return var.sqrt()
     except AttributeError:
         return math.sqrt(var)
 
 
-def pstdev(data, m=None):
-    """pstdev(data [, m]) -> population standard deviation of numeric data
+def pstdev(data, center=None):
+    """pstdev(data [, center]) -> population standard deviation of numeric data
 
     Return the square root of the population variance. See ``pvariance`` for
     arguments and other details.
@@ -800,7 +743,7 @@ def pstdev(data, m=None):
     0.986893273527251
 
     """
-    var = pvariance(data, m)
+    var = pvariance(data, center)
     try:
         return var.sqrt()
     except AttributeError:
