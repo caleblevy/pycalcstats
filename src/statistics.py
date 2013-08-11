@@ -645,7 +645,7 @@ def variance(data, center=None):
         data = list(data)
     n = len(data)
     if n < 2:
-        raise StatsError('variance requires at least two data points')
+        raise StatisticsError('variance requires at least two data points')
     ss = _ss(data, center)
     return ss/(n-1)
 
@@ -720,7 +720,7 @@ def pvariance(data, center=None):
         data = list(data)
     n = len(data)
     if n < 1:
-        raise StatsError('pvariance requires at least one data point')
+        raise StatisticsError('pvariance requires at least one data point')
     ss = _ss(data, center)
     return ss/n
 
