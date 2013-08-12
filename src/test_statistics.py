@@ -59,57 +59,6 @@ class StatsErrorTest(unittest.TestCase):
 
 # === Tests for private utility functions ===
 
-class TestCountIter(unittest.TestCase):
-
-    def get_count(self, it):
-        assert isinstance(it, statistics._countiter)
-        _ = list(it)
-        return it.count
-
-    def testEmpty(self):
-        # Test that empty iterables have count of zero.
-        it = statistics._countiter([])
-        self.assertEqual(self.get_count(it), 0)
-
-    def testNonEmpty(self):
-        for n in (1, 2, 8, 2001):
-            it = statistics._countiter(range(n))
-            self.assertEqual(self.get_count(it), n)
-
-
-class TestWelford(NumericTestCase):
-
-    def testWelfordMinimal(self):
-        # Minimal test case for _welford private function.
-        data = [1, 2, 2, 2, 3, 3, 4, 5, 5, 3]
-        # NOTE: Don't re-order these values! If you do, the calculation
-        #       of ss may change slightly due to rounding.
-        # Check the hand-calculated results.
-        ss, mean, count = 16, 3, 10
-        assert count == len(data)
-        assert mean == sum(data)/count
-        # Now test that _welford returns the right things.
-        results = statistics._welford(statistics._countiter(data))
-        self.assertTupleEqual(results, (ss, mean, count))
-
-
-class TestDirect(NumericTestCase):
-
-    def testDirectMinimal(self):
-        # Minimal test case for _direct private function.
-        data = [1, 1, 0, 2, 3, 3, 0, 4, 1, 2, 3, 4]
-        # Check the hand-calculated results.
-        ss, mean, count = 22, 2, 12
-        assert count == len(data)
-        assert mean == sum(data)/count
-        # Now test that _direct returns the right value.
-        for n in (None, count):
-            result = statistics._direct(data, mean, n)
-            self.assertEqual(result, ss)
-        
-
-# === Tests for public helper functions ===
-
 class AddPartialTest(unittest.TestCase):
     def testInplace(self):
         # Test that add_partial modifies list in place and returns None.
@@ -136,9 +85,8 @@ class AddPartialTest(unittest.TestCase):
     def testNan(self):
         # Test that add_partial works as expected with NANs.
         L = []
-        statistics.add_partial(1.5, L)
-        statistics.add_partial(float('NAN'), L)
-        statistics.add_partial(2.5, L)
+        for x in (1.5, float('NAN'), 2.5):
+            statistics.add_partial(x, L)
         self.assertTrue(math.isnan(sum(L)))
 
     def do_inf_test(self, infinity):
@@ -166,13 +114,149 @@ class AddPartialTest(unittest.TestCase):
         self.do_inf_test(-inf)
 
 
-class TestSum(NumericTestCase):
-    # Simple test cases for statistics.sum() function.
+# === Tests for public functions ===
+
+class UnivariateCommonMixin:
+    # Common tests for most univariate functions that take a data argument.
+
+    def testNoArgs(self):
+        # Fail if given no arguments.
+        self.assertRaises(TypeError, self.func)
+
+    def testEmptyData(self):
+        # Fail when the data argument (first argument) is empty.
+        for empty in ([], (), iter([])):
+            self.assertRaises(statistics.StatisticsError, self.func, empty)
+
+    def prepare_data(self):
+        """Return int data for various tests."""
+        data = list(range(10))
+        while data == sorted(data):
+            random.shuffle(data)
+        return data
+
+    def testNoInPlaceModifications(self):
+        # Test that the function does not modify its input data.
+        data = self.prepare_data()
+        assert len(data) != 1  # Necessary to avoid infinite loop.
+        assert data != sorted(data)
+        saved = data[:]
+        assert data is not saved
+        _ = self.func(data)
+        self.assertListEqual(data, saved, "data has been modified")
+
+    def testOrderDoesntMatter(self):
+        # Test that the order of data points doesn't change the result.
+
+        # CAUTION: due to floating point rounding errors, the result actually
+        # may depend on the order. Consider this test representing an ideal.
+        # To avoid this test failing, only test with exact values such as ints
+        # or Fractions.
+        data = [1, 2, 3, 3, 3, 4, 5, 6]*100
+        expected = self.func(data)
+        random.shuffle(data)
+        actual = self.func(data)
+        self.assertEqual(expected, actual)
+
+    def testTypeOfDataCollection(self):
+        # Test that the type of iterable data doesn't effect the result.
+        class MyList(list):
+            pass
+        class MyTuple(tuple):
+            pass
+        def generator(data):
+            return (obj for obj in data)
+        data = self.prepare_data()
+        expected = self.func(data)
+        for kind in (list, tuple, iter, MyList, MyTuple, generator):
+            result = self.func(kind(data))
+            self.assertEqual(result, expected)
+
+    def testRangeData(self):
+        # Test that functions work with range objects.
+        data = range(20, 50, 3)
+        expected = self.func(list(data))
+        self.assertEqual(self.func(data), expected)
+
+    def testBadArgTypes(self):
+        # Test that function raises when given data of the wrong type.
+
+        # Don't roll the following into a loop like this:
+        #   for bad in list_of_bad:
+        #       self.check_for_type_error(bad)
+        #
+        # Since assertRaises doesn't show the arguments that caused the test
+        # failure, it is very difficult to debug these test failures when the
+        # following are in a loop.
+        self.check_for_type_error(None)
+        self.check_for_type_error(23)
+        self.check_for_type_error(42.0)
+        self.check_for_type_error(object())
+
+    def check_for_type_error(self, *args):
+        self.assertRaises(TypeError, self.func, *args)
+
+    def testTypeOfDataElement(self):
+        # Check the type of data elements doesn't affect the numeric result.
+        # This is a weaker test than UnivariateTypeMixin.testTypesConserved,
+        # because it checks the numeric result by equality, but not by type.
+        class MyFloat(float):
+            def __truediv__(self, other):
+                return type(self)(super().__truediv__(other))
+            def __add__(self, other):
+                return type(self)(super().__add__(other))
+            __radd__ = __add__
+
+        raw = self.prepare_data()
+        expected = self.func(raw)
+        for kind in (float, MyFloat, Decimal, Fraction):
+            data = [kind(x) for x in raw]
+            result = type(expected)(self.func(data))
+            self.assertEqual(result, expected)
+
+
+class UnivariateTypeMixin:
+    """Mixin class for type-conserving functions.
+
+    This mixin class holds test(s) for functions which conserve the type of
+    individual data points. E.g. the mean of a list of Fractions should itself
+    be a Fraction.
+
+    Not all tests to do with types need go in this class. Only those that
+    rely on the function returning the same type as its input data.
+    """
+    def testTypesConserved(self):
+        # Test that functions keeps the same type as their data points.
+        # (Excludes mixed data types.) This only tests the type of the return
+        # result, not the value.
+        class MyFloat(float):
+            def __truediv__(self, other):
+                return type(self)(super().__truediv__(other))
+            def __sub__(self, other):
+                return type(self)(super().__sub__(other))
+            def __rsub__(self, other):
+                return type(self)(super().__rsub__(other))
+            def __pow__(self, other):
+                return type(self)(super().__pow__(other))
+            def __add__(self, other):
+                return type(self)(super().__add__(other))
+            __radd__ = __add__
+
+        data = self.prepare_data()
+        for kind in (float, Decimal, Fraction, MyFloat):
+            d = [kind(x) for x in data]
+            result = self.func(d)
+            self.assertIs(type(result), kind)
+
+
+class TestSum(NumericTestCase, UnivariateCommonMixin, UnivariateTypeMixin):
+    # Test cases for statistics.sum() function.
 
     def setUp(self):
         self.func = statistics.sum
 
-    def testEmptySum(self):
+    def testEmptyData(self):
+        # Override test for empty data.
         for data in ([], (), iter([])):
             self.assertEqual(self.func(data), 0)
             self.assertEqual(self.func(data, 23), 23)
@@ -190,23 +274,12 @@ class TestSum(NumericTestCase):
         F = Fraction
         self.assertEqual(self.func([Fraction(1, 1000)]*500), Fraction(1, 2))
 
-    @unittest.skip('not implemented yet')
     def testDecimals(self):
-        pass
-
-    def testTypesConserved(self):
-        # Test that sum keeps the same type as its data points.
-        data = [1, 3, 2, 0, 7, 5, 4, 3, 8, 9, 1]
-
-        class MyInt(int):
-            def __add__(self, other):
-                return type(self)(super().__add__(other))
-            __radd__ = __add__
-
-        for T in (int, float, Decimal, Fraction, MyInt):
-            d = [T(x) for x in data]
-            result = self.func(d)
-            self.assertIs(type(result), T)
+        D = Decimal
+        data = [D("0.001"), D("5.246"), D("1.702"), D("-0.025"),
+                D("3.974"), D("2.328"), D("4.617"), D("2.843"),
+                ]
+        self.assertEqual(self.func(data), Decimal("20.686"))
 
     def testDecimalContext(self):
         # Test that sum honours the context settings.
@@ -226,6 +299,14 @@ class TestSum(NumericTestCase):
         # we differ by a very slight amount :-(
         data = [random.uniform(-100, 1000) for _ in range(1000)]
         self.assertApproxEqual(self.func(data), math.fsum(data), rel=2e-16)
+
+    def testStartArgument(self):
+        # Test that the optional start argument works correctly.
+        data = [random.uniform(1, 1000) for _ in range(100)]
+        t = self.func(data)
+        self.assertEqual(t+42, self.func(data, 42))
+        self.assertEqual(t-23, self.func(data, -23))
+        self.assertEqual(t+1e20, self.func(data, 1e20))
 
 
 class SumTortureTest(NumericTestCase):
@@ -292,59 +373,110 @@ class SumSpecialValues(NumericTestCase):
 
 # === Tests for averages ===
 
-class AverageMixin:
+class AverageMixin(UnivariateCommonMixin):
     # Mixin class holding common tests for averages.
-
-    def testEmptyData(self):
-        # Test that average raises if there is no data.
-        self.assertRaises(statistics.StatisticsError, self.func, [])
 
     def testSingleValue(self):
         # Average of a single value is the value itself.
-        for x in (23, 42.5, Fraction(15, 19), Decimal('0.28')):
+        for x in (23, 42.5, 1.3e15, Fraction(15, 19), Decimal('0.28')):
             self.assertEqual(self.func([x]), x)
 
-    def testTypesConserved(self):
-        # Test that averages keep the same type as the arguments.
-        data = [1, 3, 2, 0, 7, 5, 4, 3, 8, 9, 1]
-        template = 'expected %s but got %s'
-
-        class MyFloat(float):
-            def __truediv__(self, other):
-                return type(self)(super().__truediv__(other))
-            def __add__(self, other):
-                return type(self)(super().__add__(other))
-            __radd__ = __add__
-
-        for T in (float, Decimal, Fraction, MyFloat):
-            d = [T(x) for x in data]
-            result = self.func(d)
-            self.assertIs(type(result), T, template % (T, type(result)))
-
-    def testOrderDoesntMatter(self):
-        # Test that order of data points doesn't change the result.
-        # Note: for floats or Decimals, order actually may change the
-        #       result if rounding errors are too large. So we only test
-        #       this with ints, where we know the results will be exact.
-        data = [1, 2, 3, 3, 3, 4, 5, 6]*100
-        expected = self.func(data)
-        random.shuffle(data)
-        actual = self.func(data)
-        self.assertEqual(expected, actual)
+    def testRepeatedSingleValue(self):
+        # The average of a single repeated value is the value itself.
+        for x in (3.5, 17, 2.5e15, Fraction(61, 67), Decimal('4.9712')):
+            for count in (2, 5, 10, 20):
+                data = [x]*count
+                self.assertEqual(self.func(data), x)
 
 
-class TestMean(NumericTestCase, AverageMixin):
+class TestMean(NumericTestCase, AverageMixin, UnivariateTypeMixin):
     def setUp(self):
         self.func = statistics.mean
 
     def testTorturePep(self):
-        # "Torture Test" from PEP-xxx
+        # "Torture Test" from PEP-450.
         self.assertEqual(self.func([1e100, 1, 3, -1e100]), 1)
+
+    def testInts(self):
+        # Test mean with ints.
+        data = [0, 1, 2, 3, 3, 3, 4, 5, 5, 6, 7, 7, 7, 7, 8, 9]
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 4.8125)
+
+    def testFloats(self):
+        # Test mean with floats.
+        data = [17.25, 19.75, 20.0, 21.5, 21.75, 23.25, 25.125, 27.5]
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 22.015625)
+
+    def testDecimals(self):
+        # Test mean with ints.
+        D = Decimal
+        data = [D("1.634"), D("2.517"), D("3.912"), D("4.072"), D("5.813")]
+        random.shuffle(data)
+        self.assertEqual(self.func(data), D("3.5896"))
+
+    def testFractions(self):
+        # Test mean with Fractions.
+        F = Fraction
+        data = [F(1, 2), F(2, 3), F(3, 4), F(4, 5), F(5, 6), F(6, 7), F(7, 8)]
+        random.shuffle(data)
+        self.assertEqual(self.func(data), F(1479, 1960))
+
+    def testInf(self):
+        # Test mean with infinities.
+        raw = [1, 3, 5, 7, 9]  # Use only ints, to avoid TypeError later.
+        for kind in (float, Decimal):
+            for sign in (1, -1):
+                inf = kind("inf")*sign
+                data = raw + [inf]
+                result = self.func(data)
+                self.assertTrue(math.isinf(result))
+                self.assertEqual(result, inf)
+
+    def testMismatchedInfs(self):
+        # Test mean with infinities of opposite sign.
+        data = [2, 4, 6, float('inf'), 1, 3, 5, float('-inf')]
+        result = self.func(data)
+        self.assertTrue(math.isnan(result))
+
+    def testNan(self):
+        # Test mean with NANs.
+        raw = [1, 3, 5, 7, 9]  # Use only ints, to avoid TypeError later.
+        for kind in (float, Decimal):
+            inf = kind("nan")
+            data = raw + [inf]
+            result = self.func(data)
+            self.assertTrue(math.isnan(result))
+
+    def testBigData(self):
+        # Test adding a large constant to every data point.
+        c = 1e9
+        data = [3.4, 4.5, 4.9, 6.7, 6.8, 7.2, 8.0, 8.1, 9.4]
+        expected = self.func(data) + c
+        assert expected != c
+        result = self.func([x+c for x in data])
+        self.assertEqual(result, expected)
+
+    def testDoubledData(self):
+        # Mean of [a,b,c...z] should be same as for [a,a,b,b,c,c...z,z].
+        data = [random.uniform(-3, 5) for _ in range(1000)]
+        expected = self.func(data)
+        actual = self.func(data*2)
+        self.assertApproxEqual(actual, expected)
 
 
 class TestMedian(NumericTestCase, AverageMixin):
+    # Common tests for median and all median.* functions.
     def setUp(self):
         self.func = statistics.median
+
+    def prepare_data(self):
+        """Overload method from UnivariateCommonMixin."""
+        data = super().prepare_data()
+        if len(data)%2 != 1:
+            data.append(2)
+        return data
 
     def testEvenNumber(self):
         # Test median with an even number of data points.
@@ -358,16 +490,21 @@ class TestMedian(NumericTestCase, AverageMixin):
         assert len(data)%2 == 1
         self.assertEqual(self.func(data), 4)
 
-    def testNoSortInPlace(self):
-        # Test that median doesn't sort input list in place.
-        data = [6, 7, 8, 9, 1, 2, 3, 4, 5]
-        assert data != sorted(data)
-        saved = data[:]
-        result = self.func(data)
-        self.assertListEqual(data, saved)
+
+class TestMedianDataType(NumericTestCase, UnivariateTypeMixin):
+    # Test conservation of data element type for median.
+    def setUp(self):
+        self.func = statistics.median
+
+    def prepare_data(self):
+        data = list(range(15))
+        assert len(data)%2 == 1
+        while data == sorted(data):
+            random.shuffle(data)
+        return data
 
 
-class TestMedianLow(TestMedian):
+class TestMedianLow(TestMedian, UnivariateTypeMixin):
     def setUp(self):
         self.func = statistics.median.low
 
@@ -378,7 +515,7 @@ class TestMedianLow(TestMedian):
         self.assertEqual(self.func(data), 3)
 
 
-class TestMedianHigh(TestMedian):
+class TestMedianHigh(TestMedian, UnivariateTypeMixin):
     def setUp(self):
         self.func = statistics.median.high
 
@@ -390,12 +527,10 @@ class TestMedianHigh(TestMedian):
 
 
 class TestMedianGrouped(TestMedian):
+    # Test median.grouped.
+    # Doesn't conserve data element types, so don't use TestMedianType.
     def setUp(self):
         self.func = statistics.median.grouped
-
-    testTypesConserved = unittest.skip(
-            "median.grouped doesn't conserve types"
-            )(TestMedian.testTypesConserved)
 
     def testOddNumberRepeated(self):
         # Test median.grouped with repeated median values.
@@ -406,37 +541,237 @@ class TestMedianGrouped(TestMedian):
         data = [12, 13, 14, 14, 14, 14, 15]
         assert len(data)%2 == 1
         self.assertEqual(self.func(data), 13.875)
+        #---
+        data = [5, 10, 10, 15, 20, 20, 20, 20, 25, 25, 30]
+        assert len(data)%2 == 1
+        self.assertEqual(self.func(data, 5), 19.375)
+        #---
+        data = [16, 18, 18, 18, 18, 20, 20, 20, 22, 22, 22, 24, 24, 26, 28]
+        assert len(data)%2 == 1
+        self.assertApproxEqual(self.func(data, 2), 20.66666667, tol=1e-8)
 
     def testEvenNumberRepeated(self):
         # Test median.grouped with repeated median values.
+        data = [5, 10, 10, 15, 20, 20, 20, 25, 25, 30]
+        assert len(data)%2 == 0
+        self.assertApproxEqual(self.func(data, 5), 19.16666667, tol=1e-8)
+        #---
         data = [2, 3, 4, 4, 4, 5]
         assert len(data)%2 == 0
         self.assertApproxEqual(self.func(data), 3.83333333, tol=1e-8)
         #---
-        #data = [2, 3, 4, 4, 4, 5]
-        #assert len(data)%2 == 0
-        #self.assertApproxEqual(self.func(data), 3.83333333, tol=1e-8)
+        data = [2, 3, 3, 4, 4, 4, 5, 5, 5, 5, 6, 6]
+        assert len(data)%2 == 0
+        self.assertEqual(self.func(data), 4.5)
+        #---
+        data = [3, 4, 4, 4, 5, 5, 5, 5, 6, 6]
+        assert len(data)%2 == 0
+        self.assertEqual(self.func(data), 4.75)
+
+    def testRepeatedSingleValue(self):
+        # Override method from AverageMixin.
+        # Yet again, failure of median.grouped to conserve the data type
+        # causes me headaches :-(
+        for x in (5.3, 68, 4.3e17, Fraction(29, 101), Decimal('32.9714')):
+            for count in (2, 5, 10, 20):
+                data = [x]*count
+                self.assertEqual(self.func(data), float(x))
 
 
-class TestDiscreteMode(NumericTestCase, AverageMixin):
+class TestMode(NumericTestCase, AverageMixin, UnivariateTypeMixin):
     # Test cases for the discrete version of mode.
     def setUp(self):
         self.func = statistics.mode
 
+    def prepare_data(self):
+        """Overload method from UnivariateCommonMixin."""
+        # Make sure test data has exactly one mode.
+        return [1, 1, 1, 1, 3, 4, 7, 9, 0, 8, 2]
+
+    def testRangeData(self):
+        # Override test from UnivariateCommonMixin.
+        data = range(20, 50, 3)
+        self.assertRaises(statistics.StatisticsError, self.func, data)
+        expected = self.func(list(data), max_modes=0)
+        self.assertEqual(self.func(data, max_modes=0), expected)
+
     def testNominalData(self):
         # Test mode with nominal data.
-        data = 'abcb'
+        data = 'abcbdb'
         self.assertEqual(self.func(data), 'b')
         data = 'fe fi fo fum fi fi'.split()
         self.assertEqual(self.func(data), 'fi')
 
-    def testTypesConserved(self):
-        # Test that mode keeps the same type as the arguments.
-        data = [1, 2, 2, 2, 3, 4, 3, 2]
-        for T in (float, Decimal, Fraction):
-            d = [T(x) for x in data]
-            result = self.func(d)
-            self.assertIs(type(result), T)
+    def testDiscreteData(self):
+        # Test mode with discrete numeric data.
+        data = list(range(10))
+        for i in range(10):
+            d = data + [i]
+            random.shuffle(d)
+            self.assertEqual(self.func(d), i)
+
+    def testBimodalData(self):
+        # Test mode with bimodal data.
+        data = [1, 1, 2, 2, 2, 2, 3, 4, 5, 6, 6, 6, 6, 7, 8, 9, 9]
+        assert data.count(2) == data.count(6) == 4
+        # Check for an exception with the default.
+        self.assertRaises(statistics.StatisticsError, self.func, data)
+        # Now check for correct results with two modes.
+        result = self.func(data, max_modes=2)
+        self.assertEqual(sorted(result), [2, 6])
+
+    def testTrimodalData(self):
+        # Test mode with trimodal data.
+        data = list(range(10))*4 + [1, 5, 8]
+        assert data.count(1) == data.count(5) == data.count(8) == 5
+        # Check for an exception with max_modes < 3.
+        self.assertRaises(statistics.StatisticsError, self.func, data, 1)
+        self.assertRaises(statistics.StatisticsError, self.func, data, 2)
+        # And check for the correct modes.
+        result = self.func(data, max_modes=3)
+        self.assertEqual(sorted(result), [1, 5, 8])
+
+    def testUniqueDataFailure(self):
+        # Test mode exception when data points are all unique.
+        data = list(range(10))
+        self.assertRaises(statistics.StatisticsError, self.func, data)
+
+    def testUniqueDataNoFailure(self):
+        # Test mode when the data points are all unique.
+        data = list(range(10))
+        result = self.func(data, max_modes=0)
+        self.assertEqual(sorted(data), sorted(result))
+
+
+# === Tests for variances and standard deviations ===
+
+class VarianceStdevMixin(UnivariateCommonMixin):
+    # Mixin class holding common tests for variance and std dev.
+
+    # Subclasses should inherit from this before NumericTestClass, in order
+    # to see the rel attribute below. See testShiftData for an explanation.
+
+    rel = 1e-12
+
+    def testSingleValue(self):
+        # Deviation of a single value is zero.
+        for x in (11, 19.8, 4.6e14, Fraction(21, 34), Decimal('8.392')):
+            self.assertEqual(self.func([x]), 0)
+
+    def testRepeatedSingleValue(self):
+        # The deviation of a single repeated value is zero.
+        for x in (7.2, 49, 8.1e15, Fraction(3, 7), Decimal('62.4802')):
+            for count in (2, 3, 5, 15):
+                data = [x]*count
+                self.assertEqual(self.func(data), 0)
+
+    def testDomainErrorRegression(self):
+        # Regression test for a domain error exception.
+        # (Thanks to Geremy Condra.)
+        data = [0.123456789012345]*10000
+        # All the items are identical, so variance should be exactly zero.
+        # We allow some small round-off error, but not much.
+        result = self.func(data)
+        self.assertApproxEqual(result, 0.0, tol=5e-17)
+        self.assertTrue(result >= 0)  # A negative result must fail.
+
+    def testShiftData(self):
+        # Test that shifting the data by a constant amount does not affect
+        # the variance or stdev. Or at least not much.
+
+        # Due to rounding, this test should be considered an ideal. We allow
+        # some tolerance away from "no change at all" by setting tol and/or rel
+        # attributes. Subclasses may set tighter or looser error tolerances.
+        raw = [1.03, 1.27, 1.94, 2.04, 2.58, 3.14, 4.75, 4.98, 5.42, 6.78]
+        expected = self.func(raw)
+        # Don't set shift too high, the bigger it is, the more rounding error.
+        shift = 1e5
+        data = [x + shift for x in raw]
+        self.assertApproxEqual(self.func(data), expected)
+
+    def testShiftDataExact(self):
+        # Like testShiftData, but result is always exact.
+        raw = [1, 3, 3, 4, 5, 7, 9, 10, 11, 16]
+        assert all(x==int(x) for x in raw)
+        expected = self.func(raw)
+        shift = 10**9
+        data = [x + shift for x in raw]
+        self.assertEqual(self.func(data), expected)
+
+    def testIterListSame(self):
+        # Test that iter data and list data give the same result.
+
+        # This is an explicit test that iterators and lists are treated the
+        # same; justification for this test over and above the similar test
+        # in UnivariateCommonMixin is that an earlier design had variance and
+        # friends swap between one- and two-pass algorithms, which would
+        # sometimes give different results.
+        data = [random.uniform(-3, 8) for _ in range(1000)]
+        expected = self.func(data)
+        self.assertEqual(self.func(iter(data)), expected)
+
+
+class TestPVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
+    # Tests for population variance.
+    def setUp(self):
+        self.func = statistics.pvariance
+
+    def testExactUniform(self):
+        # Test the variance against an exact result for uniform data.
+        data = list(range(10000))
+        random.shuffle(data)
+        expected = (10000**2 - 1)/12  # Exact value.
+        self.assertEqual(self.func(data), expected)
+
+    def testExact(self):
+        data = [4.0, 7.0, 13.0, 16.0]
+        expected = 22.5  # Exact population variance of data.
+        self.assertEqual(self.func(data), expected)
+
+
+class TestVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
+    # Tests for sample variance.
+    def setUp(self):
+        self.func = statistics.variance
+
+    def testSingleValue(self):
+        # Override method from VarianceStdevMixin.
+        for x in (35, 24.7, 8.2e15, Fraction(19, 30), Decimal('4.2084')):
+            self.assertRaises(statistics.StatisticsError, self.func, [x])
+
+    def testExact(self):
+        data = [4.0, 7.0, 13.0, 16.0]
+        expected = 30.0  # Exact sample variance of data.
+        self.assertEqual(self.func(data), expected)
+
+
+class TestPStdev(VarianceStdevMixin, NumericTestCase):
+    # Tests for population standard deviation.
+    def setUp(self):
+        self.func = statistics.pstdev
+
+    def testCompareToVariance(self):
+        # Test that stdev is, in fact, the square root of variance.
+        data = [random.uniform(-7, 4) for _ in range(1000)]
+        expected = math.sqrt(statistics.pvariance(data))
+        self.assertEqual(self.func(data), expected)
+
+
+class TestStdev(VarianceStdevMixin, NumericTestCase):
+    # Tests for sample standard deviation.
+    def setUp(self):
+        self.func = statistics.stdev
+
+    def testSingleValue(self):
+        # Override method from VarianceStdevMixin.
+        for x in (81, 203.74, 3.9e14, Fraction(5, 21), Decimal('35.719')):
+            self.assertRaises(statistics.StatisticsError, self.func, [x])
+
+    def testCompareToVariance(self):
+        # Test that stdev is, in fact, the square root of variance.
+        data = [random.uniform(-2, 9) for _ in range(1000)]
+        expected = math.sqrt(statistics.variance(data))
+        self.assertEqual(self.func(data), expected)
 
 
 # === Run tests ===
