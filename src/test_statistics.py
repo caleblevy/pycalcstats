@@ -5,6 +5,7 @@ import decimal
 import doctest
 import math
 import random
+import types
 import unittest
 
 from decimal import Decimal
@@ -308,6 +309,52 @@ class TestSum(NumericTestCase, UnivariateCommonMixin, UnivariateTypeMixin):
         self.assertEqual(t-23, self.func(data, -23))
         self.assertEqual(t+1e20, self.func(data, 1e20))
 
+    def testStringsFail(self):
+        # Sum of strings should fail.
+        self.assertRaises(TypeError, self.func, [1, 2, 3], '999')
+        self.assertRaises(TypeError, self.func, [1, 2, 3, '999'])
+
+    def testBytesFail(self):
+        # Sum of bytes should fail.
+        self.assertRaises(TypeError, self.func, [1, 2, 3], b'999')
+        self.assertRaises(TypeError, self.func, [1, 2, 3, b'999'])
+
+    def testMixedSum(self):
+        # Mixed sums are allowed.
+
+        # Careful here: order matters. Can't mix Fraction and Decimal directly,
+        # only after they're converted to float.
+        data = [1, 2, Fraction(1, 2), 3.0, Decimal("0.25")]
+        self.assertEqual(self.func(data), 6.75)
+
+
+class SumInternalsTest(NumericTestCase):
+    # Test internals of the sum function.
+
+    def testIgnoreInstanceFloatMethod(self):
+        # Test that __float__ methods on data instances are ignored.
+
+        # Python typically calls __dunder__ methods on the class, not the
+        # instance. The ``sum`` implementation calls __float__ directly. To
+        # better match the behaviour of Python, we call it only on the class,
+        # not the instance. This test will fail if somebody "fixes" that code.
+
+        # Create a fake __float__ method.
+        def __float__(self):
+            raise AssertionError('test fails')
+
+        # Inject it into an instance.
+        class MyNumber(Fraction):
+            pass
+        x = MyNumber(3)
+        x.__float__ = types.MethodType(__float__, x)
+
+        # Check it works as expected.
+        self.assertRaises(AssertionError, x.__float__)
+        self.assertEqual(float(x), 3.0)
+        # And now test the function.
+        self.assertEqual(statistics.sum([1.0, 2.0, x, 4.0]), 10.0)
+
 
 class SumTortureTest(NumericTestCase):
     def testTorture(self):
@@ -478,17 +525,49 @@ class TestMedian(NumericTestCase, AverageMixin):
             data.append(2)
         return data
 
-    def testEvenNumber(self):
-        # Test median with an even number of data points.
+    def testEvenInts(self):
+        # Test median with an even number of int data points.
         data = [1, 2, 3, 4, 5, 6]
         assert len(data)%2 == 0
         self.assertEqual(self.func(data), 3.5)
 
-    def testOddNumber(self):
-        # Test median with an odd number of data points.
+    def testOddInts(self):
+        # Test median with an odd number of int data points.
         data = [1, 2, 3, 4, 5, 6, 9]
         assert len(data)%2 == 1
         self.assertEqual(self.func(data), 4)
+
+    def testOddFractions(self):
+        # Test median works with an odd number of Fractions.
+        F = Fraction
+        data = [F(1, 7), F(2, 7), F(3, 7), F(4, 7), F(5, 7)]
+        assert len(data)%2 == 1
+        random.shuffle(data)
+        self.assertEqual(self.func(data), F(3, 7))
+
+    def testEvenFractions(self):
+        # Test median works with an even number of Fractions.
+        F = Fraction
+        data = [F(1, 7), F(2, 7), F(3, 7), F(4, 7), F(5, 7), F(6, 7)]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), F(1, 2))
+
+    def testOddDecimals(self):
+        # Test median works with an odd number of Decimals.
+        D = Decimal
+        data = [D('2.5'), D('3.1'), D('4.2'), D('5.7'), D('5.8')]
+        assert len(data)%2 == 1
+        random.shuffle(data)
+        self.assertEqual(self.func(data), D('4.2'))
+
+    def testEvenDecimals(self):
+        # Test median works with an even number of Decimals.
+        D = Decimal
+        data = [D('1.2'), D('2.5'), D('3.1'), D('4.2'), D('5.7'), D('5.8')]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), D('3.65'))
 
 
 class TestMedianDataType(NumericTestCase, UnivariateTypeMixin):
@@ -508,22 +587,54 @@ class TestMedianLow(TestMedian, UnivariateTypeMixin):
     def setUp(self):
         self.func = statistics.median.low
 
-    def testEvenNumber(self):
-        # Test median.low with an even number of data points.
+    def testEvenInts(self):
+        # Test median.low with an even number of ints.
         data = [1, 2, 3, 4, 5, 6]
         assert len(data)%2 == 0
         self.assertEqual(self.func(data), 3)
+
+    def testEvenFractions(self):
+        # Test median.low works with an even number of Fractions.
+        F = Fraction
+        data = [F(1, 7), F(2, 7), F(3, 7), F(4, 7), F(5, 7), F(6, 7)]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), F(3, 7))
+
+    def testEvenDecimals(self):
+        # Test median.low works with an even number of Decimals.
+        D = Decimal
+        data = [D('1.1'), D('2.2'), D('3.3'), D('4.4'), D('5.5'), D('6.6')]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), D('3.3'))
 
 
 class TestMedianHigh(TestMedian, UnivariateTypeMixin):
     def setUp(self):
         self.func = statistics.median.high
 
-    def testEvenNumber(self):
-        # Test median.high with an even number of data points.
+    def testEvenInts(self):
+        # Test median.high with an even number of ints.
         data = [1, 2, 3, 4, 5, 6]
         assert len(data)%2 == 0
         self.assertEqual(self.func(data), 4)
+
+    def testEvenFractions(self):
+        # Test median.high works with an even number of Fractions.
+        F = Fraction
+        data = [F(1, 7), F(2, 7), F(3, 7), F(4, 7), F(5, 7), F(6, 7)]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), F(4, 7))
+
+    def testEvenDecimals(self):
+        # Test median.high works with an even number of Decimals.
+        D = Decimal
+        data = [D('1.1'), D('2.2'), D('3.3'), D('4.4'), D('5.5'), D('6.6')]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), D('4.4'))
 
 
 class TestMedianGrouped(TestMedian):
@@ -576,6 +687,52 @@ class TestMedianGrouped(TestMedian):
             for count in (2, 5, 10, 20):
                 data = [x]*count
                 self.assertEqual(self.func(data), float(x))
+
+    def testOddFractions(self):
+        # Test median.grouped works with an odd number of Fractions.
+        F = Fraction
+        data = [F(5, 4), F(9, 4), F(13, 4), F(13, 4), F(17, 4)]
+        assert len(data)%2 == 1
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 3.0)
+
+    def testEvenFractions(self):
+        # Test median.grouped works with an even number of Fractions.
+        F = Fraction
+        data = [F(5, 4), F(9, 4), F(13, 4), F(13, 4), F(17, 4), F(17, 4)]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 3.25)
+
+    def testOddDecimals(self):
+        # Test median.grouped works with an odd number of Decimals.
+        D = Decimal
+        data = [D('5.5'), D('6.5'), D('6.5'), D('7.5'), D('8.5')]
+        assert len(data)%2 == 1
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 6.75)
+
+    def testEvenDecimals(self):
+        # Test median.grouped works with an even number of Decimals.
+        D = Decimal
+        data = [D('5.5'), D('5.5'), D('6.5'), D('6.5'), D('7.5'), D('8.5')]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 6.5)
+        #---
+        data = [D('5.5'), D('5.5'), D('6.5'), D('7.5'), D('7.5'), D('8.5')]
+        assert len(data)%2 == 0
+        random.shuffle(data)
+        self.assertEqual(self.func(data), 7.0)
+
+    def testInterval(self):
+        # Test median.grouped with interval argument.
+        data = [2.25, 2.5, 2.5, 2.75, 2.75, 3.0, 3.0, 3.25, 3.5, 3.75]
+        self.assertEqual(self.func(data, 0.25), 2.875)
+        data = [2.25, 2.5, 2.5, 2.75, 2.75, 2.75, 3.0, 3.0, 3.25, 3.5, 3.75]
+        self.assertApproxEqual(self.func(data, 0.25), 2.83333333, tol=1e-8)
+        data = [220, 220, 240, 260, 260, 260, 260, 280, 280, 300, 320, 340]
+        self.assertEqual(self.func(data, 20), 265.0)
 
 
 class TestMode(NumericTestCase, AverageMixin, UnivariateTypeMixin):
@@ -641,6 +798,13 @@ class TestMode(NumericTestCase, AverageMixin, UnivariateTypeMixin):
         data = list(range(10))
         result = self.func(data, max_modes=0)
         self.assertEqual(sorted(data), sorted(result))
+
+    def testNoneData(self):
+        # Test that mode raises TypeError if given None as data.
+
+        # This test is necessary because the implementation of mode uses
+        # collections.Counter, which accepts None and returns an empty dict.
+        self.assertRaises(TypeError, self.func, None)
 
 
 # === Tests for variances and standard deviations ===
@@ -723,8 +887,8 @@ class TestPVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         expected = (10000**2 - 1)/12  # Exact value.
         self.assertEqual(self.func(data), expected)
 
-    def testExact(self):
-        data = [4.0, 7.0, 13.0, 16.0]
+    def testInts(self):
+        data = [4, 7, 13, 16]
         expected = 22.5  # Exact population variance of data.
         self.assertEqual(self.func(data), expected)
 
