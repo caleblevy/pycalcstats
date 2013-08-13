@@ -139,11 +139,11 @@ class NumericTestCase(unittest.TestCase):
     tol = rel = 0
 
     def assertApproxEqual(
-            self, actual, expected, tol=None, rel=None, msg=None
+            self, first, second, tol=None, rel=None, msg=None
             ):
-        """Test passes if ``actual`` and ``expected`` are approximately equal.
+        """Test passes if ``first`` and ``second`` are approximately equal.
 
-        This test passes if ``actual`` and ``expected`` are equal to
+        This test passes if ``first`` and ``second`` are equal to
         within ``tol``, an absolute error, or ``rel``, a relative error.
 
         If either ``tol`` or ``rel`` are None or not given, they default to
@@ -173,42 +173,41 @@ class NumericTestCase(unittest.TestCase):
         if rel is None:
             rel = self.rel
         if (
-                isinstance(actual, collections.Sequence) and
-                isinstance(expected, collections.Sequence)
+                isinstance(first, collections.Sequence) and
+                isinstance(second, collections.Sequence)
             ):
             check = self._check_approx_seq
         else:
             check = self._check_approx_num
-        check(actual, expected, tol, rel, msg)
+        check(first, second, tol, rel, msg)
 
-    def _check_approx_seq(self, actual, expected, tol, rel, msg):
-        if len(actual) != len(expected):
+    def _check_approx_seq(self, first, second, tol, rel, msg):
+        if len(first) != len(second):
             standardMsg = (
-                "actual and expected sequences differ in length;"
-                " expected %d items but got %d"
-                % (len(expected), len(actual))
+                "sequences differ in length: %d items != %d items"
+                % (len(first), len(second))
                 )
             msg = self._formatMessage(msg, standardMsg)
             raise self.failureException(msg)
-        for i, (a,e) in enumerate(zip(actual, expected)):
+        for i, (a,e) in enumerate(zip(first, second)):
             self._check_approx_num(a, e, tol, rel, msg, i)
 
-    def _check_approx_num(self, actual, expected, tol, rel, msg, idx=None):
-        if approx_equal(actual, expected, tol, rel):
+    def _check_approx_num(self, first, second, tol, rel, msg, idx=None):
+        if approx_equal(first, second, tol, rel):
             # Test passes. Return early, we are done.
             return None
         # Otherwise we failed.
-        standardMsg = self._make_std_err_msg(actual, expected, tol, rel, idx)
+        standardMsg = self._make_std_err_msg(first, second, tol, rel, idx)
         msg = self._formatMessage(msg, standardMsg)
         raise self.failureException(msg)
 
     @staticmethod
-    def _make_std_err_msg(actual, expected, tol, rel, idx):
+    def _make_std_err_msg(first, second, tol, rel, idx):
         # Create the standard error message for approx_equal failures.
-        assert actual != expected
+        assert first != second
         template = (
-            'actual value %r differs from expected %r\n'
-            '  by more than tol=%r and rel=%r\n'
+            '  %r != %r\n'
+            '  values differ by more than tol=%r and rel=%r\n'
             '  -> absolute error = %r\n'
             '  -> relative error = %r'
             )
@@ -216,8 +215,8 @@ class NumericTestCase(unittest.TestCase):
             header = 'numeric sequences first differ at index %d.\n' % idx
             template = header + template
         # Calculate actual errors:
-        abs_err, rel_err = _calc_errors(actual, expected)
-        return template % (actual, expected, tol, rel, abs_err, rel_err)
+        abs_err, rel_err = _calc_errors(first, second)
+        return template % (first, second, tol, rel, abs_err, rel_err)
 
 
 # === Tests for approx_equal ===
@@ -569,12 +568,10 @@ class TestNumericTestCase(unittest.TestCase):
         args = (3.75, 8.25, 1.25, 0.5, 7)
         self.do_test(args)
 
-    def generate_substrings(self, actual, expected, tol, rel, idx):
+    def generate_substrings(self, first, second, tol, rel, idx):
         """Return substrings we expect to see in error messages."""
-        abs_err, rel_err = _calc_errors(actual, expected)
+        abs_err, rel_err = _calc_errors(first, second)
         substrings = [
-                'actual value %r' % actual,
-                'expected %r' % expected,
                 'tol=%r' % tol,
                 'rel=%r' % rel,
                 'absolute error = %r' % abs_err,
