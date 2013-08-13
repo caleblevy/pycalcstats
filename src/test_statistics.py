@@ -888,9 +888,28 @@ class TestPVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         self.assertEqual(self.func(data), expected)
 
     def testInts(self):
+        # Test population variance with int data.
         data = [4, 7, 13, 16]
-        expected = 22.5  # Exact population variance of data.
-        self.assertEqual(self.func(data), expected)
+        exact = 22.5
+        self.assertEqual(self.func(data), exact)
+
+    def testFractions(self):
+        # Test population variance with Fraction data.
+        F = Fraction
+        data = [F(1, 4), F(1, 4), F(3, 4), F(7, 4)]
+        exact = F(3, 8)
+        result = self.func(data)
+        self.assertEqual(result, exact)
+        self.assertTrue(isinstance(result, Fraction))
+
+    def testDecimals(self):
+        # Test population variance with Decimal data.
+        D = Decimal
+        data = [D("12.1"), D("12.2"), D("12.5"), D("12.9")]
+        exact = D('0.096875')
+        result = self.func(data)
+        self.assertEqual(result, exact)
+        self.assertTrue(isinstance(result, Decimal))
 
 
 class TestVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
@@ -903,10 +922,29 @@ class TestVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         for x in (35, 24.7, 8.2e15, Fraction(19, 30), Decimal('4.2084')):
             self.assertRaises(statistics.StatisticsError, self.func, [x])
 
-    def testExact(self):
-        data = [4.0, 7.0, 13.0, 16.0]
-        expected = 30.0  # Exact sample variance of data.
-        self.assertEqual(self.func(data), expected)
+    def testInts(self):
+        # Test sample variance with int data.
+        data = [4, 7, 13, 16]
+        exact = 30
+        self.assertEqual(self.func(data), exact)
+
+    def testFractions(self):
+        # Test sample variance with Fraction data.
+        F = Fraction
+        data = [F(1, 4), F(1, 4), F(3, 4), F(7, 4)]
+        exact = F(1, 2)
+        result = self.func(data)
+        self.assertEqual(result, exact)
+        self.assertTrue(isinstance(result, Fraction))
+
+    def testDecimals(self):
+        # Test sample variance with Decimal data.
+        D = Decimal
+        data = [D(2), D(2), D(7), D(9)]
+        exact = 4*D('9.5')/D(3)
+        result = self.func(data)
+        self.assertEqual(result, exact)
+        self.assertTrue(isinstance(result, Decimal))
 
 
 class TestPStdev(VarianceStdevMixin, NumericTestCase):
@@ -916,7 +954,7 @@ class TestPStdev(VarianceStdevMixin, NumericTestCase):
 
     def testCompareToVariance(self):
         # Test that stdev is, in fact, the square root of variance.
-        data = [random.uniform(-7, 4) for _ in range(1000)]
+        data = [random.uniform(-17, 24) for _ in range(1000)]
         expected = math.sqrt(statistics.pvariance(data))
         self.assertEqual(self.func(data), expected)
 
