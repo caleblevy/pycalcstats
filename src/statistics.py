@@ -24,10 +24,13 @@
 """
 Statistics module for Python 3.3 and better.
 
-Calculate statistics of data.
-This module provides the following functions and classes:
+This module provides functions for calculating statistics of data, including
+averages, variance, and standard deviation.
 
-Summary:
+
+
+Calculating averages
+--------------------
 
 ==================  =============================================
 Function            Description
@@ -35,22 +38,12 @@ Function            Description
 mean                Arithmetic mean (average) of data.
 median              Median (middle value) of data.
 mode                Mode (most common value) of data.
-pstdev              Population standard deviation of data.
-pvariance           Population variance of data.
-StatisticsError     Exception for statistics errors.
-stdev               Sample standard deviation of data.
-sum                 High-precision sum of numeric data.
-variance            Sample variance of data.
 ==================  =============================================
 
-
-Examples
---------
+Calculate the arithmetic mean ("the average") of data:
 
 >>> mean([-1.0, 2.5, 3.25, 5.75])
 2.625
->>> stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
-4.38961843444...
 
 
 Calculate the standard median of discrete data:
@@ -59,9 +52,9 @@ Calculate the standard median of discrete data:
 3.5
 
 
-Calculate the median of data grouped into class intervals centred on the
-data values provided. E.g. if your data points are rounded to the nearest
-whole number:
+Calculate the median, or 50th percentile, of data grouped into class intervals
+centred on the data values provided. E.g. if your data points are rounded to
+the nearest whole number:
 
 >>> median.grouped([2, 2, 3, 3, 3, 4])  #doctest: +ELLIPSIS
 2.8333333333...
@@ -70,16 +63,59 @@ This should be interpreted in this way: you have two data points in the class
 interval 1.5-2.5, three data points in the class interval 2.5-3.5, and one in
 the class interval 3.5-4.5. The median of these data points is 2.8333...
 
+
+Calculating variability or spread
+---------------------------------
+
+==================  =============================================
+Function            Description
+==================  =============================================
+pvariance           Population variance of data.
+variance            Sample variance of data.
+pstdev              Population standard deviation of data.
+stdev               Sample standard deviation of data.
+==================  =============================================
+
+Calculate the standard deviation of sample data:
+
+>>> stdev([2.5, 3.25, 5.5, 11.25, 11.75])  #doctest: +ELLIPSIS
+4.38961843444...
+
+If you have previously calculated the mean, you can pass it as the optional
+second argument to the four "spread" functions to avoid recalculating it:
+
+>>> data = [1, 1, 1, 1]  # FIXME better non-sucky example please
+>>> xbar = mean(data)
+>>> variance(data, xbar)  #doctest: +ELLIPSIS
+0.0
+
+
+Other functions and classes
+---------------------------
+
+==================  =============================================
+Function            Description
+==================  =============================================
+sum                 High-precision sum of numeric data.
+StatisticsError     Exception for statistics errors.
+==================  =============================================
+
+The built-in sum function can lose precision when dealing with floats. The
+``sum`` function in this module is designed to be higher-precision, while
+still supporting Fractions and Decimals, but disallowing non-numeric arguments
+such as lists, tuples and strings.
+
+
 """
 
 # Module metadata.
-__version__ = "0.1a"
-__date__ = "2013-07-31"
+__version__ = "0.2a"
+__date__ = "2013-08-13"
 __author__ = "Steven D'Aprano"
 __author_email__ = "steve+python@pearwood.info"
 
 
-__all__ = [ 'add_partial', 'sum', 'StatisticsError',
+__all__ = [ 'sum', 'StatisticsError',
             'pstdev', 'pvariance', 'stdev', 'variance',
             'mean', 'median', 'mode',
           ]
@@ -142,6 +178,10 @@ def sum(data, start=0):
     Limitations
     -----------
 
+    The promise of high-precision summation of floats depends crucially on
+    IEEE-754 correct rounding. On platforms that do not provide that, all
+    promises of higher precision are null and void.
+
     ``sum`` supports mixed arithmetic with the following limitations:
 
     - mixing Fractions and Decimals raises TypeError;
@@ -149,7 +189,7 @@ def sum(data, start=0):
       which may lose precision;
     - complex numbers are not supported.
 
-    These limitations may change without notice in future versions.
+    These limitations may be relaxed in future versions.
 
     """
     if not isinstance(start, numbers.Number):
@@ -219,6 +259,9 @@ def add_partial(x, partials):
     If any x is not a float, or partials is not initialised to an empty
     list, results are undefined.
 
+    The correctness of this algorithm depends on IEEE-754 arithmetic
+    guarantees, in particular, correct rounding.
+
 
     Examples
     --------
@@ -238,9 +281,9 @@ def add_partial(x, partials):
         partials[0] += x
         return
     # Rounded x+y stored in hi with the round-off stored in lo.  Together
-    # hi+lo are exactly equal to x+y.  The inner loop applies hi/lo summation
-    # to each partial so that the list of partial sums remains exact.
-    # Depends on IEEE-754 arithmetic guarantees.  See proof of correctness at:
+    # hi+lo are exactly equal to x+y.  The loop applies hi/lo summation to
+    # each partial so that the list of partial sums remains exact. Depends
+    # on IEEE-754 arithmetic guarantees.  See proof of correctness at:
     # www-2.cs.cmu.edu/afs/cs/project/quake/public/papers/robust-arithmetic.ps
     i = 1
     for y in partials[1:]:
@@ -314,8 +357,8 @@ def mean(data):
 
     The mean is strongly effected by outliers and is not a robust estimator
     for central location: the mean is not necessarily a typical example of
-    the data points. For a more robust, although less efficient, measures
-    of central location, see ``median`` and ``mode``.
+    the data points. For more robust, although less efficient, measures of
+    central location, see ``median`` and ``mode``.
 
     The sample mean gives an unbiased estimate of the true population mean,
     which means that on average, ``mean(sample)`` will equal the mean of
@@ -330,7 +373,7 @@ def mean(data):
     return sum(data)/n
 
 
-# FIXME: investigate ways to calculate medians without sorting?
+# FIXME: investigate ways to calculate medians without sorting? Quickselect?
 def median(data):
     """Return the median (middle value) of numeric data.
 
@@ -349,7 +392,7 @@ def median(data):
     >>> median([1, 3, 5, 7])
     4.0
 
-    This is best suited when your data is discrete, and you don't mind that
+    This is suited for when your data is discrete, and you don't mind that
     the median may not be an actual data point. Three other methods for
     calculating median are provided as methods on the ``median`` function:
 
@@ -437,7 +480,7 @@ def grouped(data, interval=1):
     class 3.5-4.5, and interpolation is used to estimate it.
 
     Optional argument ``interval`` represents the class interval, and
-    defaults to 1. Changing the class interval naturall will change the
+    defaults to 1. Changing the class interval naturally will change the
     interpolated 50th percentile value:
 
     >>> median.grouped([1, 3, 3, 5, 7], interval=1)
@@ -566,9 +609,10 @@ def mode(data, max_modes=1):
 def _ss(data, c=None):
     """Return sum of square deviations of sequence data.
 
-    If ``c`` is None, deviations are calculated from the mean. Otherwise,
-    deviations are calculated from ``c``. Use the second case with care, as
-    it can lead to garbage results.
+    If ``c`` is None, the mean is calculated in one pass, and the deviations
+    from the mean are calculated in a second pass. Otherwise, deviations are
+    calculated from ``c`` as given. Use the second case with care, as it can
+    lead to garbage results.
     """
     if c is None:
         c = mean(data)
@@ -580,17 +624,18 @@ def _ss(data, c=None):
     return ss
 
 
-def variance(data, center=None):
-    """variance(data [, center]) -> sample variance of numeric data
+def variance(data, xbar=None):
+    """variance(data [, xbar]) -> sample variance of numeric data
 
     Return the sample variance of ``data``, a sequence of real-valued numbers.
 
-    Variance is a measure of the variability (spread or dispersion) of
-    data. A large variance indicates that the data is spread out; a small
-    variance indicates it is clustered closely around the central location.
+    Variance, or second moment about the mean, is a measure of the variability
+    (spread or dispersion) of data. A large variance indicates that the data
+    is spread out; a small variance indicates it is clustered closely around
+    the mean.
 
-    Use this function when your data is a sample. If your data is the entire
-    population, you should use ``pvariance`` instead.
+    Use this function when your data is a sample from a population. To
+    calculate the variance from the entire population, see ``pvariance``.
 
 
     Arguments
@@ -599,9 +644,9 @@ def variance(data, center=None):
     data
         sequence of numeric (non-complex) data with at least two values.
 
-    center
-        Central location from which to measure variance (optional). If missing
-        or None (the default), the mean is used as that central location.
+    xbar
+        (Optional) Mean of the sample data. If missing or None (the default),
+        the mean is automatically caclulated.
 
 
     Examples
@@ -612,13 +657,13 @@ def variance(data, center=None):
     1.3720238095238095
 
     If you have already calculated the mean of your data, you can pass it as
-    the optional second argument to avoid recalculating it:
+    the optional second argument ``xbar`` to avoid recalculating it:
 
     >>> m = mean(data)
     >>> variance(data, m)
     1.3720238095238095
 
-        .. CAUTION:: Using arbitrary values for ``center`` may lead to invalid
+        .. CAUTION:: Using arbitrary values for ``xbar`` may lead to invalid
            or impossible results.
 
 
@@ -636,33 +681,37 @@ def variance(data, center=None):
     Additional Information
     ----------------------
 
-    This is the unbiased sample variance s\N{SUPERSCRIPT TWO} with Bessel's
-    correction, also known as variance with N-1 degrees of freedom. If you
-    know the true population mean \N{GREEK SMALL LETTER MU} you should use
-    the ``pvariance`` function instead.
+    This is the sample variance s\N{SUPERSCRIPT TWO} with Bessel's correction,
+    also known as variance with N-1 degrees of freedom. Provided the data
+    points are representative (e.g. independent and identically distributed),
+    the result will be an unbiased estimate of the population variance.
+
+    If you somehow know the population mean \N{GREEK SMALL LETTER MU} you
+    should use it with the ``pvariance`` function to get the sample variance.
     """
     if iter(data) is data:
         data = list(data)
     n = len(data)
     if n < 2:
         raise StatisticsError('variance requires at least two data points')
-    ss = _ss(data, center)
+    ss = _ss(data, xbar)
     return ss/(n-1)
 
 
-def pvariance(data, center=None):
-    """pvariance(data [, center]) -> population variance of numeric data
+def pvariance(data, mu=None):
+    """pvariance(data [, mu]) -> population variance of numeric data
 
     Return the population variance of ``data``, a sequence of real-valued
     numbers.
 
-    Variance is a measure of the variability (spread or dispersion) of
-    data. A large variance indicates that the data is spread out; a small
-    variance indicates it is clustered closely around the central location.
+    Variance, or second moment about the mean, is a measure of the variability
+    (spread or dispersion) of data. A large variance indicates that the data
+    is spread out; a small variance indicates it is clustered closely around
+    the mean.
 
-    If your data represents the entire population, you should use this
-    function; otherwise you should normally use ``variance`` instead.
-
+    Use this function to calculate the variance from the entire population.
+    To estimate the variance from a sample, the ``variance`` function is
+    usually a better choice.
 
     Arguments
     ---------
@@ -670,9 +719,10 @@ def pvariance(data, center=None):
     data
         non-empty sequence of numeric (non-complex) data.
 
-    center
-        Central location from which to measure variance (optional). If missing
-        or None (the default), the mean is used as that central location.
+    mu
+        (Optional) Mean of the population from which your data has been taken.
+        If ``mu`` is missing or None (the default), the data is presumed to be
+        the entire population, and the mean automatically calculated.
 
 
     Examples
@@ -682,16 +732,15 @@ def pvariance(data, center=None):
     >>> pvariance(data)
     1.25
 
-    If you have already calculated the mean of your data, you can pass it as
+    If you have already calculated the mean of the data, you can pass it as
     the optional second argument to avoid recalculating it:
 
-    >>> m = mean(data)
-    >>> pvariance(data, m)
+    >>> mu = mean(data)
+    >>> pvariance(data, mu)
     1.25
 
-        .. CAUTION:: Using arbitrary values for ``center`` may lead to invalid
+        .. CAUTION:: Using arbitrary values for ``mu`` may lead to invalid
            or impossible results.
-
 
     Decimals and Fractions are supported:
 
@@ -703,6 +752,7 @@ def pvariance(data, center=None):
     >>> pvariance([F(1, 4), F(5, 4), F(1, 2)])
     Fraction(13, 72)
 
+
     Additional Information
     ----------------------
 
@@ -712,8 +762,9 @@ def pvariance(data, center=None):
     known as variance with N degrees of freedom.
 
     If you somehow know the true population mean \N{GREEK SMALL LETTER MU},
-    you should use this function to calculate the sample variance, giving the
-    known population mean as the second argument. In that case, the result
+    you may use this function to calculate the sample variance, giving the
+    known population mean as the second argument. Provided the data points are
+    representative (e.g. independent and identically distributed), the result
     will be an unbiased estimate of the population variance.
     """
     if iter(data) is data:
@@ -721,12 +772,12 @@ def pvariance(data, center=None):
     n = len(data)
     if n < 1:
         raise StatisticsError('pvariance requires at least one data point')
-    ss = _ss(data, center)
+    ss = _ss(data, mu)
     return ss/n
 
 
-def stdev(data, center=None):
-    """stdev(data [, center]) -> sample standard deviation of numeric data
+def stdev(data, xbar=None):
+    """stdev(data [, xbar]) -> sample standard deviation of numeric data
 
     Return the square root of the sample variance. See ``variance`` for
     arguments and other details.
@@ -735,15 +786,15 @@ def stdev(data, center=None):
     1.0810874155219827
 
     """
-    var = variance(data, center)
+    var = variance(data, xbar)
     try:
         return var.sqrt()
     except AttributeError:
         return math.sqrt(var)
 
 
-def pstdev(data, center=None):
-    """pstdev(data [, center]) -> population standard deviation of numeric data
+def pstdev(data, mu=None):
+    """pstdev(data [, mu]) -> population standard deviation of numeric data
 
     Return the square root of the population variance. See ``pvariance`` for
     arguments and other details.
@@ -752,7 +803,7 @@ def pstdev(data, center=None):
     0.986893273527251
 
     """
-    var = pvariance(data, center)
+    var = pvariance(data, mu)
     try:
         return var.sqrt()
     except AttributeError:
