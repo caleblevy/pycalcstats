@@ -47,6 +47,8 @@ to run the self-tests.
 
 __all__ = ['approx_equal', 'NumericTestCase']
 
+#from test.support import run_unittest
+
 from decimal import Decimal
 from fractions import Fraction
 
@@ -590,8 +592,11 @@ def load_tests(loader, tests, ignore):
     return tests
 
 
-if __name__ == '__main__':
-    """Run module unit tests and doc tests."""
+def test_main():
+    # run_unittest()
     unittest.main()
 
+
+if __name__ == "__main__":
+    test_main()
 
