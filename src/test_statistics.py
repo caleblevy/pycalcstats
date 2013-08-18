@@ -46,14 +46,20 @@ class GlobalsTest(unittest.TestCase):
 class DocTests(unittest.TestCase):
     def testDocTests(self):
         failed, tried = doctest.testmod(statistics)
-        self.assertTrue(tried > 0)
-        self.assertTrue(failed == 0)
+        self.assertGreater(tried, 0)
+        self.assertEqual(failed, 0)
 
-
-class StatsErrorTest(unittest.TestCase):
+class StatisticsErrorTest(unittest.TestCase):
     def testHasException(self):
+        errmsg = (
+                "Expected StatisticsError to be a ValueError, but got a"
+                " subclass of %r instead."
+                )
         self.assertTrue(hasattr(statistics, 'StatisticsError'))
-        self.assertTrue(issubclass(statistics.StatisticsError, ValueError))
+        self.assertTrue(
+                issubclass(statistics.StatisticsError, ValueError),
+                errmsg % statistics.StatisticsError.__base__
+                )
 
 
 # === Tests for private utility functions ===
@@ -64,7 +70,7 @@ class AddPartialTest(unittest.TestCase):
         L = []
         result = statistics.add_partial(1.5, L)
         self.assertEqual(L, [0.0, 1.5])
-        self.assertTrue(result is None)
+        self.assertIsNone(result)
 
     def testAdd(self):
         # Test that add_partial actually does add.
@@ -96,12 +102,12 @@ class AddPartialTest(unittest.TestCase):
         total = sum(L)
         # Result is an infinity of the correct sign.
         self.assertTrue(math.isinf(total))
-        self.assertTrue((total > 0) == (infinity > 0))
+        self.assertEqual((total > 0), (infinity > 0), "signs do not match")
         # Adding another infinity doesn't change that.
         statistics.add_partial(infinity, L)
         total = sum(L)
         self.assertTrue(math.isinf(total))
-        self.assertTrue((total > 0) == (infinity > 0))
+        self.assertEqual((total > 0), (infinity > 0), "signs do not match")
         # But adding an infinity of the opposite sign changes it to a NAN.
         statistics.add_partial(-infinity, L)
         self.assertTrue(math.isnan(sum(L)))
@@ -898,7 +904,7 @@ class TestPVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         exact = F(3, 8)
         result = self.func(data)
         self.assertEqual(result, exact)
-        self.assertTrue(isinstance(result, Fraction))
+        self.assertIsInstance(result, Fraction)
 
     def testDecimals(self):
         # Test population variance with Decimal data.
@@ -907,7 +913,7 @@ class TestPVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         exact = D('0.096875')
         result = self.func(data)
         self.assertEqual(result, exact)
-        self.assertTrue(isinstance(result, Decimal))
+        self.assertIsInstance(result, Decimal)
 
 
 class TestVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
@@ -933,7 +939,7 @@ class TestVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         exact = F(1, 2)
         result = self.func(data)
         self.assertEqual(result, exact)
-        self.assertTrue(isinstance(result, Fraction))
+        self.assertIsInstance(result, Fraction)
 
     def testDecimals(self):
         # Test sample variance with Decimal data.
@@ -942,7 +948,7 @@ class TestVariance(VarianceStdevMixin, NumericTestCase, UnivariateTypeMixin):
         exact = 4*D('9.5')/D(3)
         result = self.func(data)
         self.assertEqual(result, exact)
-        self.assertTrue(isinstance(result, Decimal))
+        self.assertIsInstance(result, Decimal)
 
 
 class TestPStdev(VarianceStdevMixin, NumericTestCase):
