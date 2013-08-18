@@ -288,6 +288,22 @@ def add_partial(x, partials):
     partials[i:] = [x]
 
 
+def _counts(data):
+    # Generate a table of sorted (value, frequency) pairs.
+    if data is None:
+        raise TypeError('None is not iterable')
+    table = collections.Counter(data).most_common()
+    if not table:
+        return table
+    # Extract the values with the highest frequency.
+    maxfreq = table[0][1]
+    for i in range(1, len(table)):
+        if table[i][1] != maxfreq:
+            table = table[:i]
+            break
+    return table
+
+
 # === Measures of central tendency (averages) ===
 
 def mean(data):
@@ -476,12 +492,12 @@ def median_grouped(data, interval=1):
     return L + interval*(n/2 - cf)/f
 
 
-def mode(data, max_modes=1):
-    """mode(data [, max_modes]) -> mode(s)
+def mode(data):
+    """mode(data) -> most common value
 
-    Return the most common data point, or points, from discrete data. The mode
-    (when it exists) is the most typical value, and is a robust measure of
-    central location.
+    Return the most common data point from discrete data. The mode (when it
+    exists) is the most typical value, and is a robust measure of central
+    location.
 
 
     Arguments
@@ -490,16 +506,12 @@ def mode(data, max_modes=1):
     data
         Non-empty iterable of data points, not necessarily numeric.
 
-    max_modes
-        The maximum number of modes to return. Defaults to 1. Passing 0 or
-        None as ``max_modes`` will allow an unlimited number of modes.
-
 
     Examples
     --------
 
-    ``mode`` assumes discrete data, and by default returns a single value.
-    This is the standard treatment of the mode as commonly taught in schools:
+    ``mode`` assumes discrete data, and returns a single value. This is the
+    standard treatment of the mode as commonly taught in schools:
 
     >>> mode([1, 1, 2, 3, 3, 3, 3, 4])
     3
@@ -510,43 +522,22 @@ def mode(data, max_modes=1):
     'red'
 
 
-    If you suspect that your data has more than one mode, pass a positive
-    int as the ``max_mode`` argument, and up to that many modes will be
-    returned as a list. In this example, the data has two modes, both of which
-    have a frequency of three:
-
-    >>> mode([5, 3, 2, 1, 5, 4, 2, 2, 5], max_modes=2)
-    [2, 5]
-
-
-    If you pass 0 or None as ``max_modes``, an unlimited number of modes may
-    be returned.
-
-
     Errors
     ------
 
-    If your data is empty, or if it has more modes than you specified as
-    ``max_modes`` (default of 1), then ``mode`` will raise StatisticsError.
+    If there is not exactly one most common value, ``mode`` will raise
+    StatisticsError.
     """
     # Generate a table of sorted (value, frequency) pairs.
-    if data is None:
-        raise TypeError('None is not iterable')
-    table = collections.Counter(data).most_common()
-    if not table:
-        raise StatisticsError('empty data has no mode')
-    # Extract the modes (highest frequency).
-    maxfreq = table[0][1]
-    for i in range(1, len(table)):
-        if table[i][1] != maxfreq:
-            table = table[:i]
-            break
-    if max_modes and len(table) > max_modes:
-        raise StatisticsError('got too many modes: %d' % len(table))
-    if max_modes == 1:
-        assert len(table) == 1
+    table = _counts(data)
+    if len(table) == 1:
         return table[0][0]
-    return [t[0] for t in table]
+    elif table:
+        raise StatisticsError(
+                'no unique mode; found %d equally common values' % len(table)
+                )
+    else:
+        raise StatisticsError('no mode for empty data')
 
 
 # === Measures of spread ===

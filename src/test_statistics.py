@@ -751,8 +751,6 @@ class TestMode(NumericTestCase, AverageMixin, UnivariateTypeMixin):
         # Override test from UnivariateCommonMixin.
         data = range(20, 50, 3)
         self.assertRaises(statistics.StatisticsError, self.func, data)
-        expected = self.func(list(data), max_modes=0)
-        self.assertEqual(self.func(data, max_modes=0), expected)
 
     def testNominalData(self):
         # Test mode with nominal data.
@@ -773,33 +771,13 @@ class TestMode(NumericTestCase, AverageMixin, UnivariateTypeMixin):
         # Test mode with bimodal data.
         data = [1, 1, 2, 2, 2, 2, 3, 4, 5, 6, 6, 6, 6, 7, 8, 9, 9]
         assert data.count(2) == data.count(6) == 4
-        # Check for an exception with the default.
+        # Check for an exception.
         self.assertRaises(statistics.StatisticsError, self.func, data)
-        # Now check for correct results with two modes.
-        result = self.func(data, max_modes=2)
-        self.assertEqual(sorted(result), [2, 6])
-
-    def testTrimodalData(self):
-        # Test mode with trimodal data.
-        data = list(range(10))*4 + [1, 5, 8]
-        assert data.count(1) == data.count(5) == data.count(8) == 5
-        # Check for an exception with max_modes < 3.
-        self.assertRaises(statistics.StatisticsError, self.func, data, 1)
-        self.assertRaises(statistics.StatisticsError, self.func, data, 2)
-        # And check for the correct modes.
-        result = self.func(data, max_modes=3)
-        self.assertEqual(sorted(result), [1, 5, 8])
 
     def testUniqueDataFailure(self):
         # Test mode exception when data points are all unique.
         data = list(range(10))
         self.assertRaises(statistics.StatisticsError, self.func, data)
-
-    def testUniqueDataNoFailure(self):
-        # Test mode when the data points are all unique.
-        data = list(range(10))
-        result = self.func(data, max_modes=0)
-        self.assertEqual(sorted(data), sorted(result))
 
     def testNoneData(self):
         # Test that mode raises TypeError if given None as data.
