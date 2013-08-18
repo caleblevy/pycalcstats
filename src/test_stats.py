@@ -320,160 +320,160 @@ class TestConsumerMixin:
         self.assertTrue(hasattr(cr, 'send'))
 
 
-class UnivariateMixin:
-    # Common tests for most univariate functions that take a data argument.
-    #
-    # This tests the behaviour of functions of the form func(data [,...])
-    # without checking the value returned. Tests for correctness of the
-    # return value are *not* the responsibility of this class.
+#class UnivariateMixin:
+    ## Common tests for most univariate functions that take a data argument.
+    ##
+    ## This tests the behaviour of functions of the form func(data [,...])
+    ## without checking the value returned. Tests for correctness of the
+    ## return value are *not* the responsibility of this class.
 
 
-    def testNoArgs(self):
-        # Fail if given no arguments.
-        self.assertRaises(TypeError, self.func)
+    #def testNoArgs(self):
+        ## Fail if given no arguments.
+        #self.assertRaises(TypeError, self.func)
 
-    def testEmptyData(self):
-        # Fail when the data argument (first argument) is empty.
-        for empty in ([], (), iter([])):
-            self.assertRaises(ValueError, self.func, empty)
+    #def testEmptyData(self):
+        ## Fail when the data argument (first argument) is empty.
+        #for empty in ([], (), iter([])):
+            #self.assertRaises(ValueError, self.func, empty)
 
-    def testSingleData(self):
-        # Pass when the first argument has a single data point.
-        for x in self.make_random_data(size=1, count=4):
-            assert len(x) == 1
-            _ = self.func(x)
+    #def testSingleData(self):
+        ## Pass when the first argument has a single data point.
+        #for x in self.make_random_data(size=1, count=4):
+            #assert len(x) == 1
+            #_ = self.func(x)
 
-    def testDoubleData(self):
-        # Pass when the first argument has two data points.
-        for x,y in self.make_random_data(size=2, count=4):
-            _ = self.func([x,y])
+    #def testDoubleData(self):
+        ## Pass when the first argument has two data points.
+        #for x,y in self.make_random_data(size=2, count=4):
+            #_ = self.func([x,y])
 
-    def testTripleData(self):
-        # Pass when the first argument has three data points.
-        for x,y,z in self.make_random_data(size=3, count=4):
-            _ = self.func([x,y,z])
+    #def testTripleData(self):
+        ## Pass when the first argument has three data points.
+        #for x,y,z in self.make_random_data(size=3, count=4):
+            #_ = self.func([x,y,z])
 
-    # Most stats functions won't care much about the length of the input
-    # data, provided there are sufficient data points (usually >= 1). But
-    # when testing the functions (particularly those in stats.order), we
-    # MUST care about the length: we need to cover each case where the
-    # data has a multiple of 4 items, plus 0-3 remainders (that is, where
-    # len(data)%4 = 0, 1, 2, 3). This ensures that all four internal code
-    # paths are tested.
+    ## Most stats functions won't care much about the length of the input
+    ## data, provided there are sufficient data points (usually >= 1). But
+    ## when testing the functions (particularly those in stats.order), we
+    ## MUST care about the length: we need to cover each case where the
+    ## data has a multiple of 4 items, plus 0-3 remainders (that is, where
+    ## len(data)%4 = 0, 1, 2, 3). This ensures that all four internal code
+    ## paths are tested.
 
-    def testQuadPlusData(self):
-        # Pass when the first argument has four + data points.
-        for n in range(4, 12):
-            for t in self.make_random_data(size=n, count=3):
-                _ = self.func(t)
+    #def testQuadPlusData(self):
+        ## Pass when the first argument has four + data points.
+        #for n in range(4, 12):
+            #for t in self.make_random_data(size=n, count=3):
+                #_ = self.func(t)
 
-    def make_random_data(self, size, count):
-        """Return count lists of random data, each of given size."""
-        data = []
-        for i in range(count):
-            data.append([random.random() for j in range(size)])
-        assert len(data) == count
-        assert all(len(t) == size for t in data)
-        return data
+    #def make_random_data(self, size, count):
+        #"""Return count lists of random data, each of given size."""
+        #data = []
+        #for i in range(count):
+            #data.append([random.random() for j in range(size)])
+        #assert len(data) == count
+        #assert all(len(t) == size for t in data)
+        #return data
 
-    def testInPlaceModifications(self):
-        # Test that the function does not modify its input data.
-        for n in range(4, 12):
-            datasets = self.make_random_data(size=n, count=3)
-            for data in datasets:
-                # Make sure that the data isn't sorted, because some
-                # functions being tested may sort the data. If we don't
-                # shuffle the data, the test will fail purely by accident.
-                sorted_data = sorted(data)
-                assert len(data) != 1  # Avoid infinite loops.
-                while data == sorted_data:
-                    random.shuffle(data)
-                # Now we know that data is not in sorted order. If the
-                # function being tested sorts it in place, we can detect
-                # the change.
-                assert data != sorted_data
-                saved_data = data[:]
-                assert data is not saved_data
-                _ = self.func(data)
-                self.assertEqual(data, saved_data, "data has been modified")
+    #def testInPlaceModifications(self):
+        ## Test that the function does not modify its input data.
+        #for n in range(4, 12):
+            #datasets = self.make_random_data(size=n, count=3)
+            #for data in datasets:
+                ## Make sure that the data isn't sorted, because some
+                ## functions being tested may sort the data. If we don't
+                ## shuffle the data, the test will fail purely by accident.
+                #sorted_data = sorted(data)
+                #assert len(data) != 1  # Avoid infinite loops.
+                #while data == sorted_data:
+                    #random.shuffle(data)
+                ## Now we know that data is not in sorted order. If the
+                ## function being tested sorts it in place, we can detect
+                ## the change.
+                #assert data != sorted_data
+                #saved_data = data[:]
+                #assert data is not saved_data
+                #_ = self.func(data)
+                #self.assertEqual(data, saved_data, "data has been modified")
 
-    def testOrderOfDataPoints(self):
-        # Test that the result of the function shouldn't depend on the
-        # order of data points. In practice, due to floating point
-        # rounding, it may depend slightly.
-        for n in range(4, 12):
-            datasets = self.make_random_data(size=n, count=3)
-            for data in datasets:
-                data.sort()
-                expected = self.func(data)
-                result = self.func(reversed(data))
-                self.assertApproxEqual(expected, result)
-                for i in range(10):
-                    random.shuffle(data)
-                    result = self.func(data)
-                    self.assertApproxEqual(result, expected)
+    #def testOrderOfDataPoints(self):
+        ## Test that the result of the function shouldn't depend on the
+        ## order of data points. In practice, due to floating point
+        ## rounding, it may depend slightly.
+        #for n in range(4, 12):
+            #datasets = self.make_random_data(size=n, count=3)
+            #for data in datasets:
+                #data.sort()
+                #expected = self.func(data)
+                #result = self.func(reversed(data))
+                #self.assertApproxEqual(expected, result)
+                #for i in range(10):
+                    #random.shuffle(data)
+                    #result = self.func(data)
+                    #self.assertApproxEqual(result, expected)
 
-    def testTypeOfDataCollection(self):
-        # Test that the type of iterable data doesn't effect the result.
-        class MyList(list):
-            pass
-        class MyTuple(tuple):
-            pass
-        def generator(data):
-            return (obj for obj in data)
+    #def testTypeOfDataCollection(self):
+        ## Test that the type of iterable data doesn't effect the result.
+        #class MyList(list):
+            #pass
+        #class MyTuple(tuple):
+            #pass
+        #def generator(data):
+            #return (obj for obj in data)
 
-        for n in range(4, 12):
-            # Start with a range object as data.
-            data = range(n)
-            expected = self.func(data)
-            for kind in (list, tuple, iter, MyList, MyTuple, generator):
-                result = self.func(kind(data))
-                self.assertEqual(result, expected)
+        #for n in range(4, 12):
+            ## Start with a range object as data.
+            #data = range(n)
+            #expected = self.func(data)
+            #for kind in (list, tuple, iter, MyList, MyTuple, generator):
+                #result = self.func(kind(data))
+                #self.assertEqual(result, expected)
 
-    def testTypeOfDataElement(self):
-        # Test that the type of data elements shouldn't effect the result.
-        class MyFloat(float):
-            pass
+    #def testTypeOfDataElement(self):
+        ## Test that the type of data elements shouldn't effect the result.
+        #class MyFloat(float):
+            #pass
 
-        for n in range(4, 12):
-            datasets = self.make_random_data(size=n, count=3)
-            for data in datasets:
-                expected = self.func(data)
-                data = [MyFloat(x) for x in data]
-                result = self.func(data)
-                self.assertEqual(result, expected)
+        #for n in range(4, 12):
+            #datasets = self.make_random_data(size=n, count=3)
+            #for data in datasets:
+                #expected = self.func(data)
+                #data = [MyFloat(x) for x in data]
+                #result = self.func(data)
+                #self.assertEqual(result, expected)
 
-    def testBadArgEmptyStr(self):
-        self.assertRaises((TypeError, ValueError), self.func, "")
+    #def testBadArgEmptyStr(self):
+        #self.assertRaises((TypeError, ValueError), self.func, "")
 
-    # Do NOT roll these testBadArgType* tests into a single test with a
-    # loop. This protects against a regression in stats.order.quantile
-    # which was painful to debug, i.e. don't do this:
-    #   def testBadArgType(self):
-    #       for arg in bad_types:
-    #           self.assertRaises(TypeError, self.func, arg)
-    # because it is hard to debug test failures. Trust me on this!
+    ## Do NOT roll these testBadArgType* tests into a single test with a
+    ## loop. This protects against a regression in stats.order.quantile
+    ## which was painful to debug, i.e. don't do this:
+    ##   def testBadArgType(self):
+    ##       for arg in bad_types:
+    ##           self.assertRaises(TypeError, self.func, arg)
+    ## because it is hard to debug test failures. Trust me on this!
 
-    def check_for_type_error(self, *args):
-        # assertRaises doesn't take a custom error message, so as the next
-        # best thing we always call it exactly once per test, and not from
-        # inside a loop.
-        self.assertRaises(TypeError, self.func, *args)
+    #def check_for_type_error(self, *args):
+        ## assertRaises doesn't take a custom error message, so as the next
+        ## best thing we always call it exactly once per test, and not from
+        ## inside a loop.
+        #self.assertRaises(TypeError, self.func, *args)
 
-    def testBadArgTypeInt(self):
-        self.check_for_type_error(23)
+    #def testBadArgTypeInt(self):
+        #self.check_for_type_error(23)
 
-    def testBadArgTypeInstance(self):
-        self.check_for_type_error(object())
+    #def testBadArgTypeInstance(self):
+        #self.check_for_type_error(object())
 
-    def testBadArgTypeNone(self):
-        self.check_for_type_error(None)
+    #def testBadArgTypeNone(self):
+        #self.check_for_type_error(None)
 
-    def testBadArgTypeStr(self):
-        self.check_for_type_error("spam")  # len % 4 => 0
-        self.check_for_type_error("spam*spam")  # len % 4 => 1
-        self.check_for_type_error("spam*spam*spam")  # len % 4 => 2
-        self.check_for_type_error("spam*spam*spam*spam")  # len % 4 => 3
+    #def testBadArgTypeStr(self):
+        #self.check_for_type_error("spam")  # len % 4 => 0
+        #self.check_for_type_error("spam*spam")  # len % 4 => 1
+        #self.check_for_type_error("spam*spam*spam")  # len % 4 => 2
+        #self.check_for_type_error("spam*spam*spam*spam")  # len % 4 => 3
 
 
 # -- Tests for the stats module --
@@ -582,13 +582,13 @@ class SumTest(UnivariateMixin, NumericTestCase):
         self.assertEqual(self.func(data1)**2, expected)
         self.assertEqual(self.func(data2), expected)
 
-    def testStartArgument(self):
-        # Test that the optional start argument works correctly.
-        data = [random.uniform(1, 1000) for _ in range(100)]
-        t = self.func(data)
-        self.assertEqual(t+42, self.func(data, 42))
-        self.assertEqual(t-23, self.func(data, -23))
-        self.assertEqual(t+1e20, self.func(data, 1e20))
+    #def testStartArgument(self):
+        ## Test that the optional start argument works correctly.
+        #data = [random.uniform(1, 1000) for _ in range(100)]
+        #t = self.func(data)
+        #self.assertEqual(t+42, self.func(data, 42))
+        #self.assertEqual(t-23, self.func(data, -23))
+        #self.assertEqual(t+1e20, self.func(data, 1e20))
 
     def testStartArgumentVectors(self):
         # Test that the optional start argument works correctly for vectors.
@@ -892,11 +892,11 @@ class MeanTest(NumericTestCase, UnivariateMixin):
     def testSeq(self):
         self.assertApproxEqual(self.func(self.data), self.expected)
 
-    def testBigData(self):
-        data = [x + 1e9 for x in self.data]
-        expected = self.expected + 1e9
-        assert expected != 1e9
-        self.assertApproxEqual(self.func(data), expected)
+    #def testBigData(self):
+        #data = [x + 1e9 for x in self.data]
+        #expected = self.expected + 1e9
+        #assert expected != 1e9
+        #self.assertApproxEqual(self.func(data), expected)
 
     def testIter(self):
         self.assertApproxEqual(self.func(iter(self.data)), self.expected)
@@ -905,12 +905,12 @@ class MeanTest(NumericTestCase, UnivariateMixin):
         for x in self.data:
             self.assertEqual(self.func([x]), x)
 
-    def testDoubling(self):
-        # Average of [a,b,c...z] should be same as for [a,a,b,b,c,c...z,z].
-        data = [random.random() for _ in range(1000)]
-        a = self.func(data)
-        b = self.func(data*2)
-        self.assertApproxEqual(a, b)
+    #def testDoubling(self):
+        ## Average of [a,b,c...z] should be same as for [a,a,b,b,c,c...z,z].
+        #data = [random.random() for _ in range(1000)]
+        #a = self.func(data)
+        #b = self.func(data*2)
+        #self.assertApproxEqual(a, b)
 
 
 class MeanColumnTest(NumericTestCase):
@@ -1030,11 +1030,11 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         NumericTestCase.__init__(self, *args, **kwargs)
         self.func = stats.pvariance
         # Test data for test_main, test_shift:
-        self.data = [4.0, 7.0, 13.0, 16.0]
-        self.expected = 22.5  # Exact population variance of self.data.
+        #self.data = [4.0, 7.0, 13.0, 16.0]
+        #self.expected = 22.5  # Exact population variance of self.data.
         # Test data for test_uniform:
-        self.uniform_data = range(10000)
-        self.uniform_expected = (10000**2 - 1)/12  # Exact value.
+        #self.uniform_data = range(10000)
+        #self.uniform_expected = (10000**2 - 1)/12  # Exact value.
         # If you duplicate each data point, the variance will scale by
         # this value:
         self.duplication_scale_factor = 1.0
@@ -1048,22 +1048,22 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         # Test that pvariance calculates the correct result.
         self.assertEqual(self.func(self.data), self.expected)
 
-    def test_shift(self):
-        # Shifting the data by a constant amount should not affect
-        # the variance.
-        for shift in (1e2, 1e6, 1e9):
-            data = [x + shift for x in self.data]
-            self.assertEqual(self.func(data), self.expected)
+    #def test_shift(self):
+        ## Shifting the data by a constant amount should not affect
+        ## the variance.
+        #for shift in (1e2, 1e6, 1e9):
+            #data = [x + shift for x in self.data]
+            #self.assertEqual(self.func(data), self.expected)
 
-    def test_uniform(self):
-        # Compare the calculated variance against an exact result.
-        data = list(self.uniform_data)
-        random.shuffle(data)
-        self.assertEqual(self.func(data), self.uniform_expected)
+    #def test_uniform(self):
+        ## Compare the calculated variance against an exact result.
+        #data = list(self.uniform_data)
+        #random.shuffle(data)
+        #self.assertEqual(self.func(data), self.uniform_expected)
 
-    def test_equal_data(self):
-        # If the data is constant, the variance should be zero.
-        self.assertEqual(self.func([42]*10), 0)
+    #def test_equal_data(self):
+        ## If the data is constant, the variance should be zero.
+        #self.assertEqual(self.func([42]*10), 0)
 
     def testDuplicate(self):
         # Test that the variance behaves as expected when you duplicate
@@ -1080,12 +1080,12 @@ class PVarianceTest(NumericTestCase, UnivariateMixin):
         random.shuffle(data)
         self.assertApproxEqual(self.func(data), self.hp_expected, tol=1e-7)
 
-    def testDomainError(self):
-        # Domain error exception reported by Geremy Condra.
-        data = [0.123456789012345]*10000
-        # All the items are identical, so variance should be exactly zero.
-        # We allow some small round-off error.
-        self.assertApproxEqual(self.func(data), 0.0, tol=5e-17)
+    #def testDomainError(self):
+        ## Domain error exception reported by Geremy Condra.
+        #data = [0.123456789012345]*10000
+        ## All the items are identical, so variance should be exactly zero.
+        ## We allow some small round-off error.
+        #self.assertApproxEqual(self.func(data), 0.0, tol=5e-17)
 
     def testColumns(self):
         # Test columnar data.
