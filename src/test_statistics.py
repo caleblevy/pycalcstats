@@ -586,16 +586,16 @@ class TestMedianDataType(NumericTestCase, UnivariateTypeMixin):
 
 class TestMedianLow(TestMedian, UnivariateTypeMixin):
     def setUp(self):
-        self.func = statistics.median.low
+        self.func = statistics.median_low
 
     def testEvenInts(self):
-        # Test median.low with an even number of ints.
+        # Test median_low with an even number of ints.
         data = [1, 2, 3, 4, 5, 6]
         assert len(data)%2 == 0
         self.assertEqual(self.func(data), 3)
 
     def testEvenFractions(self):
-        # Test median.low works with an even number of Fractions.
+        # Test median_low works with an even number of Fractions.
         F = Fraction
         data = [F(1, 7), F(2, 7), F(3, 7), F(4, 7), F(5, 7), F(6, 7)]
         assert len(data)%2 == 0
@@ -603,7 +603,7 @@ class TestMedianLow(TestMedian, UnivariateTypeMixin):
         self.assertEqual(self.func(data), F(3, 7))
 
     def testEvenDecimals(self):
-        # Test median.low works with an even number of Decimals.
+        # Test median_low works with an even number of Decimals.
         D = Decimal
         data = [D('1.1'), D('2.2'), D('3.3'), D('4.4'), D('5.5'), D('6.6')]
         assert len(data)%2 == 0
@@ -613,16 +613,16 @@ class TestMedianLow(TestMedian, UnivariateTypeMixin):
 
 class TestMedianHigh(TestMedian, UnivariateTypeMixin):
     def setUp(self):
-        self.func = statistics.median.high
+        self.func = statistics.median_high
 
     def testEvenInts(self):
-        # Test median.high with an even number of ints.
+        # Test median_high with an even number of ints.
         data = [1, 2, 3, 4, 5, 6]
         assert len(data)%2 == 0
         self.assertEqual(self.func(data), 4)
 
     def testEvenFractions(self):
-        # Test median.high works with an even number of Fractions.
+        # Test median_high works with an even number of Fractions.
         F = Fraction
         data = [F(1, 7), F(2, 7), F(3, 7), F(4, 7), F(5, 7), F(6, 7)]
         assert len(data)%2 == 0
@@ -630,7 +630,7 @@ class TestMedianHigh(TestMedian, UnivariateTypeMixin):
         self.assertEqual(self.func(data), F(4, 7))
 
     def testEvenDecimals(self):
-        # Test median.high works with an even number of Decimals.
+        # Test median_high works with an even number of Decimals.
         D = Decimal
         data = [D('1.1'), D('2.2'), D('3.3'), D('4.4'), D('5.5'), D('6.6')]
         assert len(data)%2 == 0
@@ -639,10 +639,10 @@ class TestMedianHigh(TestMedian, UnivariateTypeMixin):
 
 
 class TestMedianGrouped(TestMedian):
-    # Test median.grouped.
+    # Test median_grouped.
     # Doesn't conserve data element types, so don't use TestMedianType.
     def setUp(self):
-        self.func = statistics.median.grouped
+        self.func = statistics.median_grouped
 
     def testOddNumberRepeated(self):
         # Test median.grouped with repeated median values.
@@ -682,7 +682,7 @@ class TestMedianGrouped(TestMedian):
 
     def testRepeatedSingleValue(self):
         # Override method from AverageMixin.
-        # Yet again, failure of median.grouped to conserve the data type
+        # Yet again, failure of median_grouped to conserve the data type
         # causes me headaches :-(
         for x in (5.3, 68, 4.3e17, Fraction(29, 101), Decimal('32.9714')):
             for count in (2, 5, 10, 20):
@@ -690,7 +690,7 @@ class TestMedianGrouped(TestMedian):
                 self.assertEqual(self.func(data), float(x))
 
     def testOddFractions(self):
-        # Test median.grouped works with an odd number of Fractions.
+        # Test median_grouped works with an odd number of Fractions.
         F = Fraction
         data = [F(5, 4), F(9, 4), F(13, 4), F(13, 4), F(17, 4)]
         assert len(data)%2 == 1
@@ -698,7 +698,7 @@ class TestMedianGrouped(TestMedian):
         self.assertEqual(self.func(data), 3.0)
 
     def testEvenFractions(self):
-        # Test median.grouped works with an even number of Fractions.
+        # Test median_grouped works with an even number of Fractions.
         F = Fraction
         data = [F(5, 4), F(9, 4), F(13, 4), F(13, 4), F(17, 4), F(17, 4)]
         assert len(data)%2 == 0
@@ -706,7 +706,7 @@ class TestMedianGrouped(TestMedian):
         self.assertEqual(self.func(data), 3.25)
 
     def testOddDecimals(self):
-        # Test median.grouped works with an odd number of Decimals.
+        # Test median_grouped works with an odd number of Decimals.
         D = Decimal
         data = [D('5.5'), D('6.5'), D('6.5'), D('7.5'), D('8.5')]
         assert len(data)%2 == 1
@@ -714,7 +714,7 @@ class TestMedianGrouped(TestMedian):
         self.assertEqual(self.func(data), 6.75)
 
     def testEvenDecimals(self):
-        # Test median.grouped works with an even number of Decimals.
+        # Test median_grouped works with an even number of Decimals.
         D = Decimal
         data = [D('5.5'), D('5.5'), D('6.5'), D('6.5'), D('7.5'), D('8.5')]
         assert len(data)%2 == 0
@@ -727,7 +727,7 @@ class TestMedianGrouped(TestMedian):
         self.assertEqual(self.func(data), 7.0)
 
     def testInterval(self):
-        # Test median.grouped with interval argument.
+        # Test median_grouped with interval argument.
         data = [2.25, 2.5, 2.5, 2.75, 2.75, 3.0, 3.0, 3.25, 3.5, 3.75]
         self.assertEqual(self.func(data, 0.25), 2.875)
         data = [2.25, 2.5, 2.5, 2.75, 2.75, 2.75, 3.0, 3.0, 3.25, 3.5, 3.75]
