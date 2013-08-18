@@ -1,7 +1,5 @@
 """Test suite for statistics module."""
 
-#from test.support import run_unittest
-
 import decimal
 import doctest
 import math
@@ -13,7 +11,7 @@ from decimal import Decimal
 from fractions import Fraction
 
 # Test helper.
-from test_statistics_approx import NumericTestCase
+from test.test_statistics_approx import NumericTestCase
 
 # Module to be tested.
 import statistics
@@ -982,11 +980,8 @@ class TestStdev(VarianceStdevMixin, NumericTestCase):
 
 # === Run tests ===
 
-def test_main():
-    #run_unittest()
-    unittest.main()
-
 
 if __name__ == "__main__":
-    test_main()
+    unittest.main()
+
 
