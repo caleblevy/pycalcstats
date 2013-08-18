@@ -56,7 +56,7 @@ Calculate the median, or 50th percentile, of data grouped into class intervals
 centred on the data values provided. E.g. if your data points are rounded to
 the nearest whole number:
 
->>> median.grouped([2, 2, 3, 3, 3, 4])  #doctest: +ELLIPSIS
+>>> median_grouped([2, 2, 3, 3, 3, 4])  #doctest: +ELLIPSIS
 2.8333333333...
 
 This should be interpreted in this way: you have two data points in the class
@@ -299,24 +299,6 @@ def add_partial(x, partials):
     partials[i:] = [x]
 
 
-def _attach_to(target):
-    """Attach the decorated function to target.
-
-    >>> def f(): pass
-    >>>
-    >>> @_attach_to(f)
-    ... def g(): pass
-    >>>
-    >>> f.g is g
-    True
-
-    """
-    def decorator(func):
-        setattr(target, func.__name__, func)
-        return func
-    return decorator
-
-
 # === Measures of central tendency (averages) ===
 
 def mean(data):
@@ -378,10 +360,9 @@ def median(data):
     """Return the median (middle value) of numeric data.
 
     The median is a robust measure of central location, and is less affected
-    by the presence of outliers in your data.
-
-    This uses the "mean-of-middle-two" method of calculating the median. When
-    the number of data points is odd, the middle data point is returned:
+    by the presence of outliers in your data. This uses the "mean-of-middle-two"
+    method of calculating the median: when the number of data points is odd,
+    the middle data point is returned:
 
     >>> median([1, 3, 5])
     3
@@ -393,17 +374,8 @@ def median(data):
     4.0
 
     This is suited for when your data is discrete, and you don't mind that
-    the median may not be an actual data point. Three other methods for
-    calculating median are provided as methods on the ``median`` function:
-
-        * median.low
-        * median.high
-        * median.grouped
-        
-    See individual methods for details.
+    the median may not be an actual data point.
     """
-    # If you think that having four definitions of median is annoying, you
-    # ought to see the FIFTEEN definitions for quartiles!
     data = sorted(data)
     n = len(data)
     if n == 0:
@@ -415,17 +387,16 @@ def median(data):
         return (data[i - 1] + data[i])/2
 
 
-@_attach_to(median)
-def low(data):
+def median_low(data):
     """Return the low median of numeric data.
 
     The low median is always a member of the data set. When the number
     of data points is odd, the middle value is returned. When it is
     even, the smaller of the two middle values is returned.
 
-    >>> median.low([1, 3, 5])
+    >>> median_low([1, 3, 5])
     3
-    >>> median.low([1, 3, 5, 7])
+    >>> median_low([1, 3, 5, 7])
     3
 
     Use the low median when your data are discrete and you prefer the median
@@ -441,17 +412,16 @@ def low(data):
         return data[n//2 - 1]
 
 
-@_attach_to(median)
-def high(data):
+def median_high(data):
     """Return the high median of data.
 
     The high median is always a member of the data set. When the number of
     data points is odd, the middle value is returned. When it is even, the
     larger of the two middle values is returned.
 
-    >>> median.high([1, 3, 5])
+    >>> median_high([1, 3, 5])
     3
-    >>> median.high([1, 3, 5, 7])
+    >>> median_high([1, 3, 5, 7])
     5
 
     Use the high median when your data are discrete and you prefer the median
@@ -464,13 +434,12 @@ def high(data):
     return data[n//2]
 
 
-@_attach_to(median)
-def grouped(data, interval=1):
+def median_grouped(data, interval=1):
     """"Return the 50th percentile (median) of grouped continuous data.
 
-    >>> median.grouped([1, 2, 2, 3, 4, 4, 4, 4, 4, 5])
+    >>> median_grouped([1, 2, 2, 3, 4, 4, 4, 4, 4, 5])
     3.7
-    >>> median.grouped([52, 52, 53, 54])
+    >>> median_grouped([52, 52, 53, 54])
     52.5
 
     This calculates the median as the 50th percentile, and should be
@@ -483,9 +452,9 @@ def grouped(data, interval=1):
     defaults to 1. Changing the class interval naturally will change the
     interpolated 50th percentile value:
 
-    >>> median.grouped([1, 3, 3, 5, 7], interval=1)
+    >>> median_grouped([1, 3, 3, 5, 7], interval=1)
     3.25
-    >>> median.grouped([1, 3, 3, 5, 7], interval=2)
+    >>> median_grouped([1, 3, 3, 5, 7], interval=2)
     3.5
 
     This function does not check whether the data points are at least
@@ -516,8 +485,6 @@ def grouped(data, interval=1):
     # FIXME The following line could be more efficient for big lists.
     f = data.count(x)  # Number of data points in the median interval.
     return L + interval*(n/2 - cf)/f
-
-del low, high, grouped
 
 
 def mode(data, max_modes=1):
