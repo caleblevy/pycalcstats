@@ -1,4 +1,4 @@
-"""Numeric approximated equal comparisons and unit testing.
+"""Helper test suite for statistics module, with approx_equal function.
 
 When doing numeric work, especially with floats, exact equality is often not
 what you want. Due to round-off error, it is often a bad idea to try to
@@ -36,18 +36,9 @@ True
 For unit-testing, a TestCase subclass ``NumericTestCase`` is provided. In
 addition to the standard ``TestCase.assertAlmostEqual``, a method
 ``assertApproxEqual`` is provided. See the class for further details.
-
-
-This is a self-testing module. From the commandline, call:
-
-    $ python3 -m test_approx
-
-to run the self-tests.
 """
 
 __all__ = ['approx_equal', 'NumericTestCase']
-
-#from test.support import run_unittest
 
 from decimal import Decimal
 from fractions import Fraction
@@ -592,11 +583,6 @@ def load_tests(loader, tests, ignore):
     return tests
 
 
-def test_main():
-    # run_unittest()
-    unittest.main()
-
-
 if __name__ == "__main__":
-    test_main()
+    unittest.main()
 
