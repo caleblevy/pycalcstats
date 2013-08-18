@@ -23,10 +23,7 @@ import statistics
 
 class GlobalsTest(unittest.TestCase):
     module = statistics
-    expected_metadata = [
-            "__doc__", "__all__", "__version__", "__date__",
-            "__author__", "__author_email__",
-            ]
+    expected_metadata = ["__doc__", "__all__"]
 
     def testMeta(self):
         # Test for the existence of metadata.

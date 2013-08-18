@@ -1,6 +1,6 @@
 ##  Module statistics.py
 ##
-##  Copyright (c) 2013 Steven D'Aprano.
+##  Copyright (c) 2013 Steven D'Aprano <steve+python@pearwood.info>.
 ##
 ##  Licensed under the Apache License, Version 2.0 (the "License");
 ##  you may not use this file except in compliance with the License.
@@ -102,16 +102,10 @@ such as lists, tuples and strings.
 
 """
 
-# Module metadata.
-__version__ = "0.2a"
-__date__ = "2013-08-13"
-__author__ = "Steven D'Aprano"
-__author_email__ = "steve+python@pearwood.info"
-
-
 __all__ = [ 'sum', 'StatisticsError',
             'pstdev', 'pvariance', 'stdev', 'variance',
-            'mean', 'median', 'mode',
+            'median',  'median_low', 'median_high', 'median_grouped',
+            'mean', 'mode',
           ]
 
 
