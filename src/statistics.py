@@ -218,6 +218,7 @@ def sum(data, start=0):
 
 # Thanks to Raymond Hettinger for his recipe:
 # http://code.activestate.com/recipes/393090/
+# and Jonathan Shewchuk for the algorithm.
 def add_partial(x, partials):
     """Helper function for full-precision summation of binary floats.
 
