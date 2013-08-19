@@ -16,7 +16,7 @@
 
 
 """
-Statistics module for Python 3.3 and better.
+Basic statistics module.
 
 This module provides functions for calculating statistics of data, including
 averages, variance, and standard deviation.
@@ -31,6 +31,9 @@ Function            Description
 ==================  =============================================
 mean                Arithmetic mean (average) of data.
 median              Median (middle value) of data.
+median_low          Low median of data.
+median_high         High median of data.
+median_grouped      Median, or 50th percentile, of grouped data.
 mode                Mode (most common value) of data.
 ==================  =============================================
 
