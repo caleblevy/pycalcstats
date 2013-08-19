@@ -146,11 +146,11 @@ class NumericTestCase(unittest.TestCase):
         are tested element-by-element.
 
         >>> class MyTest(NumericTestCase):
-        ...     def testNumber(self):
+        ...     def test_number(self):
         ...         x = 1.0/6
         ...         y = sum([x]*6)
         ...         self.assertApproxEqual(y, 1.0, tol=1e-15)
-        ...     def testSequence(self):
+        ...     def test_sequence(self):
         ...         a = [1.001, 1.001e-10, 1.001e10]
         ...         b = [1.0, 1e-10, 1e10]
         ...         self.assertApproxEqual(a, b, rel=1e-3)
@@ -217,7 +217,7 @@ class NumericTestCase(unittest.TestCase):
 class ApproxEqualSymmetryTest(unittest.TestCase):
     # Test symmetry of approx_equal.
 
-    def testRelativeSymmetry(self):
+    def test_relative_symmetry(self):
         # Check that approx_equal treats relative error symmetrically.
         # (a-b)/a is usually not equal to (a-b)/b. Ensure that this
         # doesn't matter.
@@ -245,7 +245,7 @@ class ApproxEqualSymmetryTest(unittest.TestCase):
         self.assertTrue(approx_equal(a, b, tol=0, rel=rel))
         self.assertTrue(approx_equal(b, a, tol=0, rel=rel))
 
-    def testSymmetry(self):
+    def test_symmetry(self):
         # Test that approx_equal(a, b) == approx_equal(b, a)
         args = [-23, -2, 5, 107, 93568]
         delta = 2
@@ -288,29 +288,29 @@ class ApproxEqualExactTest(unittest.TestCase):
         result = approx_equal(-x, -x, tol=tol, rel=rel)
         self.assertTrue(result, 'equality failure for x=%r' % -x)
 
-    def testExactlyEqualInts(self):
+    def test_exactly_equal_ints(self):
         # Test that equal int values are exactly equal.
         for n in [42, 19740, 14974, 230, 1795, 700245, 36587]:
             self.do_exactly_equal_test(n, 0, 0)
 
-    def testExactlyEqualFloats(self):
+    def test_exactly_equal_floats(self):
         # Test that equal float values are exactly equal.
         for x in [0.42, 1.9740, 1497.4, 23.0, 179.5, 70.0245, 36.587]:
             self.do_exactly_equal_test(x, 0, 0)
 
-    def testExactlyEqualFractions(self):
+    def test_exactly_equal_fractions(self):
         # Test that equal Fraction values are exactly equal.
         F = Fraction
         for f in [F(1, 2), F(0), F(5, 3), F(9, 7), F(35, 36), F(3, 7)]:
             self.do_exactly_equal_test(f, 0, 0)
 
-    def testExactlyEqualDecimals(self):
+    def test_exactly_equal_decimals(self):
         # Test that equal Decimal values are exactly equal.
         D = Decimal
         for d in map(D, "8.2 31.274 912.04 16.745 1.2047".split()):
             self.do_exactly_equal_test(d, 0, 0)
 
-    def testExactlyEqualAbsolute(self):
+    def test_exactly_equal_absolute(self):
         # Test that equal values are exactly equal with an absolute error.
         for n in [16, 1013, 1372, 1198, 971, 4]:
             # Test as ints.
@@ -321,18 +321,18 @@ class ApproxEqualExactTest(unittest.TestCase):
             f = Fraction(n, 1234)
             self.do_exactly_equal_test(f, 0.01, 0)
 
-    def testExactlyEqualAbsoluteDecimals(self):
+    def test_exactly_equal_absolute_decimals(self):
         # Test equal Decimal values are exactly equal with an absolute error.
         self.do_exactly_equal_test(Decimal("3.571"), Decimal("0.01"), 0)
         self.do_exactly_equal_test(-Decimal("81.3971"), Decimal("0.01"), 0)
 
-    def testExactlyEqualRelative(self):
+    def test_exactly_equal_relative(self):
         # Test that equal values are exactly equal with a relative error.
         for x in [8347, 101.3, -7910.28, Fraction(5, 21)]:
             self.do_exactly_equal_test(x, 0, 0.01)
         self.do_exactly_equal_test(Decimal("11.68"), 0, Decimal("0.01"))
 
-    def testExactlyEqualBoth(self):
+    def test_exactly_equal_both(self):
         # Test that equal values are equal when both tol and rel are given.
         for x in [41017, 16.742, -813.02, Fraction(3, 8)]:
             self.do_exactly_equal_test(x, 0.1, 0.01)
@@ -349,23 +349,23 @@ class ApproxEqualUnequalTest(unittest.TestCase):
             result = approx_equal(a, a+1, tol=0, rel=0)
             self.assertFalse(result, 'inequality failure for x=%r' % a)
 
-    def testExactlyUnequalInts(self):
+    def test_exactly_unequal_ints(self):
         # Test unequal int values are unequal with zero error tolerance.
         for n in [951, 572305, 478, 917, 17240]:
             self.do_exactly_unequal_test(n)
 
-    def testExactlyUnequalFloats(self):
+    def test_exactly_unequal_floats(self):
         # Test unequal float values are unequal with zero error tolerance.
         for x in [9.51, 5723.05, 47.8, 9.17, 17.24]:
             self.do_exactly_unequal_test(x)
 
-    def testExactlyUnequalFractions(self):
+    def test_exactly_unequal_fractions(self):
         # Test that unequal Fractions are unequal with zero error tolerance.
         F = Fraction
         for f in [F(1, 5), F(7, 9), F(12, 11), F(101, 99023)]:
             self.do_exactly_unequal_test(f)
 
-    def testExactlyUnequalDecimals(self):
+    def test_exactly_unequal_decimals(self):
         # Test that unequal Decimals are unequal with zero error tolerance.
         for d in map(Decimal, "3.1415 298.12 3.47 18.996 0.00245".split()):
             self.do_exactly_unequal_test(d)
@@ -384,20 +384,20 @@ class ApproxEqualInexactTest(unittest.TestCase):
             self.assertTrue(approx_equal(x, y, tol=2*delta, rel=0), msg)
             self.assertFalse(approx_equal(x, y, tol=delta/2, rel=0), msg)
 
-    def testApproxEqualAbsoluteInts(self):
+    def test_approx_equal_absolute_ints(self):
         # Test approximate equality of ints with an absolute error.
         for n in [-10737, -1975, -7, -2, 0, 1, 9, 37, 423, 9874, 23789110]:
             self.do_approx_equal_abs_test(n, 10)
             self.do_approx_equal_abs_test(n, 2)
 
-    def testApproxEqualAbsoluteFloats(self):
+    def test_approx_equal_absolute_floats(self):
         # Test approximate equality of floats with an absolute error.
         for x in [-284.126, -97.1, -3.4, -2.15, 0.5, 1.0, 7.8, 4.23, 3817.4]:
             self.do_approx_equal_abs_test(x, 1.5)
             self.do_approx_equal_abs_test(x, 0.01)
             self.do_approx_equal_abs_test(x, 0.0001)
 
-    def testApproxEqualAbsoluteFractions(self):
+    def test_approx_equal_absolute_fractions(self):
         # Test approximate equality of Fractions with an absolute error.
         delta = Fraction(1, 29)
         numerators = [-84, -15, -2, -1, 0, 1, 5, 17, 23, 34, 71]
@@ -405,14 +405,14 @@ class ApproxEqualInexactTest(unittest.TestCase):
             self.do_approx_equal_abs_test(f, delta)
             self.do_approx_equal_abs_test(f, float(delta))
 
-    def testApproxEqualAbsoluteDecimals(self):
+    def test_approx_equal_absolute_decimals(self):
         # Test approximate equality of Decimals with an absolute error.
         delta = Decimal("0.01")
         for d in map(Decimal, "1.0 3.5 36.08 61.79 7912.3648".split()):
             self.do_approx_equal_abs_test(d, delta)
             self.do_approx_equal_abs_test(-d, delta)
 
-    def testCrossZero(self):
+    def test_cross_zero(self):
         # Test for the case of the two values having opposite signs.
         self.assertTrue(approx_equal(1e-5, -1e-5, tol=1e-4, rel=0))
 
@@ -425,7 +425,7 @@ class ApproxEqualInexactTest(unittest.TestCase):
             self.assertTrue(approx_equal(x, y, tol=0, rel=2*delta), msg)
             self.assertFalse(approx_equal(x, y, tol=0, rel=delta/2), msg)
 
-    def testApproxEqualRelativeInts(self):
+    def test_approx_equal_relative_ints(self):
         # Test approximate equality of ints with a relative error.
         self.assertTrue(approx_equal(64, 47, tol=0, rel=0.36))
         self.assertTrue(approx_equal(64, 47, tol=0, rel=0.37))
@@ -434,13 +434,13 @@ class ApproxEqualInexactTest(unittest.TestCase):
         self.assertTrue(approx_equal(448, 512, tol=0, rel=0.125))
         self.assertFalse(approx_equal(447, 512, tol=0, rel=0.125))
 
-    def testApproxEqualRelativeFloats(self):
+    def test_approx_equal_relative_floats(self):
         # Test approximate equality of floats with a relative error.
         for x in [-178.34, -0.1, 0.1, 1.0, 36.97, 2847.136, 9145.074]:
             self.do_approx_equal_rel_test(x, 0.02)
             self.do_approx_equal_rel_test(x, 0.0001)
 
-    def testApproxEqualRelativeFractions(self):
+    def test_approx_equal_relative_fractions(self):
         # Test approximate equality of Fractions with a relative error.
         F = Fraction
         delta = Fraction(3, 8)
@@ -449,7 +449,7 @@ class ApproxEqualInexactTest(unittest.TestCase):
                 self.do_approx_equal_rel_test(f, d)
                 self.do_approx_equal_rel_test(-f, d)
 
-    def testApproxEqualRelativeDecimals(self):
+    def test_approx_equal_relative_decimals(self):
         # Test approximate equality of Decimals with a relative error.
         for d in map(Decimal, "0.02 1.0 5.7 13.67 94.138 91027.9321".split()):
             self.do_approx_equal_rel_test(d, Decimal("0.001"))
@@ -471,20 +471,20 @@ class ApproxEqualInexactTest(unittest.TestCase):
         check = self.assertTrue if (tol_flag or rel_flag) else self.assertFalse
         check(approx_equal(a, b, tol=tol, rel=rel))
 
-    def testApproxEqualBoth1(self):
+    def test_approx_equal_both1(self):
         # Test actual error <= both absolute and relative error.
         self.do_check_both(7.955, 7.952, 0.004, 3.8e-4, True, True)
         self.do_check_both(-7.387, -7.386, 0.002, 0.0002, True, True)
 
-    def testApproxEqualBoth2(self):
+    def test_approx_equal_both2(self):
         # Test actual error <= absolute error but > relative error.
         self.do_check_both(7.955, 7.952, 0.004, 3.7e-4, True, False)
 
-    def testApproxEqualBoth3(self):
+    def test_approx_equal_both3(self):
         # Test actual error <= relative error but > absolute error.
         self.do_check_both(7.955, 7.952, 0.001, 3.8e-4, False, True)
 
-    def testApproxEqualBoth4(self):
+    def test_approx_equal_both4(self):
         # Test actual error > both absolute and relative error.
         self.do_check_both(2.78, 2.75, 0.01, 0.001, False, False)
         self.do_check_both(971.44, 971.47, 0.02, 3e-5, False, False)
@@ -493,7 +493,7 @@ class ApproxEqualInexactTest(unittest.TestCase):
 class ApproxEqualSpecialsTest(unittest.TestCase):
     # Test approx_equal with NANs and INFs and zeroes.
 
-    def testInf(self):
+    def test_inf(self):
         for type_ in (float, Decimal):
             inf = type_('inf')
             self.assertTrue(approx_equal(inf, inf))
@@ -503,17 +503,17 @@ class ApproxEqualSpecialsTest(unittest.TestCase):
             self.assertFalse(approx_equal(inf, -inf))
             self.assertFalse(approx_equal(inf, 1000))
 
-    def testNan(self):
+    def test_nan(self):
         for type_ in (float, Decimal):
             nan = type_('nan')
             for other in (nan, type_('inf'), 1000):
                 self.assertFalse(approx_equal(nan, other))
 
-    def testFloatZeroes(self):
+    def test_float_zeroes(self):
         nzero = math.copysign(0.0, -1)
         self.assertTrue(approx_equal(nzero, 0.0, tol=0.1, rel=0.1))
 
-    def testDecimalZeroes(self):
+    def test_decimal_zeroes(self):
         nzero = Decimal("-0.0")
         self.assertTrue(approx_equal(nzero, Decimal(0), tol=0.1, rel=0.1))
 
@@ -521,11 +521,11 @@ class ApproxEqualSpecialsTest(unittest.TestCase):
 class TestApproxEqualErrors(unittest.TestCase):
     # Test error conditions of approx_equal.
 
-    def testBadTol(self):
+    def test_bad_tol(self):
         # Test negative tol raises.
         self.assertRaises(ValueError, approx_equal, 100, 100, -1, 0.1)
 
-    def testBadRel(self):
+    def test_bad_rel(self):
         # Test negative rel raises.
         self.assertRaises(ValueError, approx_equal, 100, 100, 1, -0.1)
 
@@ -547,16 +547,16 @@ class TestNumericTestCase(unittest.TestCase):
         for substring in expected:
             self.assertIn(substring, actual_msg)
 
-    def testNumericTestCaseIsTestCase(self):
+    def test_numerictestcase_is_testcase(self):
         # Ensure that NumericTestCase actually is a TestCase.
         self.assertTrue(issubclass(NumericTestCase, unittest.TestCase))
 
-    def testErrorMsgNumeric(self):
+    def test_error_msg_numeric(self):
         # Test the error message generated for numeric comparisons.
         args = (2.5, 4.0, 0.5, 0.25, None)
         self.do_test(args)
 
-    def testErrorMsgSequence(self):
+    def test_error_msg_sequence(self):
         # Test the error message generated for sequence comparisons.
         args = (3.75, 8.25, 1.25, 0.5, 7)
         self.do_test(args)
