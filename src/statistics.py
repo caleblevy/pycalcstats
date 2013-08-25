@@ -81,10 +81,10 @@ Calculate the standard deviation of sample data:
 If you have previously calculated the mean, you can pass it as the optional
 second argument to the four "spread" functions to avoid recalculating it:
 
->>> data = [1, 1, 1, 1]  # FIXME better non-sucky example please
+>>> data = [1, 2, 2, 4, 4, 4, 5, 6]
 >>> xbar = mean(data)
->>> variance(data, xbar)  #doctest: +ELLIPSIS
-0.0
+>>> pvariance(data, xbar)
+2.5
 
 
 Other functions and classes
@@ -117,6 +117,9 @@ import math
 import numbers
 import operator
 from builtins import sum as _sum
+
+from fractions import Fraction
+from decimal import Decimal
 
 
 # === Exceptions ===
@@ -153,17 +156,10 @@ def sum(data, start=0):
     >>> sum([F(2, 3), F(7, 5), F(1, 4), F(5, 6)])
     Fraction(63, 20)
 
-    Decimal sums honour the context:
-
-    >>> import decimal
-    >>> D = decimal.Decimal
+    >>> from decimal import Decimal as D
     >>> data = [D("0.1375"), D("0.2108"), D("0.3061"), D("0.0419")]
     >>> sum(data)
     Decimal('0.6963')
-    >>> with decimal.localcontext(
-    ...         decimal.Context(prec=2, rounding=decimal.ROUND_DOWN)):
-    ...     sum(data)
-    Decimal('0.68')
 
 
     Limitations
@@ -173,7 +169,7 @@ def sum(data, start=0):
     IEEE-754 correct rounding. On platforms that do not provide that, all
     promises of higher precision are null and void.
 
-    ``sum`` supports mixed arithmetic with the following limitations:
+    ``sum`` currently supports mixed arithmetic with the following limitations:
 
     - mixing Fractions and Decimals raises TypeError;
     - mixing floats with either Fractions or Decimals coerces to float,
@@ -217,7 +213,130 @@ def sum(data, start=0):
     return _sum(partials)
 
 
+def sum(data, start=0):
+    """Candidate to replace sum."""
+    n, d = _exact_ratio(start)
+    T = type(start)
+    partials = {d: n}  # map {denominator: sum of numerators}
+    # Micro-optimizations.
+    coerce_types = _coerce_types
+    exact_ratio = _exact_ratio
+    partials_get = partials.get
+    # Add numerators for each denominator, and track the "current" type.
+    for x in data:
+        T = _coerce_types(T, type(x))
+        n, d = exact_ratio(x)
+        partials[d] = partials_get(d, 0) + n
+    if None in partials:
+        assert issubclass(T, (float, Decimal))
+        assert not math.isfinite(partials[None])
+        return T(partials[None])
+    total = Fraction()
+    for d, n in sorted(partials.items()):
+        total += Fraction(n, d)
+    if issubclass(T, int):
+        assert total.denominator == 1
+        return T(total.numerator)
+    if issubclass(T, Decimal):
+        return T(total.numerator)/total.denominator
+    return T(total)
+
+
 # === Private utilities ===
+
+def _exact_ratio(x):
+    """Convert Real number x exactly to (numerator, denominator) pair.
+
+    >>> _exact_ratio(0.25)
+    (1, 4)
+
+    x is expected to be an int, Fraction, Decimal or float.
+    """
+    try:
+        try:
+            # int, Fraction
+            return (x.numerator, x.denominator)
+        except AttributeError:
+            # float
+            try:
+                return x.as_integer_ratio()
+            except AttributeError:
+                # Decimal
+                try:
+                    return _decimal_to_ratio(x)
+                except AttributeError:
+                    msg = "can't convert type '{}' to numerator/denominator"
+                    raise TypeError(msg.format(type(x).__name__)) from None
+    except (OverflowError, ValueError):
+        # INF or NAN
+        if __debug__:
+            # Decimal signalling NANs cannot be converted to float :-(
+            if isinstance(x, Decimal):
+                assert not x.is_finite()
+            else:
+                assert not math.isfinite(x)
+        return (x, None)
+
+
+# FIXME This is faster than Fraction.from_decimal, but still too slow.
+def _decimal_to_ratio(d):
+    """Convert Decimal d to exact integer ratio (numerator, denominator).
+
+    >>> from decimal import Decimal
+    >>> _decimal_to_ratio(Decimal("2.6"))
+    (26, 10)
+
+    """
+    sign, digits, exp = d.as_tuple()        
+    if exp in ('F', 'n', 'N'):  # INF, NAN, sNAN
+        assert not d.is_finite()
+        raise ValueError
+    num = 0
+    for digit in digits:
+        num = num*10 + digit
+    if sign:
+        num = -num
+    den = 10**-exp
+    return (num, den)
+
+
+def _coerce_types(T1, T2):
+    """Coerce types T1 and T2 to a common type.
+
+    >>> _coerce_types(int, float)
+    <class 'float'>
+
+    Coercion is performed according to this table, where "N/A" means
+    that a TypeError exception is raised.
+
+    +----------+-----------+-----------+-----------+----------+
+    |          | int       | Fraction  | Decimal   | float    |
+    +----------+-----------+-----------+-----------+----------+
+    | int      | int       | Fraction  | Decimal   | float    |
+    | Fraction | Fraction  | Fraction  | N/A       | float    |
+    | Decimal  | Decimal   | N/A       | Decimal   | float    |
+    | float    | float     | float     | float     | float    |
+    +----------+-----------+-----------+-----------+----------+
+
+    Subclasses trump their parent class; two subclasses of the same
+    base class will be coerced to the second of the two.
+
+    """
+    # Get the common/fast cases out of the way first.
+    if T1 is T2: return T1
+    if T1 is int: return T2
+    if T2 is int: return T1
+    # Subclasses trump their parent class.
+    if issubclass(T2, T1): return T2
+    if issubclass(T1, T2): return T1
+    # Floats trump everything else.
+    if issubclass(T2, float): return T2
+    if issubclass(T1, float): return T1
+    # Subclasses of the same base class give priority to the second.
+    if T1.__base__ is T2.__base__: return T2
+    # Otherwise, just give up.
+    raise TypeError('cannot coerce types %r and %r' % (T1, T2))
+
 
 # Thanks to Raymond Hettinger for his recipe:
 # http://code.activestate.com/recipes/393090/
@@ -696,7 +815,7 @@ def pvariance(data, mu=None):
 
     >>> from decimal import Decimal as D
     >>> pvariance([D("27.5"), D("30.25"), D("30.25"), D("34.5"), D("41.75")])
-    Decimal('24.8150')
+    Decimal('24.815')
 
     >>> from fractions import Fraction as F
     >>> pvariance([F(1, 4), F(5, 4), F(1, 2)])
