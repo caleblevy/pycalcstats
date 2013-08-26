@@ -116,7 +116,6 @@ import collections
 import math
 import numbers
 import operator
-from builtins import sum as _sum
 
 from fractions import Fraction
 from decimal import Decimal
