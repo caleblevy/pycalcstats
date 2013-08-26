@@ -144,8 +144,7 @@ def sum(data, start=0):
     >>> sum([3, 2.25, 4.5, -0.5, 1.0], 0.75)
     11.0
 
-    Float sums are calculated using high-precision floating point arithmetic
-    that can avoid some sources of round-off error:
+    Some sources of round-off error will be avoided:
 
     >>> sum([1e50, 1, -1e50] * 1000)  # Built-in sum returns zero.
     1000.0
@@ -161,60 +160,7 @@ def sum(data, start=0):
     >>> sum(data)
     Decimal('0.6963')
 
-
-    Limitations
-    -----------
-
-    The promise of high-precision summation of floats depends crucially on
-    IEEE-754 correct rounding. On platforms that do not provide that, all
-    promises of higher precision are null and void.
-
-    ``sum`` currently supports mixed arithmetic with the following limitations:
-
-    - mixing Fractions and Decimals raises TypeError;
-    - mixing floats with either Fractions or Decimals coerces to float,
-      which may lose precision;
-    - complex numbers are not supported.
-
-    These limitations may be relaxed in future versions.
-
     """
-    if not isinstance(start, numbers.Number):
-        raise TypeError('sum only accepts numbers')
-    total = start
-    data = iter(data)
-    x = None
-    if not isinstance(total, float):
-        # Non-float sum. If we find a float, we exit this loop and continue
-        # with the float code below. Until that happens, we keep adding.
-        for x in data:
-            if isinstance(x, float):
-                total = float(total)
-                break
-            total += x
-        else:
-            # No break, so we're done.
-            return total
-    # High-precision float sum.
-    assert isinstance(total, float)
-    partials = []
-    add_partial(total, partials)
-    if x is not None:
-        add_partial(x, partials)
-    for x in data:
-        try:
-            # Don't call float() directly, as that converts strings and we
-            # don't want that. Also, like all dunder methods, we should call
-            # __float__ on the class, not the instance.
-            x = type(x).__float__(x)
-        except OverflowError:
-            x = float('inf') if x > 0 else float('-inf')
-        add_partial(x, partials)
-    return _sum(partials)
-
-
-def sum(data, start=0):
-    """Candidate to replace sum."""
     n, d = _exact_ratio(start)
     T = type(start)
     partials = {d: n}  # map {denominator: sum of numerators}
@@ -336,78 +282,6 @@ def _coerce_types(T1, T2):
     if T1.__base__ is T2.__base__: return T2
     # Otherwise, just give up.
     raise TypeError('cannot coerce types %r and %r' % (T1, T2))
-
-
-# Thanks to Raymond Hettinger for his recipe:
-# http://code.activestate.com/recipes/393090/
-# and Jonathan Shewchuk for the algorithm.
-def add_partial(x, partials):
-    """Helper function for full-precision summation of binary floats.
-
-    Add float x in place to the list partials, keeping the sum exact with no
-    rounding error.
-
-
-    Arguments
-    ---------
-
-    x
-        Must be a float.
-
-    partials
-        A list containing the partial sums.
-
-
-    Description
-    -----------
-
-    Initialise partials to be an empty list. Then for each float value ``x``
-    you wish to add, call ``add_partial(x, partials)``.
-
-    When you are done, call the built-in ``sum(partials)`` to round the
-    result to the standard float precision.
-
-    If any x is not a float, or partials is not initialised to an empty
-    list, results are undefined.
-
-    The correctness of this algorithm depends on IEEE-754 arithmetic
-    guarantees, in particular, correct rounding.
-
-
-    Examples
-    --------
-
-    >>> partials = []
-    >>> for x in (0.125, 1e100, 1e-50, 0.125, 1e100):
-    ...     add_partial(x, partials)
-    >>> partials
-    [0.0, 1e-50, 0.25, 2e+100]
-
-    """
-    # Keep these as assertions so they can be optimized away.
-    assert isinstance(x, float) and isinstance(partials, list)
-    if not partials:
-        partials.append(0.0)  # Holder for NAN/INF values.
-    if not math.isfinite(x):
-        partials[0] += x
-        return
-    # Rounded x+y stored in hi with the round-off stored in lo.  Together
-    # hi+lo are exactly equal to x+y.  The loop applies hi/lo summation to
-    # each partial so that the list of partial sums remains exact. Depends
-    # on IEEE-754 arithmetic guarantees.  See proof of correctness at:
-    # www-2.cs.cmu.edu/afs/cs/project/quake/public/papers/robust-arithmetic.ps
-    i = 1
-    for y in partials[1:]:
-        if abs(x) < abs(y):
-            x, y = y, x
-        hi = x + y
-        lo = y - (hi - x)
-        if lo:
-            partials[i] = lo
-            i += 1
-        x = hi
-    assert i > 0
-    partials[i:] = [x]
 
 
 def _counts(data):

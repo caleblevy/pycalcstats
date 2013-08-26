@@ -645,59 +645,44 @@ class StatisticsErrorTest(unittest.TestCase):
 
 # === Tests for private utility functions ===
 
-class AddPartialTest(unittest.TestCase):
-    def test_inplace(self):
-        # Test that add_partial modifies list in place and returns None.
-        L = []
-        result = statistics.add_partial(1.5, L)
-        self.assertEqual(L, [0.0, 1.5])
-        self.assertIsNone(result)
+class ExactRatioTest(unittest.TestCase):
+    # Test _exact_ratio utility.
 
-    def test_add(self):
-        # Test that add_partial actually does add.
-        L = []
-        statistics.add_partial(1.5, L)
-        statistics.add_partial(2.5, L)
-        self.assertEqual(sum(L), 4.0)
-        statistics.add_partial(1e120, L)
-        statistics.add_partial(1e-120, L)
-        statistics.add_partial(0.5, L)
-        self.assertEqual(sum(L), 1e120)
-        statistics.add_partial(-1e120, L)
-        self.assertEqual(sum(L), 4.5)
-        statistics.add_partial(-4.5, L)
-        self.assertEqual(sum(L), 1e-120)
+    def test_int(self):
+        for i in (-20, -3, 0, 5, 99, 10**20):
+            self.assertEqual(statistics._exact_ratio(i), (i, 1))
 
-    def test_nan(self):
-        # Test that add_partial works as expected with NANs.
-        L = []
-        for x in (1.5, float('NAN'), 2.5):
-            statistics.add_partial(x, L)
-        self.assertTrue(math.isnan(sum(L)))
+    def test_fraction(self):
+        numerators = (-5, 1, 12, 38)
+        for n in numerators:
+            f = Fraction(n, 37)
+            self.assertEqual(statistics._exact_ratio(f), (n, 37))
 
-    def do_inf_test(self, infinity):
-        L = []
-        statistics.add_partial(1.5, L)
-        statistics.add_partial(infinity, L)
-        statistics.add_partial(2.5, L)
-        total = sum(L)
-        # Result is an infinity of the correct sign.
-        self.assertTrue(math.isinf(total))
-        self.assertEqual((total > 0), (infinity > 0), "signs do not match")
-        # Adding another infinity doesn't change that.
-        statistics.add_partial(infinity, L)
-        total = sum(L)
-        self.assertTrue(math.isinf(total))
-        self.assertEqual((total > 0), (infinity > 0), "signs do not match")
-        # But adding an infinity of the opposite sign changes it to a NAN.
-        statistics.add_partial(-infinity, L)
-        self.assertTrue(math.isnan(sum(L)))
+    def test_float(self):
+        self.assertEqual(statistics._exact_ratio(0.125), (1, 8))
+        self.assertEqual(statistics._exact_ratio(1.125), (9, 8))
+        data = [random.uniform(-100, 100) for _ in range(100)]
+        for x in data:
+            num, den = statistics._exact_ratio(x)
+            self.assertEqual(x, num/den)
 
-    def test_inf(self):
-        # Test that add_partial works as expected with INFs.
-        inf = float('inf')
-        self.do_inf_test(inf)
-        self.do_inf_test(-inf)
+    def test_decimal(self):
+        D = Decimal
+        _exact_ratio = statistics._exact_ratio
+        self.assertEqual(_exact_ratio(D("0.125")), (125, 1000))
+        self.assertEqual(_exact_ratio(D("12.345")), (12345, 1000))
+        self.assertEqual(_exact_ratio(D("-1.98")), (-198, 100))
+
+
+class DecimalToRatioTest(unittest.TestCase):
+    # Test _decimal_to_ratio private function.
+
+    def testSpecialsRaise(self):
+        # Test that NANs and INFs raise ValueError.
+        # Non-special values are covered by _exact_ratio above.
+        for d in (Decimal('NAN'), Decimal('sNAN'), Decimal('INF')):
+            self.assertRaises(ValueError, statistics._decimal_to_ratio, d)
+
 
 
 # === Tests for public functions ===
