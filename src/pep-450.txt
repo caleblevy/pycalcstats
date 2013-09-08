@@ -15,7 +15,7 @@ Abstract
 
     This PEP proposes the addition of a module for common statistics functions
     such as mean, median, variance and standard deviation to the Python
-    standard library.
+    standard library. See also http://bugs.python.org/issue18606
 
 
 Rationale
@@ -269,8 +269,8 @@ API
         The ``mean``, ``median`` and ``mode`` functions take a single
         mandatory argument and return the appropriate statistic, e.g.:
 
-        >>> mean([1, 2, 3])
-        2.0
+            >>> mean([1, 2, 3])
+            2.0
 
         ``mode`` is the sole exception to the rule that the data argument
         must be numeric.  It will also accept an iterable of nominal data,
@@ -285,8 +285,8 @@ API
         signatures, with a single mandatory argument, an iterable of
         numeric data, e.g.:
 
-        >>> variance([1, 2, 2, 2, 3])
-        0.5
+            >>> variance([1, 2, 2, 2, 3])
+            0.5
 
         All four functions also accept a second, optional, argument, the
         mean of the data.  This is modelled on a similar API provided by
@@ -373,7 +373,7 @@ Frequently Asked Questions
        level somewhere between "use numpy" and "roll your own version".
 
 
-Open and Deferred Issues
+Future Work
 
     - At this stage, I am unsure of the best API for multivariate statistical
       functions such as linear regression, correlation coefficient, and
@@ -384,6 +384,8 @@ Open and Deferred Issues
 
         * A single argument for (x, y) data:
           function([(x0, y0), (x1, y1), ...])
+
+          This API is preferred by GvR[24].
 
         * Selecting arbitrary columns from a 2D array:
           function([[a0, x0, y0, z0], [a1, x1, y1, z1], ...], x=1, y=2)
@@ -459,6 +461,8 @@ References
     [22] https://pypi.python.org/pypi/stats/
 
     [23] http://mail.python.org/pipermail/python-ideas/2013-August/022630.html
+
+    [24] https://mail.python.org/pipermail/python-dev/2013-September/128429.html
 
 
 Copyright
