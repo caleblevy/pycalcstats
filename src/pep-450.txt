@@ -250,6 +250,62 @@ Design Decisions Of The Module
     - But avoid going into tedious[20] mathematical detail.
 
 
+API
+
+    The initial version of the library will provide univariate (single
+    variable) statistics functions.  The general API will be based on a
+    functional model ``function(data, ...) -> result``, where ``data``
+    is a mandatory iterable of (usually) numeric data.
+
+    The author expects that lists will be the most common data type used,
+    but any iterable type should be acceptable.  Where necessary, functions
+    may convert to lists internally.  Where possible, functions are
+    expected to conserve the type of the data values, for example, the mean
+    of a list of Decimals should be a Decimal rather than float.
+
+
+    Calculating the mean, median and mode
+
+        The ``mean``, ``median`` and ``mode`` functions take a single
+        mandatory argument and return the appropriate statistic, e.g.:
+
+        >>> mean([1, 2, 3])
+        2.0
+
+        ``mode`` is the sole exception to the rule that the data argument
+        must be numeric.  It will also accept an iterable of nominal data,
+        such as strings.
+
+
+    Calculating variance and standard deviation
+
+        In order to be similar to scientific calculators, the statistics
+        module will include separate functions for population and sample
+        variance and standard deviation.  All four functions have similar
+        signatures, with a single mandatory argument, an iterable of
+        numeric data, e.g.:
+
+        >>> variance([1, 2, 2, 2, 3])
+        0.5
+
+        All four functions also accept a second, optional, argument, the
+        mean of the data.  This is modelled on a similar API provided by
+        the GNU Scientific Library[18].  There are three use-cases for
+        using this argument, in no particular order:
+
+            1)  The value of the mean is known *a priori*.
+
+            2)  You have already calculated the mean, and wish to avoid
+                calculating it again.
+
+            3)  You wish to (ab)use the variance functions to calculate
+                the second moment about some given point other than the
+                mean.
+
+        In each case, it is the caller's responsibility to ensure that
+        given argument is meaningful.
+
+
 Specification
 
     As the proposed reference implementation is in pure Python,
