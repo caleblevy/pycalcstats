@@ -1,4 +1,4 @@
-PEP: xxx
+PEP: 450
 Title: Adding A Statistics Module To The Standard Library
 Version: $Revision$
 Last-Modified: $Date$
