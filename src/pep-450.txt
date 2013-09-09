@@ -264,13 +264,33 @@ API
     of a list of Decimals should be a Decimal rather than float.
 
 
-    Calculating the mean, median and mode
+    Calculating mean, median and mode
 
-        The ``mean``, ``median`` and ``mode`` functions take a single
+        The ``mean``, ``median*`` and ``mode`` functions take a single
         mandatory argument and return the appropriate statistic, e.g.:
 
             >>> mean([1, 2, 3])
             2.0
+
+        Functions provided are:
+
+            * mean(data) -> arithmetic mean of data.
+
+            * median(data) -> median (middle value) of data, taking the
+              average of the two middle values when there are an even
+              number of values.
+
+            * median_high(data) -> high median of data, taking the
+              larger of the two middle values when the number of items
+              is even.
+
+            * median_low(data) -> low median of data, taking the smaller
+              of the two middle values when the number of items is even.
+
+            * median_grouped(data, interval=1) -> 50th percentile of
+              grouped data, using interpolation.
+
+            * mode(data) -> most common data point.
 
         ``mode`` is the sole exception to the rule that the data argument
         must be numeric.  It will also accept an iterable of nominal data,
@@ -304,6 +324,26 @@ API
 
         In each case, it is the caller's responsibility to ensure that
         given argument is meaningful.
+
+        Functions provided are:
+
+            * variance(data, xbar=None) -> sample variance of data,
+              optionally using xbar as the sample mean.
+
+            * stdev(data, xbar=None) -> sample standard deviation of
+              data, optionally using xbar as the sample mean.
+
+            * pvariance(data, mu=None) -> population variance of data,
+              optionally using mu as the population mean.
+
+            * pstdev(data, mu=None) -> population standard deviation of
+              data, optionally using mu as the population mean.
+
+    Other functions
+
+        There is one other public function:
+
+            * sum(data, start=0) -> high-precision sum of numeric data.
 
 
 Specification
