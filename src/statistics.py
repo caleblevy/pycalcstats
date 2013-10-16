@@ -93,19 +93,12 @@ Other functions and classes
 ==================  =============================================
 Function            Description
 ==================  =============================================
-sum                 High-precision sum of numeric data.
 StatisticsError     Exception for statistics errors.
 ==================  =============================================
 
-The built-in sum function can lose precision when dealing with floats. The
-``sum`` function in this module is designed to be higher-precision, while
-still supporting Fractions and Decimals, but disallowing non-numeric arguments
-such as lists, tuples and strings.
-
-
 """
 
-__all__ = [ 'sum', 'StatisticsError',
+__all__ = [ 'StatisticsError',
             'pstdev', 'pvariance', 'stdev', 'variance',
             'median',  'median_low', 'median_high', 'median_grouped',
             'mean', 'mode',
@@ -127,10 +120,10 @@ class StatisticsError(ValueError):
     pass
 
 
-# === Public utilities ===
+# === Private utilities ===
 
-def sum(data, start=0):
-    """sum(data [, start]) -> value
+def _sum(data, start=0):
+    """_sum(data [, start]) -> value
 
     Return a high-precision sum of the given numeric data. If optional
     argument ``start`` is given, it is added to the total. If ``data`` is
@@ -140,23 +133,23 @@ def sum(data, start=0):
     Examples
     --------
 
-    >>> sum([3, 2.25, 4.5, -0.5, 1.0], 0.75)
+    >>> _sum([3, 2.25, 4.5, -0.5, 1.0], 0.75)
     11.0
 
     Some sources of round-off error will be avoided:
 
-    >>> sum([1e50, 1, -1e50] * 1000)  # Built-in sum returns zero.
+    >>> _sum([1e50, 1, -1e50] * 1000)  # Built-in sum returns zero.
     1000.0
 
     Fractions and Decimals are also supported:
 
     >>> from fractions import Fraction as F
-    >>> sum([F(2, 3), F(7, 5), F(1, 4), F(5, 6)])
+    >>> _sum([F(2, 3), F(7, 5), F(1, 4), F(5, 6)])
     Fraction(63, 20)
 
     >>> from decimal import Decimal as D
     >>> data = [D("0.1375"), D("0.2108"), D("0.3061"), D("0.0419")]
-    >>> sum(data)
+    >>> _sum(data)
     Decimal('0.6963')
 
     """
@@ -186,8 +179,6 @@ def sum(data, start=0):
         return T(total.numerator)/total.denominator
     return T(total)
 
-
-# === Private utilities ===
 
 def _exact_ratio(x):
     """Convert Real number x exactly to (numerator, denominator) pair.
@@ -352,7 +343,7 @@ def mean(data):
     n = len(data)
     if n < 1:
         raise StatisticsError('mean requires at least one data point')
-    return sum(data)/n
+    return _sum(data)/n
 
 
 # FIXME: investigate ways to calculate medians without sorting? Quickselect?
@@ -558,10 +549,10 @@ def _ss(data, c=None):
     """
     if c is None:
         c = mean(data)
-    ss = sum((x-c)**2 for x in data)
+    ss = _sum((x-c)**2 for x in data)
     # The following sum should mathematically equal zero, but due to rounding
     # error may not.
-    ss -= sum((x-c) for x in data)**2/len(data)
+    ss -= _sum((x-c) for x in data)**2/len(data)
     assert not ss < 0, 'negative sum of square deviations: %f' % ss
     return ss
 

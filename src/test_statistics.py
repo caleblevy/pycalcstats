@@ -821,10 +821,10 @@ class UnivariateTypeMixin:
 
 
 class TestSum(NumericTestCase, UnivariateCommonMixin, UnivariateTypeMixin):
-    # Test cases for statistics.sum() function.
+    # Test cases for statistics._sum() function.
 
     def setUp(self):
-        self.func = statistics.sum
+        self.func = statistics._sum
 
     def test_empty_data(self):
         # Override test for empty data.
@@ -911,16 +911,16 @@ class SumInternalsTest(NumericTestCase):
         self.assertRaises(AssertionError, x.__float__)
         self.assertEqual(float(x), 3.0)
         # And now test the function.
-        self.assertEqual(statistics.sum([1.0, 2.0, x, 4.0]), 10.0)
+        self.assertEqual(statistics._sum([1.0, 2.0, x, 4.0]), 10.0)
 
 
 class SumTortureTest(NumericTestCase):
     def test_torture(self):
         # Tim Peters' torture test for sum, and variants of same.
-        self.assertEqual(statistics.sum([1, 1e100, 1, -1e100]*10000), 20000.0)
-        self.assertEqual(statistics.sum([1e100, 1, 1, -1e100]*10000), 20000.0)
+        self.assertEqual(statistics._sum([1, 1e100, 1, -1e100]*10000), 20000.0)
+        self.assertEqual(statistics._sum([1e100, 1, 1, -1e100]*10000), 20000.0)
         self.assertApproxEqual(
-            statistics.sum([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=5e-16
+            statistics._sum([1e-100, 1, 1e-100, -1]*10000), 2.0e-96, rel=5e-16
             )
 
 
@@ -930,7 +930,7 @@ class SumSpecialValues(NumericTestCase):
     def test_nan(self):
         for type_ in (float, Decimal):
             nan = type_('nan')
-            result = statistics.sum([1, nan, 2])
+            result = statistics._sum([1, nan, 2])
             self.assertIs(type(result), type_)
             self.assertTrue(math.isnan(result))
 
@@ -943,10 +943,10 @@ class SumSpecialValues(NumericTestCase):
 
     def do_test_inf(self, inf):
         # Adding a single infinity gives infinity.
-        result = statistics.sum([1, 2, inf, 3])
+        result = statistics._sum([1, 2, inf, 3])
         self.check_infinity(result, inf)
         # Adding two infinities of the same sign also gives infinity.
-        result = statistics.sum([1, 2, inf, 3, inf, 4])
+        result = statistics._sum([1, 2, inf, 3, inf, 4])
         self.check_infinity(result, inf)
 
     def test_float_inf(self):
@@ -962,7 +962,7 @@ class SumSpecialValues(NumericTestCase):
     def test_float_mismatched_infs(self):
         # Test that adding two infinities of opposite sign gives a NAN.
         inf = float('inf')
-        result = statistics.sum([1, 2, inf, 3, -inf, 4])
+        result = statistics._sum([1, 2, inf, 3, -inf, 4])
         self.assertTrue(math.isnan(result))
 
     def test_decimal_mismatched_infs_to_nan(self):
@@ -970,20 +970,20 @@ class SumSpecialValues(NumericTestCase):
         inf = Decimal('inf')
         data = [1, 2, inf, 3, -inf, 4]
         with decimal.localcontext(decimal.ExtendedContext):
-            self.assertTrue(math.isnan(statistics.sum(data)))
+            self.assertTrue(math.isnan(statistics._sum(data)))
 
     def test_decimal_mismatched_infs_to_nan(self):
         # Test adding Decimal INFs with opposite sign raises InvalidOperation.
         inf = Decimal('inf')
         data = [1, 2, inf, 3, -inf, 4]
         with decimal.localcontext(decimal.BasicContext):
-            self.assertRaises(decimal.InvalidOperation, statistics.sum, data)
+            self.assertRaises(decimal.InvalidOperation, statistics._sum, data)
 
     def test_decimal_snan_raises(self):
         # Adding sNAN should raise InvalidOperation.
         sNAN = Decimal('sNAN')
         data = [1, sNAN, 2]
-        self.assertRaises(decimal.InvalidOperation, statistics.sum, data)
+        self.assertRaises(decimal.InvalidOperation, statistics._sum, data)
 
 
 # === Tests for averages ===
