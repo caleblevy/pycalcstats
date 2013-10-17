@@ -82,19 +82,15 @@ If you have previously calculated the mean, you can pass it as the optional
 second argument to the four "spread" functions to avoid recalculating it:
 
 >>> data = [1, 2, 2, 4, 4, 4, 5, 6]
->>> xbar = mean(data)
->>> pvariance(data, xbar)
+>>> mu = mean(data)
+>>> pvariance(data, mu)
 2.5
 
 
-Other functions and classes
----------------------------
+Exceptions
+----------
 
-==================  =============================================
-Function            Description
-==================  =============================================
-StatisticsError     Exception for statistics errors.
-==================  =============================================
+A single exception is defined: StatisticsError is a subclass of ValueError.
 
 """
 
@@ -223,7 +219,7 @@ def _decimal_to_ratio(d):
     (26, 10)
 
     """
-    sign, digits, exp = d.as_tuple()        
+    sign, digits, exp = d.as_tuple()
     if exp in ('F', 'n', 'N'):  # INF, NAN, sNAN
         assert not d.is_finite()
         raise ValueError
@@ -293,19 +289,7 @@ def _counts(data):
 # === Measures of central tendency (averages) ===
 
 def mean(data):
-    """mean(data) -> arithmetic mean of data
-
-    Return the sample arithmetic mean of ``data``, a sequence or iterator
-    of real-valued numbers.
-
-    The arithmetic mean is the sum of the data divided by the number of
-    data points. It is commonly called "the average", although it is only
-    one of many different mathematical averages. It is a measure of the
-    central location of the data.
-
-
-    Examples
-    --------
+    """Return the sample arithmetic mean of data.
 
     >>> mean([1, 2, 3, 4, 4])
     2.8
@@ -318,25 +302,7 @@ def mean(data):
     >>> mean([D("0.5"), D("0.75"), D("0.625"), D("0.375")])
     Decimal('0.5625')
 
-
-    Errors
-    ------
-
     If ``data`` is empty, StatisticsError will be raised.
-
-
-    Additional Information
-    ----------------------
-
-    The mean is strongly effected by outliers and is not a robust estimator
-    for central location: the mean is not necessarily a typical example of
-    the data points. For more robust, although less efficient, measures of
-    central location, see ``median`` and ``mode``.
-
-    The sample mean gives an unbiased estimate of the true population mean,
-    which means that on average, ``mean(sample)`` will equal the mean of
-    the entire population. If you call ``mean`` with the entire population,
-    the result returned is the population mean \N{GREEK SMALL LETTER MU}.
     """
     if iter(data) is data:
         data = list(data)
@@ -350,22 +316,15 @@ def mean(data):
 def median(data):
     """Return the median (middle value) of numeric data.
 
-    The median is a robust measure of central location, and is less affected
-    by the presence of outliers in your data. This uses the "mean-of-middle-two"
-    method of calculating the median: when the number of data points is odd,
-    the middle data point is returned:
-
-    >>> median([1, 3, 5])
-    3
-
+    When the number of data points is odd, return the middle data point.
     When the number of data points is even, the median is interpolated by
     taking the average of the two middle values:
 
+    >>> median([1, 3, 5])
+    3
     >>> median([1, 3, 5, 7])
     4.0
 
-    This is suited for when your data is discrete, and you don't mind that
-    the median may not be an actual data point.
     """
     data = sorted(data)
     n = len(data)
@@ -381,17 +340,14 @@ def median(data):
 def median_low(data):
     """Return the low median of numeric data.
 
-    The low median is always a member of the data set. When the number
-    of data points is odd, the middle value is returned. When it is
-    even, the smaller of the two middle values is returned.
+    When the number of data points is odd, the middle value is returned.
+    When it is even, the smaller of the two middle values is returned.
 
     >>> median_low([1, 3, 5])
     3
     >>> median_low([1, 3, 5, 7])
     3
 
-    Use the low median when your data are discrete and you prefer the median
-    to be an actual data point rather than interpolated.
     """
     data = sorted(data)
     n = len(data)
@@ -406,17 +362,14 @@ def median_low(data):
 def median_high(data):
     """Return the high median of data.
 
-    The high median is always a member of the data set. When the number of
-    data points is odd, the middle value is returned. When it is even, the
-    larger of the two middle values is returned.
+    When the number of data points is odd, the middle value is returned.
+    When it is even, the larger of the two middle values is returned.
 
     >>> median_high([1, 3, 5])
     3
     >>> median_high([1, 3, 5, 7])
     5
 
-    Use the high median when your data are discrete and you prefer the median
-    to be an actual data point rather than interpolated.
     """
     data = sorted(data)
     n = len(data)
@@ -451,10 +404,6 @@ def median_grouped(data, interval=1):
     This function does not check whether the data points are at least
     ``interval`` apart.
     """
-    # References:
-    # http://www.ualberta.ca/~opscan/median.html
-    # https://mail.gnome.org/archives/gnumeric-list/2011-April/msg00018.html
-    # https://projects.gnome.org/gnumeric/doc/gnumeric-function-SSMEDIAN.shtml
     data = sorted(data)
     n = len(data)
     if n == 0:
@@ -479,22 +428,7 @@ def median_grouped(data, interval=1):
 
 
 def mode(data):
-    """mode(data) -> most common value
-
-    Return the most common data point from discrete data. The mode (when it
-    exists) is the most typical value, and is a robust measure of central
-    location.
-
-
-    Arguments
-    ---------
-
-    data
-        Non-empty iterable of data points, not necessarily numeric.
-
-
-    Examples
-    --------
+    """Return the most common data point from discrete or nominal data.
 
     ``mode`` assumes discrete data, and returns a single value. This is the
     standard treatment of the mode as commonly taught in schools:
@@ -506,10 +440,6 @@ def mode(data):
 
     >>> mode(["red", "blue", "blue", "red", "green", "red", "red"])
     'red'
-
-
-    Errors
-    ------
 
     If there is not exactly one most common value, ``mode`` will raise
     StatisticsError.
@@ -558,32 +488,16 @@ def _ss(data, c=None):
 
 
 def variance(data, xbar=None):
-    """variance(data [, xbar]) -> sample variance of numeric data
+    """Return the sample variance of data.
 
-    Return the sample variance of ``data``, a sequence of real-valued numbers.
-
-    Variance, or second moment about the mean, is a measure of the variability
-    (spread or dispersion) of data. A large variance indicates that the data
-    is spread out; a small variance indicates it is clustered closely around
-    the mean.
+    data should be an iterable of Real-valued numbers, with at least two
+    values. The optional argument xbar, if given, should be the mean of
+    the data. If it is missing or None, the mean is automatically calculated.
 
     Use this function when your data is a sample from a population. To
     calculate the variance from the entire population, see ``pvariance``.
 
-
-    Arguments
-    ---------
-
-    data
-        sequence of numeric (non-complex) data with at least two values.
-
-    xbar
-        (Optional) Mean of the sample data. If missing or None (the default),
-        the mean is automatically caclulated.
-
-
-    Examples
-    --------
+    Examples:
 
     >>> data = [2.75, 1.75, 1.25, 0.25, 0.5, 1.25, 3.5]
     >>> variance(data)
@@ -596,9 +510,9 @@ def variance(data, xbar=None):
     >>> variance(data, m)
     1.3720238095238095
 
-        .. CAUTION:: Using arbitrary values for ``xbar`` may lead to invalid
-           or impossible results.
-
+    This function does not check that ``xbar`` is actually the mean of
+    ``data``. Giving arbitrary values for ``xbar`` may lead to invalid or
+    impossible results.
 
     Decimals and Fractions are supported:
 
@@ -610,17 +524,6 @@ def variance(data, xbar=None):
     >>> variance([F(1, 6), F(1, 2), F(5, 3)])
     Fraction(67, 108)
 
-
-    Additional Information
-    ----------------------
-
-    This is the sample variance s\N{SUPERSCRIPT TWO} with Bessel's correction,
-    also known as variance with N-1 degrees of freedom. Provided the data
-    points are representative (e.g. independent and identically distributed),
-    the result will be an unbiased estimate of the population variance.
-
-    If you somehow know the population mean \N{GREEK SMALL LETTER MU} you
-    should use it with the ``pvariance`` function to get the sample variance.
     """
     if iter(data) is data:
         data = list(data)
@@ -632,34 +535,17 @@ def variance(data, xbar=None):
 
 
 def pvariance(data, mu=None):
-    """pvariance(data [, mu]) -> population variance of numeric data
+    """Return the population variance of ``data``.
 
-    Return the population variance of ``data``, a sequence of real-valued
-    numbers.
-
-    Variance, or second moment about the mean, is a measure of the variability
-    (spread or dispersion) of data. A large variance indicates that the data
-    is spread out; a small variance indicates it is clustered closely around
-    the mean.
+    data should be an iterable of Real-valued numbers, with at least one
+    value. The optional argument mu, if given, should be the mean of
+    the data. If it is missing or None, the mean is automatically calculated.
 
     Use this function to calculate the variance from the entire population.
     To estimate the variance from a sample, the ``variance`` function is
     usually a better choice.
 
-    Arguments
-    ---------
-
-    data
-        non-empty sequence of numeric (non-complex) data.
-
-    mu
-        (Optional) Mean of the population from which your data has been taken.
-        If ``mu`` is missing or None (the default), the data is presumed to be
-        the entire population, and the mean automatically calculated.
-
-
-    Examples
-    --------
+    Examples:
 
     >>> data = [0.0, 0.25, 0.25, 1.25, 1.5, 1.75, 2.75, 3.25]
     >>> pvariance(data)
@@ -672,8 +558,9 @@ def pvariance(data, mu=None):
     >>> pvariance(data, mu)
     1.25
 
-        .. CAUTION:: Using arbitrary values for ``mu`` may lead to invalid
-           or impossible results.
+    This function does not check that ``mu`` is actually the mean of ``data``.
+    Giving arbitrary values for ``mu`` may lead to invalid or impossible
+    results.
 
     Decimals and Fractions are supported:
 
@@ -685,20 +572,6 @@ def pvariance(data, mu=None):
     >>> pvariance([F(1, 4), F(5, 4), F(1, 2)])
     Fraction(13, 72)
 
-
-    Additional Information
-    ----------------------
-
-    When called with the entire population, this gives the population variance
-    \N{GREEK SMALL LETTER SIGMA}\N{SUPERSCRIPT TWO}. When called on a sample
-    instead, this is the biased sample variance s\N{SUPERSCRIPT TWO}, also
-    known as variance with N degrees of freedom.
-
-    If you somehow know the true population mean \N{GREEK SMALL LETTER MU},
-    you may use this function to calculate the sample variance, giving the
-    known population mean as the second argument. Provided the data points are
-    representative (e.g. independent and identically distributed), the result
-    will be an unbiased estimate of the population variance.
     """
     if iter(data) is data:
         data = list(data)
@@ -710,10 +583,9 @@ def pvariance(data, mu=None):
 
 
 def stdev(data, xbar=None):
-    """stdev(data [, xbar]) -> sample standard deviation of numeric data
+    """Return the square root of the sample variance.
 
-    Return the square root of the sample variance. See ``variance`` for
-    arguments and other details.
+    See ``variance`` for arguments and other details.
 
     >>> stdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])
     1.0810874155219827
@@ -727,10 +599,9 @@ def stdev(data, xbar=None):
 
 
 def pstdev(data, mu=None):
-    """pstdev(data [, mu]) -> population standard deviation of numeric data
+    """Return the square root of the population variance.
 
-    Return the square root of the population variance. See ``pvariance`` for
-    arguments and other details.
+    See ``pvariance`` for arguments and other details.
 
     >>> pstdev([1.5, 2.5, 2.5, 2.75, 3.25, 4.75])
     0.986893273527251
@@ -741,5 +612,4 @@ def pstdev(data, mu=None):
         return var.sqrt()
     except AttributeError:
         return math.sqrt(var)
-
 
